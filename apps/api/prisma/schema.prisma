@@ -40,6 +40,7 @@ model Account {
   oauthSub  String?   @unique
   country   String?
   createdAt DateTime  @default(now())
+  suspended Boolean   @default(false)
   passwordHash String?
   events    AdEvent[]
   payouts   Payout[]
@@ -103,4 +104,11 @@ model BlockPurchase {
   createdAt   DateTime @default(now())
 
   @@index([campaignId])
+}
+
+model Killswitch {
+  id        String   @id @default(cuid())
+  scope     String   @unique
+  active    Boolean  @default(false)
+  updatedAt DateTime @updatedAt
 }

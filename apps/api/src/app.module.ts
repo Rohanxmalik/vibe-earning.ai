@@ -8,9 +8,10 @@ import { AdminModule } from "./admin/admin.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { AuthModule } from "./auth/auth.module";
 import { LedgerModule } from "./ledger/ledger.module";
+import { PaymentsModule } from "./payments/payments.module";
 
 @Module({
-  imports: [PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule],
+  imports: [PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule],
   controllers: [HealthController],
 })
 export class AppModule {}

@@ -13,5 +13,6 @@ import { AdvertiserController } from "./advertiser.controller";
   imports: [AuthModule, LedgerModule, PaymentsModule],
   controllers: [AdvertiserAuthController, AdvertiserController],
   providers: [AdvertiserAuthService, CampaignService, BlockPurchaseService, CampaignStatsService],
+  exports: [CampaignService],
 })
 export class AdvertiserModule {}

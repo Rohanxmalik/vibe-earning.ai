@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  copy      String
+  url       String
+  iconUrl   String?
+  isHouseAd Boolean  @default(false)
+  status    String   @default("active")
+  bids      Bid[]
+  createdAt DateTime @default(now())
+}
+
+model Bid {
+  id         String   @id @default(cuid())
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  campaignId String
+  surface    String
+  amount     Int
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+
+  @@index([surface, status])
+}

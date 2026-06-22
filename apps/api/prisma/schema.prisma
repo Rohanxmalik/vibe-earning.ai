@@ -30,6 +30,16 @@ model Bid {
   @@index([surface, status])
 }
 
+model Account {
+  id        String    @id @default(cuid())
+  type      String    @default("dev") // dev | advertiser | admin
+  email     String?
+  oauthSub  String?   @unique
+  country   String?
+  createdAt DateTime  @default(now())
+  events    AdEvent[]
+}
+
 model AdEvent {
   id         String   @id @default(cuid())
   installId  String
@@ -41,6 +51,8 @@ model AdEvent {
   valid      Boolean
   reason     String?  // view_too_short | spacing | hourly_cap | daily_cap ; null when valid
   createdAt  DateTime @default(now())
+  accountId  String?
+  account    Account? @relation(fields: [accountId], references: [id])
 
   @@unique([installId, nonce])
   @@index([campaignId, type, valid])

@@ -7,9 +7,10 @@ import { ServeModule } from "./serve/serve.module";
 import { AdminModule } from "./admin/admin.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { AuthModule } from "./auth/auth.module";
+import { LedgerModule } from "./ledger/ledger.module";
 
 @Module({
-  imports: [PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule],
+  imports: [PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule],
   controllers: [HealthController],
 })
 export class AppModule {}

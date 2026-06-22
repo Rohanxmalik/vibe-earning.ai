@@ -13,6 +13,6 @@ import { GoogleVerifier, GoogleVerifierImpl } from "./google-verifier";
     AuthGuard,
     { provide: GoogleVerifier, useClass: GoogleVerifierImpl },
   ],
-  exports: [AuthService, TokenService],
+  exports: [AuthService, TokenService, AuthGuard],
 })
 export class AuthModule {}

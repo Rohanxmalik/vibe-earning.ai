@@ -57,3 +57,16 @@ model AdEvent {
   @@unique([installId, nonce])
   @@index([campaignId, type, valid])
 }
+
+model LedgerEntry {
+  id        String   @id @default(cuid())
+  eventId   String   // the AdEvent that caused this entry (idempotency key)
+  account   String   // ledger account key, e.g. escrow:campaign:<id> | earnings:dev:<id> | revenue:platform
+  direction String   // debit | credit
+  amount    Int      // paise, always positive
+  currency  String   @default("INR")
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, account, direction])
+  @@index([account])
+}

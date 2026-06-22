@@ -207,6 +207,12 @@ Balances are derived sums over `ledger_entries`. Idempotency enforced by `ad_eve
 - **Redis down:** degrade gracefully to house ads / no-ad.
 - Idempotency keys required on every mutating money endpoint.
 
+### Security
+- **Verify every payment webhook signature** (Stripe `Stripe-Signature`, Razorpay `X-Razorpay-Signature`) before acting; reject unsigned/invalid payloads. This is the integrity boundary for all money-in confirmation.
+- **No hardcoded secrets** — all provider keys, OAuth secrets, and DB/Redis credentials via environment / secret manager; validated present at startup; `.env*` git-ignored.
+- Extension tokens stored only in OS keychain (VS Code SecretStorage); server stores salted IP hashes only.
+- Rate-limit `/serve` and `/events` per install; authorize every portal/admin action server-side.
+
 ---
 
 ## 13. Testing (vitest; target ≥80% coverage)

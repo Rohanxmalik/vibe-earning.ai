@@ -14,5 +14,11 @@ The pure core is unit-tested. This verifies the VS Code wiring end-to-end agains
    `docker compose exec -T postgres psql -U kbi -d kbi -c 'select "campaignId","surface","visibleMs","valid" from "AdEvent" order by "createdAt" desc limit 1;'`
    Expected: a row with `valid = t` and a `visibleMs` ≈ the time between the two commands.
 
+## Sign in (dev)
+The api verifies Google ID tokens; the real OAuth consent UI is a follow-up. For now:
+1. Obtain a Google ID token for your test OAuth client (e.g. via the OAuth Playground) OR run the api with the verifier mocked.
+2. Command Palette → **Kickbacks: Sign in (dev: paste Google ID token)** → paste it.
+3. Re-run the simulate/end commands; the recorded `AdEvent` should now have a non-null `accountId`.
+
 ## Real adapters (NOT yet implemented)
 `claudeCode.ts` / `codex.ts` / `geminiCli.ts` are stubs (`isAvailable() === false`). Implementing real wait-state detection + line rendering for each agent is a separate research task — verify each against its live agent before enabling.

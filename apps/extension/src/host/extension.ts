@@ -17,8 +17,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await context.globalState.update(INSTALL_KEY, installId);
   }
 
-  let cachedToken: string | undefined;
-  context.secrets.get("kickbacks.authToken").then((t) => { cachedToken = t; });
+  let cachedToken: string | undefined = await context.secrets.get("kickbacks.authToken");
+  const tokenSub = context.secrets.onDidChange(async (e) => {
+    if (e.key === "kickbacks.authToken") cachedToken = await context.secrets.get("kickbacks.authToken");
+  });
 
   const api = new ApiClient(API_BASE, fetch, () => cachedToken);
   const killswitch = new Killswitch(`${API_BASE}/config`, fetch);
@@ -49,7 +51,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const simulate = vscode.commands.registerCommand("kickbacks.simulateWait", () => mock.fireWaitStart());
   const endWait = vscode.commands.registerCommand("kickbacks.endWait", () => mock.fireWaitEnd());
 
-  context.subscriptions.push(status, focusSub, simulate, endWait, { dispose: () => { clearInterval(timer); orch.stop(); } });
+  // Dev sign-in: paste a Google ID token, exchange for a KBI token, store it.
+  // Real OAuth consent UI is a follow-up (see MANUAL-TEST.md).
+  const signIn = vscode.commands.registerCommand("kickbacks.signIn", async () => {
+    const idToken = await vscode.window.showInputBox({ prompt: "Paste a Google ID token", password: true });
+    if (!idToken) return;
+    try {
+      const token = await api.loginWithGoogle(idToken);
+      await context.secrets.store("kickbacks.authToken", token);
+      void vscode.window.showInformationMessage("Kickbacks: signed in.");
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Kickbacks sign-in failed: ${String(err)}`);
+    }
+  });
+
+  context.subscriptions.push(status, focusSub, tokenSub, simulate, endWait, signIn, { dispose: () => { clearInterval(timer); orch.stop(); } });
 }
 
 export function deactivate(): void {}

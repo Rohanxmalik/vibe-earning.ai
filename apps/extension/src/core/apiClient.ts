@@ -57,4 +57,15 @@ export class ApiClient {
       }
     }
   }
+
+  async loginWithGoogle(idToken: string): Promise<string> {
+    const res = await this.fetchFn(`${this.baseUrl}/auth/google`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ idToken }),
+    });
+    if (!res.ok) throw new Error(`login failed: ${res.status}`);
+    const body = (await res.json()) as { token: string };
+    return body.token;
+  }
 }

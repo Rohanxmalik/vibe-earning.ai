@@ -38,4 +38,11 @@ describe("ApiClient", () => {
     await c.flushQueue();
     expect(c.queueLength).toBe(0);
   });
+
+  it("loginWithGoogle posts the idToken and returns the KBI token", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ token: "kbi.jwt", account: { id: "a", email: null, type: "dev" } }));
+    const c = new ApiClient("http://api", fetchFn as unknown as typeof fetch);
+    expect(await c.loginWithGoogle("idtok")).toBe("kbi.jwt");
+    expect(fetchFn).toHaveBeenCalledWith("http://api/auth/google", expect.objectContaining({ method: "POST" }));
+  });
 });

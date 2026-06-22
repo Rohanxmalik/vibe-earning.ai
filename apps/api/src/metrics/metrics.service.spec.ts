@@ -2,9 +2,11 @@ import { Test } from "@nestjs/testing";
 import { MetricsService } from "./metrics.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
+import { LedgerService } from "../ledger/ledger.service";
 
 const prismaMock = { adEvent: { findUnique: jest.fn(), create: jest.fn() } };
 const rateMock = { takeSpacingSlot: jest.fn(), incrCaps: jest.fn() };
+const ledgerMock = { postForEvent: jest.fn() };
 
 const impression = {
   installId: "i1", campaignId: "c1", surface: "codex-panel" as const,
@@ -18,12 +20,13 @@ describe("MetricsService", () => {
     rateMock.takeSpacingSlot.mockResolvedValue(true);
     rateMock.incrCaps.mockResolvedValue({ withinHourly: true, withinDaily: true });
     prismaMock.adEvent.findUnique.mockResolvedValue(null);
-    prismaMock.adEvent.create.mockResolvedValue({});
+    prismaMock.adEvent.create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({ id: "ev1", ...args.data }));
     const mod = await Test.createTestingModule({
       providers: [
         MetricsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: RateLimitService, useValue: rateMock },
+        { provide: LedgerService, useValue: ledgerMock },
       ],
     }).compile();
     svc = mod.get(MetricsService);
@@ -35,6 +38,7 @@ describe("MetricsService", () => {
     expect(prismaMock.adEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ valid: true, reason: null }) }),
     );
+    expect(ledgerMock.postForEvent).toHaveBeenCalledWith(expect.objectContaining({ id: "ev1", valid: true }));
   });
 
   it("is idempotent on a duplicate (installId, nonce)", async () => {
@@ -48,6 +52,7 @@ describe("MetricsService", () => {
     const r = await svc.ingest({ ...impression, nonce: "nonce_bbbb", visibleMs: 1000 });
     expect(r).toMatchObject({ valid: false, reason: "view_too_short" });
     expect(rateMock.takeSpacingSlot).not.toHaveBeenCalled(); // no slot/cap spend on short views
+    expect(ledgerMock.postForEvent).not.toHaveBeenCalled();
   });
 
   it("marks an impression invalid when spacing is refused", async () => {

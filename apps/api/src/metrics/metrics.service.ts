@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { EventIngest, EventResult } from "@kbi/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
+import { LedgerService } from "../ledger/ledger.service";
 import { minViewMs } from "./constants";
 
 @Injectable()
@@ -9,6 +10,7 @@ export class MetricsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rateLimit: RateLimitService,
+    private readonly ledger: LedgerService,
   ) {}
 
   async ingest(e: EventIngest, accountId: string | null = null): Promise<EventResult> {
@@ -34,8 +36,9 @@ export class MetricsService {
     }
 
     // 3. Persist; tolerate the rare concurrent-duplicate race via the unique constraint.
+    let created: { id: string; valid: boolean } | null = null;
     try {
-      await this.prisma.adEvent.create({
+      created = await this.prisma.adEvent.create({
         data: {
           installId: e.installId, campaignId: e.campaignId, surface: e.surface,
           type: e.type, nonce: e.nonce, visibleMs: e.visibleMs, valid, reason, accountId,
@@ -49,6 +52,13 @@ export class MetricsService {
         return { deduped: true, valid: dup?.valid ?? false, reason: dup?.reason ?? null };
       }
       throw err;
+    }
+
+    if (created.valid) {
+      await this.ledger.postForEvent({
+        id: created.id, campaignId: e.campaignId, surface: e.surface,
+        type: e.type, valid: true, accountId,
+      });
     }
     return { deduped: false, valid, reason };
   }

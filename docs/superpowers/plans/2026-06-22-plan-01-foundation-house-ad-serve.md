@@ -416,7 +416,7 @@ git commit -m "feat(shared): add Surface enum and serve DTOs"
 module.exports = {
   moduleFileExtensions: ["js", "json", "ts"],
   rootDir: "src",
-  testRegex: ".*\\.spec\\.ts$",
+  testRegex: ".*(\\.spec|-spec)\\.ts$", // matches *.spec.ts AND *-spec.ts (e.g. serve.e2e-spec.ts)
   transform: { "^.+\\.ts$": "ts-jest" },
   testEnvironment: "node",
   setupFiles: ["dotenv/config"],
@@ -512,8 +512,14 @@ git commit -m "feat(api): nestjs skeleton with health endpoint"
 - [ ] **Step 1: Create `apps/api/prisma/schema.prisma`**
 
 ```prisma
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 model Campaign {
   id        String   @id @default(cuid())
@@ -545,6 +551,8 @@ model Bid {
 Run (from repo root): `cp .env.example apps/api/.env`
 Then: `pnpm --filter @kbi/api prisma:migrate -- --name init`
 Expected: migration `init` applied; `@prisma/client` generated. (`apps/api/.env` is git-ignored by the root `.gitignore`.)
+
+> **If `migrate dev` hangs/errors on an advisory lock in a non-interactive shell** (Prisma 5 WASM engine): apply the schema with `pnpm --filter @kbi/api exec prisma db push`, then record the migration with `prisma migrate resolve --applied <name>` (or set `PRISMA_CLI_QUERY_ENGINE_TYPE=binary`). End state must be: tables exist **and** `_prisma_migrations` has the record.
 
 - [ ] **Step 3: Implement `src/prisma/prisma.service.ts`**
 
@@ -814,13 +822,13 @@ import { ServeService } from "./serve.service";
 
 @Controller("serve")
 export class ServeController {
-  constructor(private readonly serve: ServeService) {}
+  constructor(private readonly serveService: ServeService) {}
 
   @Get()
   async serve(@Query() raw: unknown) {
     const parsed = serveQuerySchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    const ad = await this.serve.pickAd(parsed.data.surface);
+    const ad = await this.serveService.pickAd(parsed.data.surface);
     return { ad }; // ad is null when no inventory — extension renders nothing
   }
 }

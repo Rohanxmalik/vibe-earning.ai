@@ -695,7 +695,18 @@ export class RankingService {
 Run: `pnpm --filter @kbi/api test -- ranking`
 Expected: PASS (2 tests).
 
-- [ ] **Step 7: Register RedisModule in `app.module.ts`** (add to imports), then commit
+- [ ] **Step 7: Create `src/ranking/ranking.module.ts`** (global → `/serve`, admin, and the e2e test all share one instance; avoids duplicate providers + makes `app.get(RankingService)` resolvable)
+
+```ts
+import { Global, Module } from "@nestjs/common";
+import { RankingService } from "./ranking.service";
+
+@Global()
+@Module({ providers: [RankingService], exports: [RankingService] })
+export class RankingModule {}
+```
+
+- [ ] **Step 8: Register `RedisModule` and `RankingModule` in `app.module.ts`** (add both to `imports`), then commit
 
 ```bash
 git add apps/api/src/redis apps/api/src/ranking apps/api/src/app.module.ts
@@ -821,9 +832,9 @@ export class ServeController {
 import { Module } from "@nestjs/common";
 import { ServeController } from "./serve.controller";
 import { ServeService } from "./serve.service";
-import { RankingService } from "../ranking/ranking.service";
 
-@Module({ controllers: [ServeController], providers: [ServeService, RankingService] })
+// RankingService comes from the global RankingModule.
+@Module({ controllers: [ServeController], providers: [ServeService] })
 export class ServeModule {}
 ```
 
@@ -986,9 +997,9 @@ export class AdminController {
 ```ts
 import { Module } from "@nestjs/common";
 import { AdminController } from "./admin.controller";
-import { RankingService } from "../ranking/ranking.service";
 
-@Module({ controllers: [AdminController], providers: [RankingService] })
+// PrismaService + RankingService come from their global modules.
+@Module({ controllers: [AdminController] })
 export class AdminModule {}
 ```
 
@@ -999,11 +1010,12 @@ import { Module } from "@nestjs/common";
 import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
+import { RankingModule } from "./ranking/ranking.module";
 import { ServeModule } from "./serve/serve.module";
 import { AdminModule } from "./admin/admin.module";
 
 @Module({
-  imports: [PrismaModule, RedisModule, ServeModule, AdminModule],
+  imports: [PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule],
   controllers: [HealthController],
 })
 export class AppModule {}

@@ -20,6 +20,8 @@ describe("/serve (e2e)", () => {
     const ranking = app.get(RankingService);
 
     await redis.flushall();
+    // Delete children before campaigns (FK): block purchases + bids reference Campaign.
+    await prisma.blockPurchase.deleteMany();
     await prisma.bid.deleteMany();
     await prisma.campaign.deleteMany();
     const house = await prisma.campaign.create({

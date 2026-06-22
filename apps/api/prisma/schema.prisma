@@ -38,6 +38,7 @@ model Account {
   country   String?
   createdAt DateTime  @default(now())
   events    AdEvent[]
+  payouts   Payout[]
 }
 
 model AdEvent {
@@ -69,4 +70,18 @@ model LedgerEntry {
 
   @@unique([eventId, account, direction])
   @@index([account])
+}
+
+model Payout {
+  id          String   @id @default(cuid())
+  account     Account  @relation(fields: [accountId], references: [id])
+  accountId   String
+  provider    String   // stripe | razorpay
+  amountPaise Int
+  currency    String   @default("INR")
+  status      String   // paid | pending | failed
+  providerRef String?
+  createdAt   DateTime @default(now())
+
+  @@index([accountId])
 }

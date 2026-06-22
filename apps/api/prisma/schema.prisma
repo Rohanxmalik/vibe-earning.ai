@@ -16,6 +16,9 @@ model Campaign {
   status    String   @default("active")
   bids      Bid[]
   createdAt DateTime @default(now())
+  advertiserId String?
+  advertiser   Account?        @relation(fields: [advertiserId], references: [id])
+  purchases    BlockPurchase[]
 }
 
 model Bid {
@@ -37,8 +40,10 @@ model Account {
   oauthSub  String?   @unique
   country   String?
   createdAt DateTime  @default(now())
+  passwordHash String?
   events    AdEvent[]
   payouts   Payout[]
+  campaigns Campaign[]
 }
 
 model AdEvent {
@@ -84,4 +89,18 @@ model Payout {
   createdAt   DateTime @default(now())
 
   @@index([accountId])
+}
+
+model BlockPurchase {
+  id          String   @id @default(cuid())
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+  campaignId  String
+  quantity    Int
+  amountPaise Int
+  currency    String   @default("INR")
+  status      String   // paid | pending | failed
+  providerRef String?
+  createdAt   DateTime @default(now())
+
+  @@index([campaignId])
 }

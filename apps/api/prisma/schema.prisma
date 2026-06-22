@@ -29,3 +29,19 @@ model Bid {
 
   @@index([surface, status])
 }
+
+model AdEvent {
+  id         String   @id @default(cuid())
+  installId  String
+  campaignId String
+  surface    String
+  type       String   // impression | click
+  nonce      String
+  visibleMs  Int      @default(0)
+  valid      Boolean
+  reason     String?  // view_too_short | spacing | hourly_cap | daily_cap ; null when valid
+  createdAt  DateTime @default(now())
+
+  @@unique([installId, nonce])
+  @@index([campaignId, type, valid])
+}

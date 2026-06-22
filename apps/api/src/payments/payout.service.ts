@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { PaymentRouter } from "./payment-router";
@@ -19,6 +19,7 @@ export class PayoutService {
     }
 
     const account = await this.prisma.account.findUnique({ where: { id: accountId } });
+    if (account?.suspended) throw new ForbiddenException("account_suspended");
     const provider = this.router.forCountry(account?.country ?? null);
     const result = await provider.payout({ payeeRef: accountId, amountPaise: balance, currency: "INR" });
 

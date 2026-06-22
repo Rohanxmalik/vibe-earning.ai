@@ -55,4 +55,11 @@ describe("PayoutService", () => {
     expect(prismaMock.payout.create).toHaveBeenCalled();
     expect(ledgerMock.recordPayout).not.toHaveBeenCalled();
   });
+
+  it("refuses payout for a suspended account", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN", suspended: true });
+    await expect(svc.requestPayout("acc1")).rejects.toBeTruthy();
+    expect(provider.payout).not.toHaveBeenCalled();
+  });
 });

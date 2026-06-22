@@ -3,9 +3,10 @@ import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RedisModule } from "./redis/redis.module";
 import { RankingModule } from "./ranking/ranking.module";
+import { ServeModule } from "./serve/serve.module";
 
 @Module({
-  imports: [PrismaModule, RedisModule, RankingModule],
+  imports: [PrismaModule, RedisModule, RankingModule, ServeModule],
   controllers: [HealthController],
 })
 export class AppModule {}

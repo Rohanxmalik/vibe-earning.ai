@@ -35,19 +35,19 @@ describe("auction escrow-gating (e2e)", () => {
 
     // Funded campaign A (lower bid).
     const a = await request(app.getHttpServer()).post("/advertiser/campaigns").set("authorization", `Bearer ${token}`)
-      .send({ copy: "FUNDED-A", url: "https://x.dev", surface: "codex-panel", bidPerBlockPaise: 10000 });
+      .send({ copy: "FUNDED-A", url: "https://x.dev", surface: "gemini-cli-terminal", bidPerBlockPaise: 10000 });
     aId = a.body.id;
     await request(app.getHttpServer()).post(`/advertiser/campaigns/${aId}/blocks`).set("authorization", `Bearer ${token}`).send({ quantity: 3 });
 
     // Unfunded campaign B (HIGHER bid → would rank first, but no escrow).
     const b = await request(app.getHttpServer()).post("/advertiser/campaigns").set("authorization", `Bearer ${token}`)
-      .send({ copy: "UNFUNDED-B", url: "https://x.dev", surface: "codex-panel", bidPerBlockPaise: 30000 });
+      .send({ copy: "UNFUNDED-B", url: "https://x.dev", surface: "gemini-cli-terminal", bidPerBlockPaise: 30000 });
     bId = b.body.id;
   });
   afterAll(async () => { await app.close(); });
 
   it("serves nothing while campaigns are still pending moderation", async () => {
-    const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
+    const res = await request(app.getHttpServer()).get("/serve?surface=gemini-cli-terminal").expect(200);
     expect(res.body.ad).toBeNull(); // funded-but-unapproved A must not serve
   });
 
@@ -55,7 +55,7 @@ describe("auction escrow-gating (e2e)", () => {
     for (const id of [aId, bId]) {
       await request(app.getHttpServer()).post(`/admin/campaigns/${id}/approve`).set("x-admin-key", ADMIN).expect(201);
     }
-    const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
+    const res = await request(app.getHttpServer()).get("/serve?surface=gemini-cli-terminal").expect(200);
     expect(res.body.ad.copy).toBe("FUNDED-A");
   });
 });

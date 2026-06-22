@@ -4,10 +4,12 @@ import request from "supertest";
 import { AppModule } from "../app.module";
 import { GoogleVerifier } from "../auth/google-verifier";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisService } from "../redis/redis.service";
 
 describe("/ledger (e2e)", () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let redis: RedisService;
   let token: string;
   let accountId: string;
   let campaignId: string;
@@ -20,7 +22,12 @@ describe("/ledger (e2e)", () => {
     app = mod.createNestApplication();
     await app.init();
     prisma = app.get(PrismaService);
+    redis = app.get(RedisService);
 
+    // Clear the shared IP-cluster set: every e2e request comes from the loopback IP,
+    // so installs counted by other event-posting specs would otherwise trip the
+    // ip_cluster fraud flag here and the impression wouldn't post any ledger entries.
+    await redis.flushall();
     await prisma.account.deleteMany({ where: { oauthSub: "g-ledger" } });
     const login = await request(app.getHttpServer()).post("/auth/google").send({ idToken: "x".repeat(20) });
     token = login.body.token;

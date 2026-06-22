@@ -6,11 +6,13 @@ import { RazorpayProvider } from "./razorpay.provider";
 import { PaymentRouter } from "./payment-router";
 import { PayoutService } from "./payout.service";
 import { PayoutsController } from "./payouts.controller";
+import { WebhookService } from "./webhook.service";
+import { WebhookController } from "./webhook.controller";
 
 @Module({
   imports: [AuthModule, LedgerModule],
-  controllers: [PayoutsController],
-  providers: [StripeProvider, RazorpayProvider, PaymentRouter, PayoutService],
+  controllers: [PayoutsController, WebhookController],
+  providers: [StripeProvider, RazorpayProvider, PaymentRouter, PayoutService, WebhookService],
   exports: [PaymentRouter],
 })
 export class PaymentsModule {}

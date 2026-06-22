@@ -73,4 +73,19 @@ describe("LedgerService", () => {
     ]);
     expect(await svc.balance("earnings:dev:acc1")).toBe(12);
   });
+
+  it("recordPayout posts a balanced debit(earnings)/credit(payouts) pair", async () => {
+    await svc.recordPayout("pay1", "acc1", 15000);
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ eventId: string; account: string; direction: string; amount: number }>;
+    expect(arg).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventId: "pay1", account: "earnings:dev:acc1", direction: "debit", amount: 15000 }),
+      expect.objectContaining({ eventId: "pay1", account: "payouts:cleared:acc1", direction: "credit", amount: 15000 }),
+    ]));
+  });
+
+  it("recordPayout is idempotent", async () => {
+    prismaMock.ledgerEntry.count.mockResolvedValue(2);
+    await svc.recordPayout("pay1", "acc1", 15000);
+    expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
+  });
 });

@@ -54,4 +54,17 @@ export class LedgerService {
   async earningsBalance(accountId: string): Promise<number> {
     return this.balance(`earnings:dev:${accountId}`);
   }
+
+  async recordPayout(payoutId: string, accountId: string, amountPaise: number): Promise<void> {
+    if (amountPaise <= 0) return;
+    const already = await this.prisma.ledgerEntry.count({ where: { eventId: payoutId } });
+    if (already > 0) return;
+    await this.prisma.ledgerEntry.createMany({
+      data: [
+        { eventId: payoutId, account: `earnings:dev:${accountId}`, direction: "debit", amount: amountPaise },
+        { eventId: payoutId, account: `payouts:cleared:${accountId}`, direction: "credit", amount: amountPaise },
+      ],
+      skipDuplicates: true,
+    });
+  }
 }

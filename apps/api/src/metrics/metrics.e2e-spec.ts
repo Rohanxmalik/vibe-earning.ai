@@ -45,4 +45,18 @@ describe("/events (e2e)", () => {
   it("400s on a malformed event", async () => {
     await request(app.getHttpServer()).post("/events").send({ installId: "x" }).expect(400);
   });
+
+  it("flags ip_cluster once >5 distinct installs hit from the same IP", async () => {
+    await redis.flushall(); // start the IP window clean (all requests share the loopback IP)
+    const results: Array<{ valid: boolean; reason: string | null }> = [];
+    for (let i = 1; i <= 6; i++) {
+      const res = await request(app.getHttpServer())
+        .post("/events")
+        .send(ev({ installId: `cluster_inst_${i}`, nonce: `cluster_nonce_${i}`, campaignId: "cluster_camp" }))
+        .expect(201);
+      results.push(res.body);
+    }
+    expect(results[0]).toMatchObject({ valid: true }); // first installs are fine
+    expect(results[5]).toMatchObject({ valid: false, reason: "ip_cluster" }); // 6th distinct install trips it
+  });
 });

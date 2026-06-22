@@ -56,13 +56,15 @@ model AdEvent {
   nonce      String
   visibleMs  Int      @default(0)
   valid      Boolean
-  reason     String?  // view_too_short | spacing | hourly_cap | daily_cap ; null when valid
+  reason     String?  // view_too_short | spacing | hourly_cap | daily_cap | ip_cluster ; null when valid
+  ipHash     String?  // server-derived salted hash of source IP; used for fraud clustering
   createdAt  DateTime @default(now())
   accountId  String?
   account    Account? @relation(fields: [accountId], references: [id])
 
   @@unique([installId, nonce])
   @@index([campaignId, type, valid])
+  @@index([ipHash])
 }
 
 model LedgerEntry {

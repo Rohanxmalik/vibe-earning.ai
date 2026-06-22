@@ -2,10 +2,12 @@ import { Test } from "@nestjs/testing";
 import { MetricsService } from "./metrics.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
+import { FraudService } from "./fraud.service";
 import { LedgerService } from "../ledger/ledger.service";
 
 const prismaMock = { adEvent: { findUnique: jest.fn(), create: jest.fn() } };
 const rateMock = { takeSpacingSlot: jest.fn(), incrCaps: jest.fn() };
+const fraudMock = { recordInstall: jest.fn() };
 const ledgerMock = { postForEvent: jest.fn() };
 
 const impression = {
@@ -19,6 +21,7 @@ describe("MetricsService", () => {
     jest.resetAllMocks();
     rateMock.takeSpacingSlot.mockResolvedValue(true);
     rateMock.incrCaps.mockResolvedValue({ withinHourly: true, withinDaily: true });
+    fraudMock.recordInstall.mockResolvedValue(1);
     prismaMock.adEvent.findUnique.mockResolvedValue(null);
     prismaMock.adEvent.create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({ id: "ev1", ...args.data }));
     const mod = await Test.createTestingModule({
@@ -26,6 +29,7 @@ describe("MetricsService", () => {
         MetricsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: RateLimitService, useValue: rateMock },
+        { provide: FraudService, useValue: fraudMock },
         { provide: LedgerService, useValue: ledgerMock },
       ],
     }).compile();
@@ -71,5 +75,21 @@ describe("MetricsService", () => {
     const r = await svc.ingest({ ...impression, type: "click", nonce: "nonce_eeee", visibleMs: 0 });
     expect(r).toEqual({ deduped: false, valid: true, reason: null });
     expect(rateMock.takeSpacingSlot).not.toHaveBeenCalled();
+  });
+
+  it("flags ip_cluster when too many distinct installs share an IP, before impression checks", async () => {
+    fraudMock.recordInstall.mockResolvedValue(6); // over default max of 5
+    const r = await svc.ingest({ ...impression, nonce: "nonce_ffff" }, null, "iphash_abc");
+    expect(fraudMock.recordInstall).toHaveBeenCalledWith("iphash_abc", "i1");
+    expect(r).toMatchObject({ valid: false, reason: "ip_cluster" });
+    expect(rateMock.takeSpacingSlot).not.toHaveBeenCalled(); // ip_cluster short-circuits impression checks
+    expect(ledgerMock.postForEvent).not.toHaveBeenCalled();
+  });
+
+  it("records the install but stays valid when under the IP cluster threshold", async () => {
+    fraudMock.recordInstall.mockResolvedValue(3);
+    const r = await svc.ingest({ ...impression, nonce: "nonce_gggg" }, null, "iphash_ok");
+    expect(fraudMock.recordInstall).toHaveBeenCalledWith("iphash_ok", "i1");
+    expect(r).toEqual({ deduped: false, valid: true, reason: null });
   });
 });

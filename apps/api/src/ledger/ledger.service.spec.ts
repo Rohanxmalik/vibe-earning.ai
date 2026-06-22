@@ -88,4 +88,13 @@ describe("LedgerService", () => {
     await svc.recordPayout("pay1", "acc1", 15000);
     expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
   });
+
+  it("fundEscrow debits cash and credits the campaign escrow", async () => {
+    await svc.fundEscrow("buy1", "c1", 200000);
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; direction: string; amount: number }>;
+    expect(arg).toEqual(expect.arrayContaining([
+      expect.objectContaining({ account: "cash:platform", direction: "debit", amount: 200000 }),
+      expect.objectContaining({ account: "escrow:campaign:c1", direction: "credit", amount: 200000 }),
+    ]));
+  });
 });

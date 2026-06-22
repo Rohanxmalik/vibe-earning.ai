@@ -67,4 +67,21 @@ export class LedgerService {
       skipDuplicates: true,
     });
   }
+
+  async fundEscrow(sourceId: string, campaignId: string, amountPaise: number): Promise<void> {
+    if (amountPaise <= 0) return;
+    const already = await this.prisma.ledgerEntry.count({ where: { eventId: sourceId } });
+    if (already > 0) return;
+    await this.prisma.ledgerEntry.createMany({
+      data: [
+        { eventId: sourceId, account: "cash:platform", direction: "debit", amount: amountPaise },
+        { eventId: sourceId, account: `escrow:campaign:${campaignId}`, direction: "credit", amount: amountPaise },
+      ],
+      skipDuplicates: true,
+    });
+  }
+
+  async escrowBalance(campaignId: string): Promise<number> {
+    return this.balance(`escrow:campaign:${campaignId}`);
+  }
 }

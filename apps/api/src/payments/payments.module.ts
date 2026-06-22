@@ -11,5 +11,6 @@ import { PayoutsController } from "./payouts.controller";
   imports: [AuthModule, LedgerModule],
   controllers: [PayoutsController],
   providers: [StripeProvider, RazorpayProvider, PaymentRouter, PayoutService],
+  exports: [PaymentRouter],
 })
 export class PaymentsModule {}

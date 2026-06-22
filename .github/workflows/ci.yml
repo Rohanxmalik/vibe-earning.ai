@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kbi
+          POSTGRES_PASSWORD: kbi
+          POSTGRES_DB: kbi
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kbi"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://kbi:kbi@localhost:5432/kbi?schema=public
+      REDIS_URL: redis://localhost:6379
+      AUTH_JWT_SECRET: ci-jwt-secret
+      ADMIN_API_KEY: dev-admin-key-change-me
+      GOOGLE_CLIENT_ID: test-client-id
+      RAZORPAY_WEBHOOK_SECRET: dev-razorpay-webhook-secret
+      STRIPE_WEBHOOK_SECRET: dev-stripe-webhook-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package (api Jest resolves @kbi/shared from dist)
+        run: pnpm --filter @kbi/shared build
+
+      - name: Generate Prisma client + apply migrations
+        working-directory: apps/api
+        run: |
+          pnpm exec prisma generate
+          pnpm exec prisma migrate deploy
+
+      - name: Lint (type-check)
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

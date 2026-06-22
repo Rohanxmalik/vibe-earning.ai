@@ -5,5 +5,6 @@ module.exports = {
   transform: { "^.+\\.ts$": "ts-jest" },
   testEnvironment: "node",
   setupFiles: ["dotenv/config"],
+  maxWorkers: 1,
   moduleNameMapper: { "^@kbi/shared$": "<rootDir>/../../../packages/shared/dist/index.js" },
 };

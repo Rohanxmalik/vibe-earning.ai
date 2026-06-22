@@ -11,7 +11,7 @@ export class MetricsService {
     private readonly rateLimit: RateLimitService,
   ) {}
 
-  async ingest(e: EventIngest): Promise<EventResult> {
+  async ingest(e: EventIngest, accountId: string | null = null): Promise<EventResult> {
     // 1. Dedupe first — retries (extension offline queue) must not spend spacing/caps.
     const existing = await this.prisma.adEvent.findUnique({
       where: { installId_nonce: { installId: e.installId, nonce: e.nonce } },
@@ -38,7 +38,7 @@ export class MetricsService {
       await this.prisma.adEvent.create({
         data: {
           installId: e.installId, campaignId: e.campaignId, surface: e.surface,
-          type: e.type, nonce: e.nonce, visibleMs: e.visibleMs, valid, reason,
+          type: e.type, nonce: e.nonce, visibleMs: e.visibleMs, valid, reason, accountId,
         },
       });
     } catch (err: unknown) {

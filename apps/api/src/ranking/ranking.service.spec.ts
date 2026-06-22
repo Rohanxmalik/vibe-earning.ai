@@ -25,4 +25,15 @@ describe("RankingService", () => {
   it("returns null when surface empty", async () => {
     expect(await ranking.topCampaign("codex-panel")).toBeNull();
   });
+
+  it("topCampaigns returns the ranked list high→low", async () => {
+    await ranking.upsertBid("codex-panel", "low", 100);
+    await ranking.upsertBid("codex-panel", "high", 500);
+    await ranking.upsertBid("codex-panel", "mid", 300);
+    expect(await ranking.topCampaigns("codex-panel", 10)).toEqual(["high", "mid", "low"]);
+  });
+
+  it("topCampaigns returns [] for an empty surface", async () => {
+    expect(await ranking.topCampaigns("codex-panel", 10)).toEqual([]);
+  });
 });

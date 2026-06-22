@@ -15,4 +15,9 @@ export class RankingService {
     const res = await this.redis.zrevrange(key(surface), 0, 0);
     return res.length ? res[0] : null;
   }
+
+  async topCampaigns(surface: string, n: number): Promise<string[]> {
+    if (n <= 0) return [];
+    return this.redis.zrevrange(key(surface), 0, n - 1);
+  }
 }

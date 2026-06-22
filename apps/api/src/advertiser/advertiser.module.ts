@@ -6,11 +6,12 @@ import { AdvertiserAuthService } from "./advertiser-auth.service";
 import { AdvertiserAuthController } from "./advertiser-auth.controller";
 import { CampaignService } from "./campaign.service";
 import { BlockPurchaseService } from "./block-purchase.service";
+import { CampaignStatsService } from "./campaign-stats.service";
 import { AdvertiserController } from "./advertiser.controller";
 
 @Module({
   imports: [AuthModule, LedgerModule, PaymentsModule],
   controllers: [AdvertiserAuthController, AdvertiserController],
-  providers: [AdvertiserAuthService, CampaignService, BlockPurchaseService],
+  providers: [AdvertiserAuthService, CampaignService, BlockPurchaseService, CampaignStatsService],
 })
 export class AdvertiserModule {}

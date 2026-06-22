@@ -2,7 +2,9 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams. **112 automated tests green** (api 75 · extension 22 · shared 11 · portal 4). 71 commits, all on `main`, tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus a post-launch hardening batch (analytics, fraud moderation + IP-clustering, **real Stripe/Razorpay SDK adapters + verified webhooks**, CI, versioned migrations, Dockerfiles, security pass, deterministic e2e). **148 automated tests green** (api 111 · extension 22 · shared 11 · portal 4). All on `main`, tree clean.
+>
+> **Changelog since the original handoff (most recent batch):** campaign analytics endpoints · creative moderation (pending→admin-approve) · IP-hash clustering fraud signal · real Stripe/Razorpay SDK adapters behind a configured-or-throw seam · HMAC-verified payment webhooks (escrow funded on confirmation) · GitHub Actions CI · squashed/versioned Prisma baseline migration · API + portal Dockerfiles · helmet/CORS/global-exception-filter/pino logging · root-caused & fixed the e2e flake. Details inline below (marked **[NEW]**).
 
 ---
 
@@ -83,7 +85,7 @@ Money is always stored as **paise** (integer minor units of INR). Never floats.
 1. **Node** ≥ 22 (we used 24.13). 
 2. **pnpm** — was *not* preinstalled on the dev machine. Install with `npm i -g pnpm@9` (corepack `prepare --activate` left it off PATH).
 3. **Docker Desktop** must be **started manually** before backend work, then containers come up with compose.
-4. **Prisma migrations:** use **`prisma db push`**, NOT `prisma migrate dev` — the latter hangs on an advisory lock in non-interactive shells (Prisma 5 WASM engine). See §13 for the production migration story.
+4. **Prisma migrations:** there is now a **versioned baseline migration** (`apps/api/prisma/migrations/20260623000000_init`). Production/CI use **`prisma migrate deploy`** (in CI and the Docker entrypoint). For quick local schema iteration `prisma db push` still works; avoid `prisma migrate dev` — it hangs on an advisory lock in non-interactive shells (Prisma 5 WASM engine). To add a migration, generate the delta SQL with `prisma migrate diff` against a shadow DB (lock-free). **[NEW]**
 5. After editing `packages/shared`, **rebuild it** before running api tests.
 6. Git on Windows shows CRLF warnings — harmless.
 
@@ -110,7 +112,7 @@ pnpm --filter @kbi/shared build
 ```bash
 # API (http://localhost:3000)
 pnpm --filter @kbi/api dev
-pnpm --filter @kbi/api test            # 75 tests (needs docker up)
+pnpm --filter @kbi/api test            # 111 tests (needs docker up)
 
 # Portal (http://localhost:3001)  — set NEXT_PUBLIC_API_BASE if api isn't on :3000
 pnpm --filter @kbi/portal dev
@@ -138,8 +140,15 @@ pnpm --filter @kbi/shared test         # 11 tests
 | `PAYOUT_MIN_PAISE` | api payouts | min withdrawal (default 10000 = ₹100) |
 | `LEDGER_DEV_SHARE_BPS` | api ledger | dev revenue share, basis points (default 5000 = 50%) |
 | `METRICS_*` | api metrics | `MIN_VIEW_MS` (5000), `MIN_GAP_MS` (5000), `HOURLY_CAP` (120), `DAILY_CAP` (600) |
+| `STRIPE_SECRET_KEY` | api payments | **[NEW]** real Stripe SDK; unset ⇒ adapter throws `stripe_not_configured` |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | api payments | **[NEW]** real Razorpay SDK; unset ⇒ adapter throws `razorpay_not_configured` |
+| `RAZORPAY_WEBHOOK_SECRET` / `STRIPE_WEBHOOK_SECRET` | api webhooks | **[NEW]** HMAC verification of inbound PSP webhooks (dev defaults provided) |
+| `FRAUD_IP_SALT` / `FRAUD_IP_MAX_INSTALLS` (5) / `FRAUD_IP_WINDOW_SEC` (3600) | api fraud | **[NEW]** IP-hash clustering knobs |
+| `CORS_ORIGINS` | api | **[NEW]** comma-separated allowlist; unset reflects request origin (dev) |
+| `LOG_LEVEL` | api | **[NEW]** pino level; tests force `silent` |
 | `KICKBACKS_API` | extension | api base URL (default http://localhost:3000) |
-| `NEXT_PUBLIC_API_BASE` | portal | api base URL |
+| `NEXT_PUBLIC_API_BASE` | portal | api base URL (build-time inlined) |
+| `NEXT_OUTPUT` | portal build | **[NEW]** set to `standalone` for the Docker build (off by default so Windows builds work) |
 
 ---
 
@@ -150,9 +159,9 @@ pnpm --filter @kbi/shared test         # 11 tests
 | Model | Purpose | Key fields |
 |-------|---------|-----------|
 | **Account** | One row per user (dev / advertiser / admin) | `type`, `email?`, `oauthSub? @unique` (Google), `passwordHash?` (advertiser), `country?`, `suspended` |
-| **Campaign** | An ad | `copy` (≤60), `url`, `iconUrl?`, `isHouseAd`, `status` (active), `advertiserId?` |
+| **Campaign** | An ad | `copy` (≤60), `url`, `iconUrl?`, `isHouseAd`, `status` (**advertiser campaigns start `pending`; house ads `active`** — see moderation §7), `advertiserId?` |
 | **Bid** | A campaign's price for a surface | `campaignId`, `surface`, `amount` (paise per 1000-impression block), `status` |
-| **AdEvent** | A recorded impression/click | `installId`, `campaignId`, `surface`, `type`, `nonce`, `visibleMs`, `valid`, `reason?`, `accountId?`; **`@@unique([installId, nonce])`** (idempotency) |
+| **AdEvent** | A recorded impression/click | `installId`, `campaignId`, `surface`, `type`, `nonce`, `visibleMs`, `valid`, `reason?` (now incl. `ip_cluster`), **`ipHash?`** (server-derived salted hash, **[NEW]**), `accountId?`; **`@@unique([installId, nonce])`** (idempotency) |
 | **LedgerEntry** | Append-only double-entry line | `eventId` (source id), `account` (string key), `direction` (debit/credit), `amount`; **`@@unique([eventId, account, direction])`** |
 | **BlockPurchase** | An advertiser's block buy | `campaignId`, `quantity`, `amountPaise`, `status`, `providerRef?` |
 | **Payout** | A developer withdrawal | `accountId`, `provider`, `amountPaise`, `status`, `providerRef?` |
@@ -194,14 +203,15 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 |--------|----------------|
 | `prisma/`, `redis/` | DB + cache clients (global) |
 | `ranking/` | Redis sorted-set bid ranking per surface (`topCampaign`, `topCampaigns`, `upsertBid`) |
-| `serve/` | `GET /serve` — escrow-gated ad selection |
-| `metrics/` | `POST /events` — idempotent impression/click ingestion + rate limits |
+| `serve/` | `GET /serve` — escrow-gated ad selection (only `active`, ranked campaigns) |
+| `metrics/` | `POST /events` — idempotent ingestion + rate limits + **IP-hash clustering** (`fraud.service.ts`, `ip.ts`) **[NEW]** |
 | `auth/` | Google sign-in for devs, JWT issue/verify, `AuthGuard` |
-| `ledger/` | double-entry postings + balances + `GET /ledger/me/balance` |
-| `payments/` | dual-provider abstraction + `POST /payouts` |
-| `advertiser/` | advertiser auth + campaign creation + block purchase |
-| `config/` | killswitch (`GET /config`) + admin toggle/suspend |
+| `ledger/` | double-entry postings + balances + `GET /ledger/me/balance` + **`GET /ledger/me/summary`** **[NEW]** |
+| `payments/` | dual-provider abstraction + `POST /payouts` + **real SDK adapters** + **HMAC-verified webhooks** (`webhook.controller.ts`, `webhook.service.ts`, `webhook-verify.ts`) **[NEW]** |
+| `advertiser/` | advertiser auth + campaign creation + block purchase + **`campaign-stats.service.ts`** **[NEW]** |
+| `config/` | killswitch (`GET /config`) + admin toggle/suspend + **admin campaign approve** **[NEW]** |
 | `admin/` | `POST /admin/house-ads` (seed house ads) |
+| `common/` | **[NEW]** `AllExceptionsFilter` (global, sanitized error envelope) + `configureApp` (helmet + CORS) |
 | `health/` | `GET /health` |
 
 ### Every endpoint
@@ -213,15 +223,20 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 | `POST /auth/google` | — | `{idToken}` | `{token, account}` |
 | `GET /auth/me` | Bearer | — | `{id,email,type}` |
 | `GET /ledger/me/balance` | Bearer | — | `{balancePaise,currency}` |
+| `GET /ledger/me/summary` **[NEW]** | Bearer | — | `{balancePaise,currency,validImpressions}` |
 | `POST /payouts` | Bearer | — | `Payout` (402/403 if below threshold / suspended) |
 | `GET /payouts/me` | Bearer | — | `Payout[]` |
 | `POST /advertiser/register` | — | `{email,password}` | `{token, account}` |
 | `POST /advertiser/login` | — | `{email,password}` | `{token, account}` |
-| `POST /advertiser/campaigns` | Bearer | `{copy,url,iconUrl?,surface,bidPerBlockPaise}` | `Campaign` (also ranks the bid) |
+| `POST /advertiser/campaigns` | Bearer | `{copy,url,iconUrl?,surface,bidPerBlockPaise}` | `Campaign` (**created `pending`, NOT ranked until approved**) |
 | `GET /advertiser/campaigns` | Bearer | — | `Campaign[]` |
+| `GET /advertiser/campaigns/:id/stats` **[NEW]** | Bearer (owner) | — | `{impressions,clicks,spendPaise,escrowRemainingPaise}` |
 | `POST /advertiser/campaigns/:id/blocks` | Bearer | `{quantity}` | `BlockPurchase` (collect → fund escrow) |
+| `POST /webhooks/razorpay` **[NEW]** | `x-razorpay-signature` (HMAC) | PSP event | `{ok}` — verifies sig vs raw body, reconciles purchase → paid + funds escrow |
+| `POST /webhooks/stripe` **[NEW]** | `stripe-signature` (HMAC) | PSP event | `{ok}` — same as above |
 | `GET /config` | — | — | `{active}` (the extension polls this) |
 | `POST /admin/house-ads` | `x-admin-key` | `{copy,url,iconUrl?,surface}` | `{id}` |
+| `POST /admin/campaigns/:id/approve` **[NEW]** | `x-admin-key` | — | `{ok}` — moderates a pending campaign live + ranks its bids |
 | `POST /admin/killswitch` | `x-admin-key` | `{active,scope?}` | `{ok}` |
 | `POST /admin/accounts/:id/suspend` | `x-admin-key` | `{suspended}` | `{ok}` |
 
@@ -238,8 +253,12 @@ Every controller parses the body/query with a **zod schema from `@kbi/shared`** 
 - **Idempotency:** `/events` dedupes on `(installId, nonce)`; ledger postings dedupe on source id.
 - **View validation:** impressions need `visibleMs ≥ 5000`.
 - **Rate limits** (`metrics/rate-limit.service.ts`, Redis): per-install spacing + hourly/daily caps.
+- **IP-hash clustering [NEW]** (`metrics/fraud.service.ts`): the server salts+hashes the source IP (never stores raw IPs) and tracks distinct installs per IP in a rolling Redis window; once `> FRAUD_IP_MAX_INSTALLS` (default 5) share one IP, further events are flagged `ip_cluster` and earn nothing. Takes precedence over view/cap checks; applies to clicks too.
+- **Creative moderation [NEW]:** advertiser campaigns are created `pending` and are not ranked (so never serve) until an admin calls `POST /admin/campaigns/:id/approve`, which flips them `active` and ranks their bids. House ads bypass this.
 - **Escrow gating:** `/serve` skips campaigns with non-positive escrow.
 - **Killswitch + account suspension** (suspended accounts can't cash out).
+- **Webhook signature verification [NEW]:** inbound PSP webhooks are HMAC-verified against the raw request body before any state change.
+- **Sanitized errors [NEW]:** a global exception filter prevents stack traces / internal messages (e.g. PSP `not_configured` detail) from leaking to clients.
 
 ---
 
@@ -298,10 +317,10 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **108 backend/shared/extension + 4 portal = 112 tests.** Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 111 · extension 22 · shared 11 · portal 4 = 148 tests.** Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
-- **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database.
-- **Known flake:** ~1-in-4 runs, one e2e occasionally fails with a transient connection error (no reproducible assertion failure) under serial load of many Nest-app boots. It is **not** a logic bug. If it becomes annoying, the right fix is **per-test DB isolation (transaction rollback or a schema-per-worker)**, not blind retries.
+- **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
+- **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
 - Test data hygiene: e2e suites clean up after themselves; remember the FK delete order (§5).
 
 ---
@@ -318,7 +337,17 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 - ✅ Killswitch (`/config`) + account suspension.
 - ✅ Extension core pipeline (fully tested) + adapter seam + MockAdapter.
 - ✅ Advertiser portal (register → campaign → buy blocks).
-- ✅ 112 tests, all green; everything committed to `main`.
+
+**Post-launch hardening batch [NEW]:**
+- ✅ Campaign analytics (`/advertiser/campaigns/:id/stats`) + dev earnings summary (`/ledger/me/summary`).
+- ✅ Creative moderation: campaigns `pending` → admin approve → ranked/active.
+- ✅ IP-hash clustering fraud signal (salted, windowed, Redis-backed).
+- ✅ **Real Stripe + Razorpay SDK adapters** behind a configured-or-throw client seam (Stripe collect+payout; Razorpay collect; RazorpayX payout still TODO).
+- ✅ **HMAC-verified payment webhooks** (`/webhooks/{stripe,razorpay}`) → reconcile purchase to paid + idempotently fund escrow.
+- ✅ GitHub Actions CI (Postgres+Redis services, lint/test/build) + **versioned Prisma baseline migration** (verified zero-drift) + **API & portal Dockerfiles** (API image builds clean).
+- ✅ Security pass: helmet, CORS, global sanitizing exception filter, pino structured logging with secret redaction.
+- ✅ e2e flake **root-caused and fixed** (8/8 runs green).
+- ✅ **148 tests, all green**; everything committed to `main`.
 
 ---
 
@@ -326,18 +355,11 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 Everything remaining is **real-world integration** that needs credentials, live software, or a legal entity. Each sits behind a finished seam, so it's "fill in the implementation," not "re-architect."
 
-### 13.1 Real payment providers (highest priority for revenue)
-**Where:** `apps/api/src/payments/stripe.provider.ts` and `razorpay.provider.ts` — currently throw "not configured."
-**How:**
-1. Create a **Razorpay** account + RazorpayX for payouts; create a **Stripe** account (+ Connect for non-India payouts).
-2. Add `RAZORPAYX_KEY/SECRET`, `STRIPE_SECRET_KEY` to env.
-3. Implement `payout(req)`:
-   - **RazorpayProvider:** call RazorpayX Payouts API (fund account → UPI/IMPS/bank) using `req.amountPaise`, return `{providerRef, status}`.
-   - **StripeProvider:** Stripe Connect transfer/payout; return same shape.
-4. Implement `collect(req)` (advertiser money-in): create a Razorpay Order / Stripe PaymentIntent; return a `checkoutUrl` for redirect or a client secret.
-5. **Add webhook endpoints** to confirm async payment status (a payment may settle later) — verify the signature (`Stripe-Signature` / `X-Razorpay-Signature`) before trusting it. Flip `Payout.status` / `BlockPurchase.status` on the webhook.
-6. KYC/onboarding: devs need a payout destination (UPI/bank); store it on `payee_accounts` (add a model) and gate payouts on KYC complete.
-**Tests already cover** routing + the service orchestration (providers are overridden with fakes), so you only test the new SDK adapters in isolation.
+### 13.1 Real payment providers — **mostly done [NEW]**, two items remain
+**Done:** `stripe.provider.ts` / `razorpay.provider.ts` now wrap the **real SDKs** behind a lazy `client()` seam (`setClient()` injects a fake in unit tests; unset creds ⇒ clear `*_not_configured` throw). Stripe `collect` (PaymentIntent) + `payout` (Connect transfer) and Razorpay `collect` (Order) are implemented. **Webhooks are done**: `/webhooks/{stripe,razorpay}` verify the HMAC signature against the raw body (`NestFactory rawBody:true`) and reconcile `BlockPurchase` → paid + idempotent escrow funding. Unit + e2e tests cover the mapping, the signature verification, and the reconciliation.
+**Still to do:**
+1. **RazorpayX payouts** — `razorpay.provider.ts#payout` throws `razorpayx_not_configured`. RazorpayX is a separate product/API (not in the `razorpay` SDK): wire `RAZORPAYX_ACCOUNT_NUMBER` + the `/v1/payouts` REST call (fund account → UPI/IMPS/bank), map to `{providerRef,status}`, and extend the webhook handler to flip `Payout.status` (and ledger via `recordPayout`) on `payout.processed`/`payout.failed`.
+2. **KYC / payout destinations** — devs need a verified UPI/bank destination; add a `payee_accounts` model, collect+verify it, and gate `/payouts` on KYC complete. Set real keys in env (`STRIPE_SECRET_KEY`, `RAZORPAY_KEY_ID/SECRET`, `*_WEBHOOK_SECRET`) per §4.
 
 ### 13.2 Real spinner injection (makes the extension actually earn)
 **Where:** `apps/extension/src/adapters/{claudeCode,codex,geminiCli}.ts` — stubs that report `isAvailable()===false`.
@@ -351,17 +373,19 @@ The mechanism is **agent-specific and undocumented** — likely via the agent's 
 `GET /config` exists and the extension's `Killswitch` already polls `${API_BASE}/config`. Nothing to do except set the global flag via `POST /admin/killswitch` in an incident.
 
 ### 13.4 Fraud hardening (iterative)
-- **IP-hash clustering / multi-account detection:** the extension was specced to send a salted IP hash but the api doesn't store it yet. To add: include `ipHash` in the `eventIngest` schema, store it on `AdEvent` (+ a `dev_installs` table), and add a `FraudService` rule that flags many install-ids sharing an `ipHash`.
-- **Creative moderation:** make new campaigns `status:"pending"` and not ranked until an admin approves (this ripples into `CampaignService.create` and `/serve` — currently campaigns go live immediately).
-- **Pacing:** spread a campaign's delivery over time (token bucket in Redis keyed off a "delivery speed" preference).
+- ✅ **IP-hash clustering — done [NEW]** (server-derived salted hash on `AdEvent.ipHash` + windowed Redis `FraudService` flagging `ip_cluster`).
+- ✅ **Creative moderation — done [NEW]** (pending → `POST /admin/campaigns/:id/approve`).
+- **Still to do — Pacing:** spread a campaign's delivery over time (token bucket in Redis keyed off a "delivery speed" preference).
+- **Still to do — backfill invalidation:** clustering flags events *after* the threshold is crossed; the first N installs already earned. A batch job could retroactively void a confirmed cluster.
+- **Still to do — admin moderation UI:** approval is API-only (`x-admin-key`); add a screen.
 
-### 13.5 Production migrations
-We used `prisma db push` for speed in dev. For production, switch to **versioned migrations**: generate them with `prisma migrate diff` / `prisma migrate dev` in an interactive environment, commit `prisma/migrations/`, and run `prisma migrate deploy` in CI/CD. (Plan 01 documents the advisory-lock workaround we used locally.)
+### 13.5 Production migrations — **done [NEW]**
+Versioned migrations are in place: a squashed baseline `apps/api/prisma/migrations/20260623000000_init` (the old 8-digit folder name wasn't replayable), verified to apply cleanly to a fresh DB with **zero drift**. CI and the Docker entrypoint run `prisma migrate deploy`; the dev DB was baselined via `prisma migrate resolve --applied`. To add a migration, diff against a shadow DB (see §4). `prisma:deploy` script added.
 
-### 13.6 Observability & deployment
-- Add structured logging + request tracing, error reporting (Sentry), and basic metrics dashboards.
-- Deploy: containerize the api; host Postgres + Redis (managed, **India region** for latency/data residency); deploy the portal (Vercel or container); publish the extension to the VS Code Marketplace.
-- Secrets via a manager (not env files) in prod.
+### 13.6 Observability & deployment — **partially done [NEW]**
+- ✅ **Structured logging** via pino (`nestjs-pino`) with secret redaction; **global exception filter**; **helmet + CORS**.
+- ✅ **CI** (`.github/workflows/ci.yml`) and **Dockerfiles** (`apps/api/Dockerfile` — image builds clean; `apps/portal/Dockerfile` — Next standalone via `NEXT_OUTPUT`).
+- **Still to do:** error reporting (Sentry) + request tracing + metrics dashboards; actual deploy (managed Postgres+Redis in an **India region**, portal on Vercel/container, publish the extension to the VS Code Marketplace); a CD pipeline that builds+pushes the images; secrets via a manager (not env files) in prod.
 
 ### 13.7 Legal / entity (blocks real money)
 India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay from abroad); **GST** on the platform fee; **TDS** on developer payouts; advertiser + developer ToS + privacy policy. Vendor risk: injecting into Anthropic/OpenAI/Google agent UIs is adversarial — their ToS/UI changes can break or ban us; mitigate with versioned adapters + the killswitch.
@@ -369,28 +393,31 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 ---
 
 ## 14. Known issues / tech debt
-- **e2e flake** (~1/4) — see §11; fix with per-test DB isolation.
+- ✅ ~~e2e flake~~ — **fixed [NEW]** (root-caused: shared IP-cluster Redis state; see §11).
+- ✅ ~~`db push` not migrations~~ — **fixed [NEW]** (versioned baseline; see §13.5).
+- **RazorpayX payout not yet wired** — `razorpay.provider.ts#payout` throws by design until RazorpayX + KYC are in (§13.1). Stripe payout + both `collect` paths + webhooks are implemented.
+- **IP-clustering flags after the threshold** — first N installs behind an IP still earn before the cluster is detected; no retroactive void yet (§13.4).
 - **No serve↔impression escrow reservation** — `/serve` gates on escrow `> 0`, but concurrent in-flight impressions can slightly overspend (bounded). Add a per-impression reservation if exactness matters.
 - **Ledger prices off the campaign's current top bid**, not the exact bid that served — fine now (one bid per surface); revisit for true 2nd-price auctions.
 - **`earnings:unattributed`** accrues for anonymous impressions and is never reconciled — decide policy (forfeit vs. claim-on-signin).
+- **Docker images carry dev dependencies** — runtime stage copies the full workspace (so the prisma CLI is available for `migrate deploy`); slim later with `pnpm deploy`/prod-prune if image size matters.
 - **Portal UI is bare** — no design, no error toasts beyond text, no logout.
-- **`db push` not migrations** — see §13.5.
 
 ---
 
 ## 15. Where to read more
 - **Design spec:** `docs/superpowers/specs/2026-06-22-kickbacks-india-ad-marketplace-design.md` — the architecture + decisions + risks.
 - **Implementation plans** (`docs/superpowers/plans/`): one per slice (01 foundation, 02 metrics, 03 extension, 04 auth, 05 ledger, 06 payments, 07 advertiser-billing, 07b portal, 08 auction, 09 fraud). Each has the exact files, code, and reasoning — the best onboarding path is to read these in order.
+- **Post-launch hardening batch [NEW]** (analytics, moderation, IP-clustering, real PSP adapters + webhooks, CI/migrations/Dockerfiles, security pass, flake fix): implemented **inline, TDD, no per-slice plan docs** (by request). Read the `feat(...)`/`chore(...)`/`test(...)` commits on `main` — each commit message documents the rationale and verification for its slice.
 - **Original product** (for reference): kickbacks.ai, its FAQ, and the open-source extension at github.com/andrewmccalip/kickbacks.ai.
 
 ---
 
-## 16. Suggested next-step priority
-1. **Razorpay payout + collect** (§13.1) — unlocks real money for the India wedge.
+## 16. Suggested next-step priority (updated [NEW])
+1. **RazorpayX payout + KYC/payout-destinations** (§13.1) — the last mile of the India payout wedge (collect, webhooks, Stripe payout are already done).
 2. **One real spinner adapter** (Claude Code) (§13.2) — proves real earning end-to-end.
-3. **Webhooks + KYC** for payment status + payout destinations.
-4. **Production migrations + deploy** (§13.5–13.6).
-5. **Moderation + IP clustering** (§13.4) before scaling advertisers.
-6. **Legal entity** in parallel (§13.7) — gates going live with real funds.
+3. **Deploy** (§13.6): CD pipeline pushing the Docker images, managed Postgres+Redis (India region), portal hosting, extension publish; add Sentry/tracing.
+4. **Legal entity** in parallel (§13.7) — gates going live with real funds.
+5. **Pacing + moderation UI + retroactive cluster void** (§13.4) as advertisers scale.
 
-The core is built and tested. The remaining work is integration and operations, each behind a clean, documented seam.
+Already shipped since the original handoff: analytics, moderation, IP-clustering, real PSP SDK adapters + verified webhooks, CI, versioned migrations, Dockerfiles, security pass, and a deterministic test suite. The remaining work is the last integration mile (RazorpayX/KYC), deployment/ops, and legal — each behind a clean, documented seam.

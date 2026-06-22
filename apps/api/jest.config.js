@@ -1,3 +1,5 @@
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || "silent"; // keep pino quiet during tests
+
 module.exports = {
   moduleFileExtensions: ["js", "json", "ts"],
   rootDir: "src",

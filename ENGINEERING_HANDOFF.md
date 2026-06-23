@@ -2,13 +2,15 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **203 automated tests green** (api 149 · extension 27 · shared 17 · portal 10) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **221 automated tests green** (api 164 · extension 27 · shared 17 · portal 13) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
 > **Batch 2 (marked [NEW2] inline):** completed the **payout loop** (RazorpayX payout adapter + `PayoutDestination` KYC model + payout webhooks) · delivery **pacing** + global **rate-limiting** + escrow **overspend guard** · **developer earnings dashboard** + **admin operations console** in the portal · root `README` · prod `docker-compose` · **CD** workflow (GHCR images) · **Sentry** (DSN-guarded) · **Playwright** portal smokes. Two more zero-drift migrations.
 >
 > **Batch 3 (marked [NEW3] inline):** **top-N ad rotation** — `/serve?count=N` returns the top-N eligible ads; the extension rotates through them as the spinner ticks (`adapter.onTick`), holding each ~5s of *visible* time and billing each ad as its own impression. Short waits show one ad; long sessions reach #2/#3. The real spinner adapters still need to fire `onTick` (deferred with injection).
+>
+> **Batch 4 (marked [NEW4] inline):** safety + onboarding + UX — fraud-cluster void (`/admin/fraud/void-cluster`) · serve affordability skip · **admin email/password login** (`/admin/login`) · **second-price auction** pricing · advertiser **pause/resume/top-up/edit** · **developer web onboarding** (email/password `/dev/register` + `/dev/login` — no extension needed) · **portal design system** (clean minimal UI: nav, hero, cards, tabs, badges, alerts) restyling all pages · admin portal **wired to `/admin/login`** (static `x-admin-key` dropped from the web).
 
 ---
 
@@ -239,8 +241,11 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 | `GET /payouts/destination` **[NEW2]** | Bearer | — | `PayoutDestination[]` |
 | `POST /advertiser/register` | — | `{email,password}` | `{token, account}` |
 | `POST /advertiser/login` | — | `{email,password}` | `{token, account}` |
+| `POST /dev/register` **[NEW4]** | — | `{email,password}` | `{token, account}` — developer web onboarding (type `dev`, no extension needed) |
+| `POST /dev/login` **[NEW4]** | — | `{email,password}` | `{token, account}` |
 | `POST /advertiser/campaigns` | Bearer | `{copy,url,iconUrl?,surface,bidPerBlockPaise,pacePerMinute?}` | `Campaign` (**created `pending`, NOT ranked until approved**) |
 | `GET /advertiser/campaigns` | Bearer | — | `Campaign[]` |
+| `PATCH /advertiser/campaigns/:id` **[NEW4]** | Bearer (owner) | `{copy?,url?,iconUrl?,bidPerBlockPaise?}` | `Campaign` — edit; creative change on a live campaign → back to `pending` + unranked (re-moderation); bid change re-ranks |
 | `GET /advertiser/campaigns/:id/stats` **[NEW]** | Bearer (owner) | — | `{impressions,clicks,spendPaise,escrowRemainingPaise}` |
 | `POST /advertiser/campaigns/:id/blocks` | Bearer | `{quantity}` | `BlockPurchase` (collect → fund escrow) |
 | `POST /webhooks/razorpay` **[NEW]** | `x-razorpay-signature` (HMAC) | PSP event | `{ok}` — verifies sig vs raw body, reconciles purchase → paid + funds escrow |
@@ -262,8 +267,9 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 Every controller parses the body/query with a **zod schema from `@kbi/shared`** and throws `400` on failure. No DTO classes / class-validator.
 
 ### Auth model
-- **Developers** sign in with Google: the extension obtains a Google **ID token**, posts it to `/auth/google`; `GoogleVerifier` (`auth/google-verifier.ts`) validates it, we upsert an `Account`, and `TokenService` issues **our own JWT** (30-day, signed with `AUTH_JWT_SECRET`).
+- **Developers** sign in with Google (extension): the extension obtains a Google **ID token**, posts it to `/auth/google`; `GoogleVerifier` (`auth/google-verifier.ts`) validates it, we upsert an `Account`, and `TokenService` issues **our own JWT** (30-day, signed with `AUTH_JWT_SECRET`). **[NEW4]** Developers can **also** onboard on the web with email+password (`/dev/register`, `/dev/login`, `DevAuthService`, type `dev`) — they paste the issued token into the extension to attribute earnings.
 - **Advertisers** use email+password (`bcryptjs`), also issued our JWT.
+- **Admins** use email+password (`/admin/login`) → JWT for `type:"admin"` accounts; admin endpoints accept that Bearer token (or the legacy static `x-admin-key`). **[NEW4]**
 - `AuthGuard` (`auth/auth.guard.ts`) validates the `Bearer` token and attaches the account to the request. `/events` uses **optional** auth (a token attributes earnings; without one, the event is anonymous).
 - `GoogleVerifier` is an **abstract class used as the DI token** — tests/e2e override it with a fake (`.overrideProvider(GoogleVerifier)`), so the whole auth flow is testable without Google.
 
@@ -311,16 +317,18 @@ Next.js 14 App Router. `next build` passes; run with `pnpm --filter @kbi/portal 
 
 | File | Role |
 |------|------|
-| `lib/api.ts` | `PortalApi` — typed client for advertiser, **developer** and **admin** endpoints. **Unit-tested (9).** |
-| `lib/token.ts` | advertiser JWT + **dev token** + **admin key** in `localStorage` (browser-guarded) |
-| `app/page.tsx` | landing + links (advertiser / developer / admin) |
-| `app/login/page.tsx` | advertiser register/login |
-| `app/campaigns/page.tsx` | list + create campaign + buy blocks + **log out** |
-| `app/earnings/page.tsx` **[NEW2]** | developer view: balance/impressions, UPI destination, cash out (paste KBI dev token) |
-| `app/admin/page.tsx` **[NEW2]** | ops console: approve pending campaigns, KYC-verify destinations, toggle killswitch (admin key) |
+| `app/globals.css` **[NEW4]** | **Design system** — CSS-variable palette (indigo accent, emerald money, zinc neutrals) + components (nav, hero, card, btn, input/field, badge, tab, alert, list, stat). Zero new deps; refined system-font stack (no web-font fetch, so Docker/CI builds stay network-free). |
+| `lib/api.ts` | `PortalApi` — typed client for advertiser, **developer** and **admin** endpoints. **Unit-tested (13).** |
+| `lib/token.ts` | advertiser JWT + **dev token** + **admin JWT** (`/admin/login`) in `localStorage` (browser-guarded) |
+| `app/layout.tsx` **[NEW4]** | imports `globals.css`; sticky nav (Advertisers / Developers / Admin) + footer |
+| `app/page.tsx` | hero landing + onboarding cards (advertiser / developer / admin) |
+| `app/login/page.tsx` | advertiser **tabbed** register/login |
+| `app/campaigns/page.tsx` | list + create + buy blocks + pause/resume + **inline edit** **[NEW4]** + log out |
+| `app/earnings/page.tsx` | developer view: **email/password sign up + log in** (extension-token as fallback) **[NEW4]**, balance/impressions, UPI destination, cash out |
+| `app/admin/page.tsx` | ops console: **admin email/password login** **[NEW4]**, approve pending campaigns, KYC-verify destinations, killswitch |
 | `e2e/smoke.spec.ts` **[NEW2]** | Playwright smokes for `/`, `/earnings`, `/admin` (opt-in `test:e2e`, not in CI vitest) |
 
-The pages are intentionally minimal (system fonts, inline styles, no design system) — a functional reference UI, not production polish.
+The portal now has a **clean, minimal design system** (`globals.css`) — indigo accent on a zinc canvas, consistent cards/buttons/forms across all pages. Developers and advertisers can onboard entirely on the web.
 
 ---
 
@@ -341,7 +349,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 149 · extension 27 · shared 17 · portal 10 = 203 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 164 · extension 27 · shared 17 · portal 13 = 221 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -432,7 +440,9 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~Ledger prices off the winner's own bid~~ — now a **generalized second-price auction** ([NEW3]): the winner pays the next-highest bid on the surface (falls back to its own bid when there's no competition). Pricing is point-in-time off current active bids, not the exact bid at serve — fine for one-bid-per-surface; revisit if a campaign holds multiple bids.
 - **`earnings:unattributed`** accrues for anonymous impressions and is never reconciled — decide policy (forfeit vs. claim-on-signin).
 - **Docker images carry dev dependencies** — runtime copies the full workspace (so the prisma CLI is available for `migrate deploy`); slim later with `pnpm deploy`/prod-prune.
-- **Portal UI is bare** — functional reference UI; no design system. The portal admin page still uses the static `x-admin-key`, but the API also accepts a real **admin login** (`POST /admin/login` → JWT for `type:"admin"` accounts; admin endpoints accept either the key or an admin Bearer token). Wire the portal to admin login + remove the static key before exposing publicly.
+- ✅ ~~Portal UI is bare / admin uses static key~~ — **fixed [NEW4]:** portal now has a clean **design system** (`app/globals.css`) across all pages, and the admin page logs in via **`POST /admin/login`** (admin JWT Bearer); the static `x-admin-key` is no longer used by the web (the API still accepts it as a legacy/break-glass header).
+- **Campaign edit re-moderation is coarse** — *any* creative change on a live campaign sends the whole campaign back to `pending` (safe default). A lighter flow (e.g. auto-approve trivial URL tweaks, or a separate "pending creative" field that keeps the old copy serving until re-approval) could reduce advertiser friction later.
+- **Developer web vs Google identity** — a dev who signs up by email (`type:"dev"`) and a dev who signed in with Google are **separate accounts** even with the same email. Acceptable now; merge-on-verified-email later if needed.
 
 ---
 

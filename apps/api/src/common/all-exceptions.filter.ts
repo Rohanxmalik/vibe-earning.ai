@@ -1,4 +1,5 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from "@nestjs/common";
+import { captureException } from "./sentry";
 
 interface ErrorBody {
   statusCode: number;
@@ -30,6 +31,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const status = HttpStatus.INTERNAL_SERVER_ERROR;
     this.logger.error(exception instanceof Error ? exception.stack ?? exception.message : String(exception));
+    captureException(exception); // report to Sentry when configured
     res.status(status).json({ statusCode: status, error: "InternalServerError", message: "internal_error" });
   }
 }

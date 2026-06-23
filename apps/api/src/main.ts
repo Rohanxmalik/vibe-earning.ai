@@ -4,6 +4,9 @@ import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { configureApp } from "./common/configure-app";
+import { initSentry } from "./common/sentry";
+
+initSentry(); // early, before the app boots (no-op without SENTRY_DSN)
 
 async function bootstrap() {
   // rawBody:true preserves the unparsed request body so webhook HMAC signatures

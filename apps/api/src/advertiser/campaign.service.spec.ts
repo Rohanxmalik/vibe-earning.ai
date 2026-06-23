@@ -5,7 +5,7 @@ import { RankingService } from "../ranking/ranking.service";
 
 const prismaMock = {
   campaign: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
-  bid: { create: jest.fn(), findMany: jest.fn() },
+  bid: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
 };
 const rankingMock = { upsertBid: jest.fn(), removeBid: jest.fn() };
 
@@ -77,5 +77,44 @@ describe("CampaignService", () => {
   it("pause() rejects a campaign that isn't active", async () => {
     prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "pending" });
     await expect(svc.pause("adv1", "c1")).rejects.toThrow("not_active");
+  });
+
+  describe("edit()", () => {
+    it("rejects editing a campaign owned by someone else", async () => {
+      prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "other", status: "active", copy: "Old", url: "https://a" });
+      await expect(svc.edit("adv1", "c1", { copy: "New" })).rejects.toThrow("not_your_campaign");
+    });
+
+    it("editing only the bid on an active campaign updates the amount, re-ranks, and stays active", async () => {
+      prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "active", copy: "Same", url: "https://a", iconUrl: null });
+      prismaMock.bid.findMany.mockResolvedValue([{ surface: "codex-panel", amount: 30000 }]);
+      prismaMock.campaign.update.mockResolvedValue({ id: "c1", status: "active" });
+      await svc.edit("adv1", "c1", { bidPerBlockPaise: 30000 });
+      expect(prismaMock.bid.updateMany).toHaveBeenCalledWith({ where: { campaignId: "c1", status: "active" }, data: { amount: 30000 } });
+      expect(rankingMock.upsertBid).toHaveBeenCalledWith("codex-panel", "c1", 30000);
+      expect(prismaMock.campaign.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.not.objectContaining({ status: "pending" }) }));
+      expect(rankingMock.removeBid).not.toHaveBeenCalled();
+    });
+
+    it("editing the creative on an active campaign sends it back to pending and unranks it", async () => {
+      prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "active", copy: "Old copy", url: "https://a", iconUrl: null });
+      prismaMock.bid.findMany.mockResolvedValue([{ surface: "codex-panel", amount: 20000 }]);
+      prismaMock.campaign.update.mockResolvedValue({ id: "c1", status: "pending" });
+      await svc.edit("adv1", "c1", { copy: "Brand new copy" });
+      expect(rankingMock.removeBid).toHaveBeenCalledWith("codex-panel", "c1");
+      expect(prismaMock.campaign.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ copy: "Brand new copy", status: "pending" }) }));
+      expect(rankingMock.upsertBid).not.toHaveBeenCalled();
+    });
+
+    it("editing a pending campaign updates fields without touching status or ranking", async () => {
+      prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "pending", copy: "Old", url: "https://a", iconUrl: null });
+      prismaMock.campaign.update.mockResolvedValue({ id: "c1", status: "pending" });
+      await svc.edit("adv1", "c1", { copy: "Newer", url: "https://b" });
+      expect(prismaMock.campaign.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ copy: "Newer", url: "https://b" }) }));
+      const data = prismaMock.campaign.update.mock.calls[0][0].data;
+      expect(data.status).toBeUndefined();
+      expect(rankingMock.removeBid).not.toHaveBeenCalled();
+      expect(rankingMock.upsertBid).not.toHaveBeenCalled();
+    });
   });
 });

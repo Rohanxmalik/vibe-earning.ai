@@ -17,5 +17,15 @@ export const createCampaignSchema = z.object({
 });
 export type CreateCampaign = z.infer<typeof createCampaignSchema>;
 
+export const editCampaignSchema = z
+  .object({
+    copy: z.string().min(3).max(60).optional(),
+    url: z.string().url().optional(),
+    iconUrl: z.string().url().nullable().optional(),
+    bidPerBlockPaise: z.number().int().positive().optional(),
+  })
+  .refine((d) => Object.keys(d).length > 0, { message: "no_fields_to_update" });
+export type EditCampaign = z.infer<typeof editCampaignSchema>;
+
 export const buyBlocksSchema = z.object({ quantity: z.number().int().positive() });
 export type BuyBlocks = z.infer<typeof buyBlocksSchema>;

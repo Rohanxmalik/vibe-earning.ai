@@ -48,6 +48,45 @@ export class CampaignService {
     return { ok: true };
   }
 
+  /**
+   * Advertiser edits a campaign's creative and/or bid.
+   * - Changing the bid re-ranks a live campaign at the new amount.
+   * - Changing the creative (copy/url/icon) on a LIVE campaign sends it back to
+   *   moderation (status "pending") and unranks it — admins approved the old copy,
+   *   not the new one. Edits to a non-live campaign just update the fields.
+   */
+  async edit(
+    advertiserId: string,
+    campaignId: string,
+    dto: { copy?: string; url?: string; iconUrl?: string | null; bidPerBlockPaise?: number },
+  ) {
+    const c = await this.ownedCampaign(advertiserId, campaignId);
+
+    if (dto.bidPerBlockPaise !== undefined) {
+      await this.prisma.bid.updateMany({ where: { campaignId, status: "active" }, data: { amount: dto.bidPerBlockPaise } });
+    }
+
+    const creativeChanged =
+      (dto.copy !== undefined && dto.copy !== c.copy) ||
+      (dto.url !== undefined && dto.url !== c.url) ||
+      (dto.iconUrl !== undefined && dto.iconUrl !== c.iconUrl);
+
+    const data: { copy?: string; url?: string; iconUrl?: string | null; status?: string } = {};
+    if (dto.copy !== undefined) data.copy = dto.copy;
+    if (dto.url !== undefined) data.url = dto.url;
+    if (dto.iconUrl !== undefined) data.iconUrl = dto.iconUrl;
+
+    if (creativeChanged && c.status === "active") {
+      data.status = "pending"; // re-moderation
+      const bids = await this.prisma.bid.findMany({ where: { campaignId, status: "active" } });
+      for (const b of bids) await this.ranking.removeBid(b.surface, campaignId);
+    } else if (dto.bidPerBlockPaise !== undefined && c.status === "active") {
+      await this.rankBids(campaignId); // re-rank at the new amount
+    }
+
+    return this.prisma.campaign.update({ where: { id: campaignId }, data });
+  }
+
   private async ownedCampaign(advertiserId: string, campaignId: string) {
     const c = await this.prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!c || c.advertiserId !== advertiserId) throw new ForbiddenException("not_your_campaign");

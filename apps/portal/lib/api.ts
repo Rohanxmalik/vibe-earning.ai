@@ -1,4 +1,4 @@
-import type { CreateCampaign, PayoutDestinationInput } from "@kbi/shared";
+import type { CreateCampaign, EditCampaign, PayoutDestinationInput } from "@kbi/shared";
 
 export interface AuthResult { token: string; account: { id: string; email: string | null; type: string } }
 export interface Campaign { id: string; copy: string; url: string; surface?: string; status?: string; createdAt?: string }
@@ -62,6 +62,9 @@ export class PortalApi {
   }
   buyBlocks(campaignId: string, quantity: number): Promise<{ id: string; status: string; amountPaise: number }> {
     return this.req(`/advertiser/campaigns/${campaignId}/blocks`, { method: "POST", body: JSON.stringify({ quantity }) });
+  }
+  editCampaign(campaignId: string, dto: EditCampaign): Promise<Campaign> {
+    return this.req(`/advertiser/campaigns/${campaignId}`, { method: "PATCH", body: JSON.stringify(dto) });
   }
   pauseCampaign(campaignId: string): Promise<{ ok: boolean }> {
     return this.req(`/advertiser/campaigns/${campaignId}/pause`, { method: "POST" });

@@ -21,6 +21,10 @@ export default function CampaignsPage() {
   const [bid, setBid] = useState(20000);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editCopy, setEditCopy] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editBid, setEditBid] = useState(20000);
 
   async function refresh() {
     try {
@@ -60,6 +64,24 @@ export default function CampaignsPage() {
     setMsg(null); setErr(null);
     try { await api.resumeCampaign(id); setMsg("Campaign resumed."); await refresh(); }
     catch { setErr("Resume failed."); }
+  }
+
+  function startEdit(c: Campaign) {
+    setMsg(null); setErr(null);
+    setEditId(c.id);
+    setEditCopy(c.copy);
+    setEditUrl(c.url);
+    setEditBid(20000);
+  }
+  function cancelEdit() { setEditId(null); }
+  async function saveEdit(id: string) {
+    setMsg(null); setErr(null);
+    try {
+      const c = await api.editCampaign(id, { copy: editCopy, url: editUrl, bidPerBlockPaise: Number(editBid) });
+      setEditId(null);
+      setMsg(c.status === "pending" ? "Saved — creative changes need admin re-approval." : "Campaign updated.");
+      await refresh();
+    } catch { setErr("Update failed — check the copy (3–60 chars), URL, and bid."); }
   }
   function logout() { clearToken(); router.push("/login"); }
 
@@ -114,17 +136,42 @@ export default function CampaignsPage() {
         ) : (
           <ul className="list">
             {campaigns.map((c) => (
-              <li key={c.id} className="list-item">
-                <div className="item-main">
-                  <div className="item-copy">{c.copy}</div>
-                  <div className="item-sub">{c.url}</div>
-                </div>
-                <div className="row">
-                  {statusBadge(c.status)}
-                  <button className="btn btn-ghost btn-sm" onClick={() => buy(c.id)}>Top up 5</button>
-                  {c.status === "active" && <button className="btn btn-ghost btn-sm" onClick={() => pause(c.id)}>Pause</button>}
-                  {c.status === "paused" && <button className="btn btn-ghost btn-sm" onClick={() => resume(c.id)}>Resume</button>}
-                </div>
+              <li key={c.id} className="list-item" style={editId === c.id ? { display: "block" } : undefined}>
+                {editId === c.id ? (
+                  <div className="stack" style={{ width: "100%" }}>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label className="label">Ad copy</label>
+                      <input className="input" maxLength={60} value={editCopy} onChange={(e) => setEditCopy(e.target.value)} />
+                    </div>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label className="label">Landing URL</label>
+                      <input className="input" value={editUrl} onChange={(e) => setEditUrl(e.target.value)} />
+                    </div>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label className="label">New bid per block (paise)</label>
+                      <input className="input" type="number" value={editBid} onChange={(e) => setEditBid(Number(e.target.value))} />
+                      <div className="hint">{editBid} paise = {rupees(editBid)} per block</div>
+                    </div>
+                    <div className="row">
+                      <button className="btn btn-primary btn-sm" onClick={() => saveEdit(c.id)}>Save</button>
+                      <button className="btn btn-ghost btn-sm" onClick={cancelEdit}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="item-main">
+                      <div className="item-copy">{c.copy}</div>
+                      <div className="item-sub">{c.url}</div>
+                    </div>
+                    <div className="row">
+                      {statusBadge(c.status)}
+                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(c)}>Edit</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => buy(c.id)}>Top up 5</button>
+                      {c.status === "active" && <button className="btn btn-ghost btn-sm" onClick={() => pause(c.id)}>Pause</button>}
+                      {c.status === "paused" && <button className="btn btn-ghost btn-sm" onClick={() => resume(c.id)}>Resume</button>}
+                    </div>
+                  </>
+                )}
               </li>
             ))}
           </ul>

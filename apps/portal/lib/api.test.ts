@@ -94,6 +94,16 @@ describe("PortalApi", () => {
     }));
   });
 
+  it("editCampaign PATCHes the campaign with auth", async () => {
+    const f = vi.fn().mockResolvedValue(json({ id: "c1", copy: "New", url: "https://x.dev", status: "pending" }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "tok");
+    await api.editCampaign("c1", { copy: "New", bidPerBlockPaise: 30000 });
+    expect(f).toHaveBeenCalledWith("http://api/advertiser/campaigns/c1", expect.objectContaining({
+      method: "PATCH",
+      headers: expect.objectContaining({ authorization: "Bearer tok" }),
+    }));
+  });
+
   it("pause/resume campaign POST to the right endpoints with auth", async () => {
     const f = vi.fn().mockResolvedValue(json({ ok: true }));
     const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "tok");

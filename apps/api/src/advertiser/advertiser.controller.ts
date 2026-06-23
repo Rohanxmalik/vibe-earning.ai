@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
-import { createCampaignSchema, buyBlocksSchema } from "@kbi/shared";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { createCampaignSchema, editCampaignSchema, buyBlocksSchema } from "@kbi/shared";
 import { AuthGuard } from "../auth/auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "./campaign.service";
@@ -26,6 +26,13 @@ export class AdvertiserController {
   @Get()
   async list(@Req() req: { account: { id: string } }) {
     return this.prisma.campaign.findMany({ where: { advertiserId: req.account.id }, orderBy: { createdAt: "desc" } });
+  }
+
+  @Patch(":id")
+  async edit(@Req() req: { account: { id: string } }, @Param("id") id: string, @Body() raw: unknown) {
+    const p = editCampaignSchema.safeParse(raw);
+    if (!p.success) throw new BadRequestException(p.error.flatten());
+    return this.campaigns.edit(req.account.id, id, p.data);
   }
 
   @Post(":id/blocks")

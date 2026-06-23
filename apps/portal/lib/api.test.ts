@@ -13,6 +13,22 @@ describe("PortalApi", () => {
     expect(f).toHaveBeenCalledWith("http://api/advertiser/register", expect.objectContaining({ method: "POST" }));
   });
 
+  it("devRegister/devLogin post to the /dev endpoints", async () => {
+    const f = vi.fn().mockResolvedValue(json({ token: "dt", account: { id: "d", email: "d@x.com", type: "dev" } }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch);
+    expect(await api.devRegister("d@x.com", "password1")).toMatchObject({ token: "dt", account: { type: "dev" } });
+    expect(f).toHaveBeenCalledWith("http://api/dev/register", expect.objectContaining({ method: "POST" }));
+    await api.devLogin("d@x.com", "password1");
+    expect(f).toHaveBeenCalledWith("http://api/dev/login", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("adminLogin posts to /admin/login and returns a token", async () => {
+    const f = vi.fn().mockResolvedValue(json({ token: "adm", account: { id: "x", type: "admin" } }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch);
+    expect(await api.adminLogin("a@x.com", "password1")).toMatchObject({ token: "adm" });
+    expect(f).toHaveBeenCalledWith("http://api/admin/login", expect.objectContaining({ method: "POST" }));
+  });
+
   it("createCampaign sends the bearer token", async () => {
     const f = vi.fn().mockResolvedValue(json({ id: "c1" }));
     const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "tok");
@@ -58,23 +74,24 @@ describe("PortalApi", () => {
     expect(f).toHaveBeenCalledWith("http://api/payouts", expect.objectContaining({ method: "POST" }));
   });
 
-  it("admin requests send the x-admin-key header (not a bearer token)", async () => {
+  it("admin requests send the admin JWT as a Bearer token", async () => {
     const f = vi.fn().mockResolvedValue(json([{ id: "c1", copy: "x", url: "u" }]));
-    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "ignored-bearer");
-    await api.adminPendingCampaigns("secret-key");
+    const api = new PortalApi("http://api", f as unknown as typeof fetch);
+    await api.adminPendingCampaigns("admin-jwt");
     expect(f).toHaveBeenCalledWith("http://api/admin/campaigns/pending", expect.objectContaining({
       method: "GET",
-      headers: expect.objectContaining({ "x-admin-key": "secret-key" }),
+      headers: expect.objectContaining({ authorization: "Bearer admin-jwt" }),
     }));
-    const sentHeaders = f.mock.calls[0][1].headers as Record<string, string>;
-    expect(sentHeaders.authorization).toBeUndefined();
   });
 
-  it("adminApproveCampaign POSTs to the approve endpoint", async () => {
+  it("adminApproveCampaign POSTs with the admin token", async () => {
     const f = vi.fn().mockResolvedValue(json({ ok: true }));
     const api = new PortalApi("http://api", f as unknown as typeof fetch);
-    await api.adminApproveCampaign("k", "c1");
-    expect(f).toHaveBeenCalledWith("http://api/admin/campaigns/c1/approve", expect.objectContaining({ method: "POST" }));
+    await api.adminApproveCampaign("admin-jwt", "c1");
+    expect(f).toHaveBeenCalledWith("http://api/admin/campaigns/c1/approve", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ authorization: "Bearer admin-jwt" }),
+    }));
   });
 
   it("pause/resume campaign POST to the right endpoints with auth", async () => {

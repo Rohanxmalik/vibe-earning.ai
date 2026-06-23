@@ -27,11 +27,11 @@ export class PortalApi {
     return (await res.json()) as T;
   }
 
-  // Admin requests authenticate with the x-admin-key header, not a bearer token.
-  private async adminReq<T>(adminKey: string, path: string, init?: RequestInit): Promise<T> {
+  // Admin requests authenticate with a logged-in admin's JWT (Bearer), issued by /admin/login.
+  private async adminReq<T>(adminToken: string, path: string, init?: RequestInit): Promise<T> {
     const res = await this.fetchFn(`${this.baseUrl}${path}`, {
       ...init,
-      headers: { "content-type": "application/json", "x-admin-key": adminKey },
+      headers: { "content-type": "application/json", authorization: `Bearer ${adminToken}` },
     });
     if (!res.ok) throw new Error(`request failed: ${res.status}`);
     return (await res.json()) as T;
@@ -42,6 +42,17 @@ export class PortalApi {
   }
   login(email: string, password: string): Promise<AuthResult> {
     return this.req("/advertiser/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  }
+
+  // Developer (supply-side) email/password onboarding — no extension required.
+  devRegister(email: string, password: string): Promise<AuthResult> {
+    return this.req("/dev/register", { method: "POST", body: JSON.stringify({ email, password }) });
+  }
+  devLogin(email: string, password: string): Promise<AuthResult> {
+    return this.req("/dev/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  }
+  adminLogin(email: string, password: string): Promise<AuthResult> {
+    return this.req("/admin/login", { method: "POST", body: JSON.stringify({ email, password }) });
   }
   createCampaign(dto: CreateCampaign): Promise<{ id: string }> {
     return this.req("/advertiser/campaigns", { method: "POST", body: JSON.stringify(dto) });

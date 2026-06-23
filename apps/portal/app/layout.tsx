@@ -1,10 +1,33 @@
-export const metadata = { title: "Kickbacks-India — Advertisers" };
+import Link from "next/link";
+import "./globals.css";
+
+export const metadata = {
+  title: "Kickbacks-India",
+  description: "Sponsor the line developers watch while their AI agent thinks — and pay India's developers for it.",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: "system-ui, sans-serif", maxWidth: 720, margin: "2rem auto", padding: "0 1rem" }}>
-        {children}
+      <body>
+        <nav className="nav">
+          <div className="nav-inner">
+            <Link href="/" className="brand">
+              <span className="brand-dot" /> Kickbacks<span className="muted">·India</span>
+            </Link>
+            <div className="nav-links">
+              <Link href="/campaigns" className="nav-link">Advertisers</Link>
+              <Link href="/earnings" className="nav-link">Developers</Link>
+              <Link href="/admin" className="nav-link">Admin</Link>
+            </div>
+          </div>
+        </nav>
+        <main className="container">{children}</main>
+        <footer className="footer">
+          <div className="footer-inner">
+            Kickbacks-India — the ad marketplace for AI coding agents. Built for India&apos;s developers.
+          </div>
+        </footer>
       </body>
     </html>
   );

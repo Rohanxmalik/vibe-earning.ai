@@ -34,3 +34,8 @@ coverage/
 test-results/
 playwright-report/
 playwright/.cache/
+.playwright-mcp/
+
+# Local UI screenshots / scratch captures (repo-root only)
+/ui-*.png
+/new-*.png

@@ -2,7 +2,20 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
-    "test": { "dependsOn": ["^build"] },
+    "test": {
+      "dependsOn": ["^build"],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "AUTH_JWT_SECRET",
+        "ADMIN_API_KEY",
+        "GOOGLE_CLIENT_ID",
+        "RAZORPAY_WEBHOOK_SECRET",
+        "STRIPE_WEBHOOK_SECRET",
+        "THROTTLE_LIMIT",
+        "LOG_LEVEL"
+      ]
+    },
     "lint": {},
     "dev": { "cache": false, "persistent": true }
   }

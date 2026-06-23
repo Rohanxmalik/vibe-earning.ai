@@ -57,4 +57,23 @@ describe("PortalApi", () => {
     expect(await api.requestPayout()).toMatchObject({ status: "paid" });
     expect(f).toHaveBeenCalledWith("http://api/payouts", expect.objectContaining({ method: "POST" }));
   });
+
+  it("admin requests send the x-admin-key header (not a bearer token)", async () => {
+    const f = vi.fn().mockResolvedValue(json([{ id: "c1", copy: "x", url: "u" }]));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "ignored-bearer");
+    await api.adminPendingCampaigns("secret-key");
+    expect(f).toHaveBeenCalledWith("http://api/admin/campaigns/pending", expect.objectContaining({
+      method: "GET",
+      headers: expect.objectContaining({ "x-admin-key": "secret-key" }),
+    }));
+    const sentHeaders = f.mock.calls[0][1].headers as Record<string, string>;
+    expect(sentHeaders.authorization).toBeUndefined();
+  });
+
+  it("adminApproveCampaign POSTs to the approve endpoint", async () => {
+    const f = vi.fn().mockResolvedValue(json({ ok: true }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch);
+    await api.adminApproveCampaign("k", "c1");
+    expect(f).toHaveBeenCalledWith("http://api/admin/campaigns/c1/approve", expect.objectContaining({ method: "POST" }));
+  });
 });

@@ -38,6 +38,21 @@ describe("config + fraud (e2e)", () => {
     await request(app.getHttpServer()).post("/admin/killswitch").send({ active: true }).expect(401);
   });
 
+  it("lists pending campaigns for an admin and 401s without the key", async () => {
+    const camp = await prisma.campaign.create({ data: { copy: "pending one", url: "https://x.dev", status: "pending" } });
+    await request(app.getHttpServer()).get("/admin/campaigns/pending").expect(401);
+    const res = await request(app.getHttpServer()).get("/admin/campaigns/pending").set("x-admin-key", ADMIN).expect(200);
+    expect(res.body.some((c: { id: string }) => c.id === camp.id)).toBe(true);
+    await prisma.campaign.delete({ where: { id: camp.id } });
+  });
+
+  it("lists pending payout destinations for an admin", async () => {
+    const acct = await prisma.account.create({ data: { type: "dev" } });
+    const dest = await prisma.payoutDestination.create({ data: { accountId: acct.id, method: "upi", vpa: "p@okaxis", status: "pending" } });
+    const res = await request(app.getHttpServer()).get("/admin/payout-destinations/pending").set("x-admin-key", ADMIN).expect(200);
+    expect(res.body.some((d: { id: string }) => d.id === dest.id)).toBe(true);
+  });
+
   it("blocks a suspended account from cashing out", async () => {
     const login = await request(app.getHttpServer()).post("/auth/google").send({ idToken: "x".repeat(20) });
     const accountId = login.body.account.id;

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Headers, Param, Post, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, UnauthorizedException } from "@nestjs/common";
 import { z } from "zod";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "../advertiser/campaign.service";
@@ -36,10 +36,22 @@ export class AdminConfigController {
     return { ok: true };
   }
 
+  @Get("campaigns/pending")
+  async pendingCampaigns(@Headers("x-admin-key") key: string) {
+    requireAdmin(key);
+    return this.prisma.campaign.findMany({ where: { status: "pending" }, orderBy: { createdAt: "desc" } });
+  }
+
   @Post("campaigns/:id/approve")
   async approveCampaign(@Headers("x-admin-key") key: string, @Param("id") id: string) {
     requireAdmin(key);
     return this.campaigns.approve(id);
+  }
+
+  @Get("payout-destinations/pending")
+  async pendingDestinations(@Headers("x-admin-key") key: string) {
+    requireAdmin(key);
+    return this.prisma.payoutDestination.findMany({ where: { status: "pending" }, orderBy: { createdAt: "desc" } });
   }
 
   @Post("payout-destinations/:id/verify")

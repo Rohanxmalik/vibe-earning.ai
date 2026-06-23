@@ -26,6 +26,16 @@ export class PortalApi {
     return (await res.json()) as T;
   }
 
+  // Admin requests authenticate with the x-admin-key header, not a bearer token.
+  private async adminReq<T>(adminKey: string, path: string, init?: RequestInit): Promise<T> {
+    const res = await this.fetchFn(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: { "content-type": "application/json", "x-admin-key": adminKey },
+    });
+    if (!res.ok) throw new Error(`request failed: ${res.status}`);
+    return (await res.json()) as T;
+  }
+
   register(email: string, password: string): Promise<AuthResult> {
     return this.req("/advertiser/register", { method: "POST", body: JSON.stringify({ email, password }) });
   }
@@ -57,5 +67,22 @@ export class PortalApi {
   }
   setPayoutDestination(dto: PayoutDestinationInput): Promise<PayoutDestination> {
     return this.req("/payouts/destination", { method: "POST", body: JSON.stringify(dto) });
+  }
+
+  // --- Admin / operations ---
+  adminPendingCampaigns(adminKey: string): Promise<Campaign[]> {
+    return this.adminReq(adminKey, "/admin/campaigns/pending", { method: "GET" });
+  }
+  adminApproveCampaign(adminKey: string, id: string): Promise<{ ok: boolean }> {
+    return this.adminReq(adminKey, `/admin/campaigns/${id}/approve`, { method: "POST" });
+  }
+  adminPendingDestinations(adminKey: string): Promise<PayoutDestination[]> {
+    return this.adminReq(adminKey, "/admin/payout-destinations/pending", { method: "GET" });
+  }
+  adminVerifyDestination(adminKey: string, id: string): Promise<{ ok: boolean }> {
+    return this.adminReq(adminKey, `/admin/payout-destinations/${id}/verify`, { method: "POST", body: JSON.stringify({}) });
+  }
+  adminSetKillswitch(adminKey: string, active: boolean): Promise<{ ok: boolean }> {
+    return this.adminReq(adminKey, "/admin/killswitch", { method: "POST", body: JSON.stringify({ active }) });
   }
 }

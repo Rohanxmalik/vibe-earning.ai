@@ -9,6 +9,7 @@ export default function Home() {
         <Link href="/login">Sign in / Register</Link> · <Link href="/campaigns">My campaigns</Link>
       </p>
       <p>Developer? <Link href="/earnings">View your earnings</Link>.</p>
+      <p style={{ color: "#888", fontSize: "0.9em" }}>Staff: <Link href="/admin">Admin console</Link>.</p>
     </main>
   );
 }

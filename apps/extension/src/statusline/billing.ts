@@ -75,3 +75,48 @@ export function decideBilling(
   // Not yet eligible, or already billed this window → keep the window, no bill.
   return { nextState: state, bill: null };
 }
+
+export interface RotationOpts {
+  minViewMs?: number;
+  /** How long to hold each ad before rotating to the next (must be ≥ minViewMs to bill first). */
+  holdMs?: number;
+}
+
+export interface RotationResult extends BillingDecision {
+  ad: ServeResponse | null;
+}
+
+const DEFAULT_HOLD_MS = 8000;
+
+/**
+ * Rotate through the top-N served ads in the status line. Each ad is held for `holdMs`
+ * (long enough to be billed once at the view threshold), then we advance to the next ad,
+ * cycling. Picking the ad to show is the only rotation concern; the per-window billing is
+ * delegated to `decideBilling`, so a rotated-in ad opens a fresh billable window.
+ */
+export function tickRotation(
+  state: BillingState,
+  ads: ServeResponse[],
+  now: number,
+  opts: RotationOpts = {},
+): RotationResult {
+  const holdMs = opts.holdMs ?? DEFAULT_HOLD_MS;
+  if (ads.length === 0) {
+    const cleared = decideBilling(state, null, now, opts.minViewMs);
+    return { ...cleared, ad: null };
+  }
+
+  const cur = state.current;
+  const idx = cur ? ads.findIndex((a) => a.campaignId === cur.campaignId) : -1;
+  let showAd: ServeResponse;
+  if (idx < 0) {
+    showAd = ads[0]; // (re)start on the top ad
+  } else if (ads.length > 1 && now - cur!.firstShownMs >= holdMs) {
+    showAd = ads[(idx + 1) % ads.length]; // held long enough → rotate
+  } else {
+    showAd = ads[idx]; // keep showing the current ad
+  }
+
+  const decision = decideBilling(state, showAd, now, opts.minViewMs);
+  return { ...decision, ad: showAd };
+}

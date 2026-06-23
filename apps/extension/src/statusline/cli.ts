@@ -13,12 +13,13 @@
  * See docs/extension/claude-code-statusline.md.
  */
 import { composeStatusLine } from "./compose";
-import { decideBilling } from "./billing";
+import { tickRotation } from "./billing";
 import { loadToken, loadState, saveState } from "./store";
 import type { ServeResponse } from "@kbi/shared";
 
 const API = process.env.KICKBACKS_API ?? "http://localhost:3000";
 const SURFACE = "claude-code-terminal";
+const ROTATION_COUNT = 3; // request the top-N ads and rotate through them
 const TIMEOUT_MS = 800; // keep the status line snappy
 
 function authHeaders(token: string | undefined): Record<string, string> {
@@ -30,15 +31,15 @@ async function main(): Promise<void> {
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const token = loadToken();
   try {
-    const res = await fetch(`${API}/serve?surface=${SURFACE}&count=1`, { signal: controller.signal, headers: authHeaders(token) });
+    const res = await fetch(`${API}/serve?surface=${SURFACE}&count=${ROTATION_COUNT}`, { signal: controller.signal, headers: authHeaders(token) });
     if (!res.ok) return;
-    const ad = ((await res.json()) as { ad: ServeResponse | null }).ad ?? null;
+    const ads = ((await res.json()) as { ads?: ServeResponse[]; ad: ServeResponse | null }).ads ?? [];
 
-    // Conservative billing: at most one impression per shown ad-window, after the
-    // minimum view time. Attribution requires a signed-in dev (token); anonymous
+    // Rotate through the top-N ads (each held, then advanced), with conservative
+    // per-window billing. Attribution requires a signed-in dev (token); anonymous
     // impressions would forfeit to the platform, so we only bill when authenticated.
     const state = loadState();
-    const { nextState, bill } = decideBilling(state, ad, Date.now());
+    const { nextState, bill, ad } = tickRotation(state, ads, Date.now());
     if (bill && token) {
       await fetch(`${API}/events`, {
         method: "POST",

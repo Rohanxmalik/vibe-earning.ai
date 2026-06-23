@@ -47,10 +47,13 @@ Claude Code (every status refresh)
 - **Conservative billing** (`billing.ts`, unit-tested): the status line refreshes on a timer with no reliable view-time, so we **never** bill per refresh. `decideBilling` bills **at most one impression per shown ad-window**, and only after that window has been visible for the minimum view time (5s, matching the server). The nonce is stable per window, so duplicate refreshes are deduped server-side. Worst case we *under*-bill — we never over-bill the advertiser or over-pay the dev. House ads are never billed. Window state persists in `~/.kickbacks/statusline-state.json`.
 - **Attribution:** when a token is present, both `/serve` and the `/events` impression are sent authenticated, so earnings credit the signed-in developer. No token → ads still show, but nothing is billed (anonymous would forfeit to platform anyway).
 
+## Rotation (now implemented)
+
+The CLI requests the **top 3** ads (`/serve?count=3`) and `tickRotation` (`billing.ts`, unit-tested) holds each for `holdMs` (default 8s — long enough to bill once at the 5s view threshold) then advances, cycling. Each rotated-in ad opens a fresh billable window via `decideBilling`. Short sessions just show ad #1; longer ones reach #2/#3 — mirroring the in-editor `Orchestrator` rotation.
+
 ## What's still NOT done here
 
-- **Live verification** against a real Claude Code (refresh cadence, status-line truncation behaviour).
-- **Rotation.** `count=1` for now; once verified, request `count=3` and rotate per window (the API + `composeStatusLine` already support multiple ads).
+- **Live verification** against a real Claude Code (refresh cadence, status-line truncation behaviour, whether the refresh interval makes the 8s hold feel right).
 - **Codex / Gemini** adapters (same pattern, each tool's own official surface).
 
 ## Acceptance (definition of done for this blocker)
@@ -59,5 +62,6 @@ Claude Code (every status refresh)
 - [x] Conservative status-line impression/billing rule (`billing.ts`, unit-tested).
 - [x] Attribute to the signed-in developer (bearer token on `/serve` + `/events`).
 - [x] Fail-safe: errors/slow API never disrupt the agent (bounded timeout, all errors swallowed).
+- [x] `count=3` rotation through the top ads (`tickRotation`, unit-tested).
 - [ ] On a real Claude Code, the sponsored line renders from a funded campaign and an impression is credited.
-- [ ] Then: `count=3` rotation, and repeat for Codex / Gemini.
+- [ ] Repeat the adapter for Codex / Gemini.

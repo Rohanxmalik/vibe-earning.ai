@@ -58,4 +58,14 @@ describe("auction escrow-gating (e2e)", () => {
     const res = await request(app.getHttpServer()).get("/serve?surface=gemini-cli-terminal").expect(200);
     expect(res.body.ad.copy).toBe("FUNDED-A");
   });
+
+  it("pausing the funded campaign stops it serving; resuming brings it back", async () => {
+    await request(app.getHttpServer()).post(`/advertiser/campaigns/${aId}/pause`).set("authorization", `Bearer ${token}`).expect(201);
+    let res = await request(app.getHttpServer()).get("/serve?surface=gemini-cli-terminal").expect(200);
+    expect(res.body.ad).toBeNull(); // A paused, B unfunded → nothing
+
+    await request(app.getHttpServer()).post(`/advertiser/campaigns/${aId}/resume`).set("authorization", `Bearer ${token}`).expect(201);
+    res = await request(app.getHttpServer()).get("/serve?surface=gemini-cli-terminal").expect(200);
+    expect(res.body.ad.copy).toBe("FUNDED-A");
+  });
 });

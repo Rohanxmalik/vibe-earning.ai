@@ -36,4 +36,11 @@ describe("RankingService", () => {
   it("topCampaigns returns [] for an empty surface", async () => {
     expect(await ranking.topCampaigns("codex-panel", 10)).toEqual([]);
   });
+
+  it("removeBid drops a campaign from the ranking (e.g. when paused)", async () => {
+    await ranking.upsertBid("codex-panel", "keep", 500);
+    await ranking.upsertBid("codex-panel", "drop", 300);
+    await ranking.removeBid("codex-panel", "drop");
+    expect(await ranking.topCampaigns("codex-panel", 10)).toEqual(["keep"]);
+  });
 });

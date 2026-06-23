@@ -41,4 +41,21 @@ export class AdvertiserController {
     if (!c || c.advertiserId !== req.account.id) throw new ForbiddenException("not_your_campaign");
     return this.stats.forCampaign(id);
   }
+
+  @Get(":id/spend-daily")
+  async dailySpend(@Req() req: { account: { id: string } }, @Param("id") id: string) {
+    const c = await this.prisma.campaign.findUnique({ where: { id } });
+    if (!c || c.advertiserId !== req.account.id) throw new ForbiddenException("not_your_campaign");
+    return this.stats.dailySpend(id);
+  }
+
+  @Post(":id/pause")
+  async pause(@Req() req: { account: { id: string } }, @Param("id") id: string) {
+    return this.campaigns.pause(req.account.id, id);
+  }
+
+  @Post(":id/resume")
+  async resume(@Req() req: { account: { id: string } }, @Param("id") id: string) {
+    return this.campaigns.resume(req.account.id, id);
+  }
 }

@@ -33,4 +33,17 @@ describe("CampaignStatsService", () => {
     expect(s).toEqual({ impressions: 7, clicks: 2, spendPaise: 100, escrowRemainingPaise: 40000 });
     expect(prismaMock.adEvent.count).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ campaignId: "c1", type: "impression", valid: true }) }));
   });
+
+  it("groups escrow debits into per-day spend, oldest first", async () => {
+    prismaMock.ledgerEntry.findMany.mockResolvedValue([
+      { amount: 20, createdAt: new Date("2026-06-21T10:00:00Z") },
+      { amount: 30, createdAt: new Date("2026-06-21T18:00:00Z") },
+      { amount: 50, createdAt: new Date("2026-06-22T09:00:00Z") },
+    ]);
+    const out = await svc.dailySpend("c1");
+    expect(out).toEqual([
+      { date: "2026-06-21", spendPaise: 50 },
+      { date: "2026-06-22", spendPaise: 50 },
+    ]);
+  });
 });

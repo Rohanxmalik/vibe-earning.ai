@@ -4,10 +4,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
 const prismaMock = {
-  campaign: { create: jest.fn(), update: jest.fn() },
+  campaign: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
   bid: { create: jest.fn(), findMany: jest.fn() },
 };
-const rankingMock = { upsertBid: jest.fn() };
+const rankingMock = { upsertBid: jest.fn(), removeBid: jest.fn() };
 
 describe("CampaignService", () => {
   let svc: CampaignService;
@@ -49,5 +49,33 @@ describe("CampaignService", () => {
     expect(rankingMock.upsertBid).toHaveBeenCalledWith("codex-panel", "c1", 20000);
     expect(rankingMock.upsertBid).toHaveBeenCalledWith("claude-spinner", "c1", 5000);
     expect(r).toEqual({ ok: true });
+  });
+
+  it("pause() removes an active campaign's bids from the ranking", async () => {
+    prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "active" });
+    prismaMock.bid.findMany.mockResolvedValue([{ surface: "codex-panel", amount: 20000 }]);
+    const r = await svc.pause("adv1", "c1");
+    expect(prismaMock.campaign.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: { status: "paused" } }));
+    expect(rankingMock.removeBid).toHaveBeenCalledWith("codex-panel", "c1");
+    expect(r).toEqual({ ok: true });
+  });
+
+  it("resume() reactivates a paused campaign and re-ranks its bids", async () => {
+    prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "paused" });
+    prismaMock.bid.findMany.mockResolvedValue([{ surface: "codex-panel", amount: 20000 }]);
+    const r = await svc.resume("adv1", "c1");
+    expect(prismaMock.campaign.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: { status: "active" } }));
+    expect(rankingMock.upsertBid).toHaveBeenCalledWith("codex-panel", "c1", 20000);
+    expect(r).toEqual({ ok: true });
+  });
+
+  it("pause()/resume() reject a campaign owned by someone else", async () => {
+    prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "other", status: "active" });
+    await expect(svc.pause("adv1", "c1")).rejects.toThrow("not_your_campaign");
+  });
+
+  it("pause() rejects a campaign that isn't active", async () => {
+    prismaMock.campaign.findUnique.mockResolvedValue({ id: "c1", advertiserId: "adv1", status: "pending" });
+    await expect(svc.pause("adv1", "c1")).rejects.toThrow("not_active");
   });
 });

@@ -39,10 +39,20 @@ export default function CampaignsPage() {
   async function buy(id: string) {
     try {
       const p = await api.buyBlocks(id, 5);
-      setMsg(`Bought 5 blocks (₹${(p.amountPaise / 100).toFixed(2)}, ${p.status}).`);
+      setMsg(`Topped up 5 blocks (₹${(p.amountPaise / 100).toFixed(2)}, ${p.status}).`);
+      await refresh();
     } catch {
-      setMsg("Buy failed.");
+      setMsg("Top-up failed.");
     }
+  }
+
+  async function pause(id: string) {
+    try { await api.pauseCampaign(id); setMsg("Campaign paused."); await refresh(); }
+    catch { setMsg("Pause failed (only active campaigns can be paused)."); }
+  }
+  async function resume(id: string) {
+    try { await api.resumeCampaign(id); setMsg("Campaign resumed."); await refresh(); }
+    catch { setMsg("Resume failed."); }
   }
 
   function logout() {
@@ -65,7 +75,10 @@ export default function CampaignsPage() {
       <ul>
         {campaigns.map((c) => (
           <li key={c.id}>
-            <strong>{c.copy}</strong> — {c.url} <button onClick={() => buy(c.id)}>Buy 5 blocks</button>
+            <strong>{c.copy}</strong> — {c.url} <em>[{c.status ?? "?"}]</em>{" "}
+            <button onClick={() => buy(c.id)}>Top up 5 blocks</button>{" "}
+            {c.status === "active" && <button onClick={() => pause(c.id)}>Pause</button>}
+            {c.status === "paused" && <button onClick={() => resume(c.id)}>Resume</button>}
           </li>
         ))}
       </ul>

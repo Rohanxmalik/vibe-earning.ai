@@ -19,4 +19,19 @@ export class CampaignStatsService {
     const spendPaise = debits.reduce((sum, e) => sum + e.amount, 0);
     return { impressions, clicks, spendPaise, escrowRemainingPaise };
   }
+
+  /** Escrow spend grouped by calendar day (UTC), oldest first — for a spend-over-time view. */
+  async dailySpend(campaignId: string): Promise<Array<{ date: string; spendPaise: number }>> {
+    const debits = await this.prisma.ledgerEntry.findMany({
+      where: { account: `escrow:campaign:${campaignId}`, direction: "debit" },
+    });
+    const byDay = new Map<string, number>();
+    for (const e of debits) {
+      const day = new Date(e.createdAt).toISOString().slice(0, 10);
+      byDay.set(day, (byDay.get(day) ?? 0) + e.amount);
+    }
+    return [...byDay.entries()]
+      .map(([date, spendPaise]) => ({ date, spendPaise }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
 }

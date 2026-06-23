@@ -76,4 +76,13 @@ describe("PortalApi", () => {
     await api.adminApproveCampaign("k", "c1");
     expect(f).toHaveBeenCalledWith("http://api/admin/campaigns/c1/approve", expect.objectContaining({ method: "POST" }));
   });
+
+  it("pause/resume campaign POST to the right endpoints with auth", async () => {
+    const f = vi.fn().mockResolvedValue(json({ ok: true }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "tok");
+    await api.pauseCampaign("c1");
+    expect(f).toHaveBeenCalledWith("http://api/advertiser/campaigns/c1/pause", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ authorization: "Bearer tok" }) }));
+    await api.resumeCampaign("c1");
+    expect(f).toHaveBeenCalledWith("http://api/advertiser/campaigns/c1/resume", expect.objectContaining({ method: "POST" }));
+  });
 });

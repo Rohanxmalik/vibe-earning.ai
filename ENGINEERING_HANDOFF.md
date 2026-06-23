@@ -2,11 +2,13 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus two hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **163 automated tests green** (api 130 · extension 22 · shared 14 · portal 7) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **185 automated tests green** (api 134 · extension 27 · shared 17 · portal 7) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
 > **Batch 2 (marked [NEW2] inline):** completed the **payout loop** (RazorpayX payout adapter + `PayoutDestination` KYC model + payout webhooks) · delivery **pacing** + global **rate-limiting** + escrow **overspend guard** · **developer earnings dashboard** + **admin operations console** in the portal · root `README` · prod `docker-compose` · **CD** workflow (GHCR images) · **Sentry** (DSN-guarded) · **Playwright** portal smokes. Two more zero-drift migrations.
+>
+> **Batch 3 (marked [NEW3] inline):** **top-N ad rotation** — `/serve?count=N` returns the top-N eligible ads; the extension rotates through them as the spinner ticks (`adapter.onTick`), holding each ~5s of *visible* time and billing each ad as its own impression. Short waits show one ad; long sessions reach #2/#3. The real spinner adapters still need to fire `onTick` (deferred with injection).
 
 ---
 
@@ -225,7 +227,7 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 | Method & path | Auth | Body | Returns |
 |---------------|------|------|---------|
 | `GET /health` | — | — | `{status:"ok"}` |
-| `GET /serve?surface=` | — | — | `{ad: ServeResponse \| null}` (skips out-of-budget/inactive) |
+| `GET /serve?surface=&count=` | — | — | `{ad, ads}` — `ads` = top-N eligible (count 1–3, default 1) for in-spinner rotation; `ad` mirrors `ads[0]` for back-compat **[NEW3]** |
 | `POST /events` | optional Bearer | `{installId,campaignId,surface,type,nonce,visibleMs}` | `{deduped,valid,reason}` |
 | `POST /auth/google` | — | `{idToken}` | `{token, account}` |
 | `GET /auth/me` | Bearer | — | `{id,email,type}` |
@@ -335,7 +337,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 130 · extension 22 · shared 14 · portal 7 = 173 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 134 · extension 27 · shared 17 · portal 7 = 185 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**

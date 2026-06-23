@@ -1,7 +1,10 @@
-import type { CreateCampaign } from "@kbi/shared";
+import type { CreateCampaign, PayoutDestinationInput } from "@kbi/shared";
 
 export interface AuthResult { token: string; account: { id: string; email: string | null; type: string } }
 export interface Campaign { id: string; copy: string; url: string; surface?: string; createdAt?: string }
+export interface LedgerSummary { balancePaise: number; currency: string; validImpressions: number }
+export interface Payout { id: string; provider: string; amountPaise: number; status: string; createdAt?: string }
+export interface PayoutDestination { id: string; method: string; vpa: string | null; accountNumber: string | null; status: string }
 
 export class PortalApi {
   constructor(
@@ -37,5 +40,22 @@ export class PortalApi {
   }
   buyBlocks(campaignId: string, quantity: number): Promise<{ id: string; status: string; amountPaise: number }> {
     return this.req(`/advertiser/campaigns/${campaignId}/blocks`, { method: "POST", body: JSON.stringify({ quantity }) });
+  }
+
+  // --- Developer (supply) side ---
+  ledgerSummary(): Promise<LedgerSummary> {
+    return this.req("/ledger/me/summary", { method: "GET" });
+  }
+  myPayouts(): Promise<Payout[]> {
+    return this.req("/payouts/me", { method: "GET" });
+  }
+  requestPayout(): Promise<Payout> {
+    return this.req("/payouts", { method: "POST" });
+  }
+  myPayoutDestinations(): Promise<PayoutDestination[]> {
+    return this.req("/payouts/destination", { method: "GET" });
+  }
+  setPayoutDestination(dto: PayoutDestinationInput): Promise<PayoutDestination> {
+    return this.req("/payouts/destination", { method: "POST", body: JSON.stringify(dto) });
   }
 }

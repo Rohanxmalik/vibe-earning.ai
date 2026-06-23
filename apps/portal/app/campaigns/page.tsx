@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PortalApi, type Campaign } from "../../lib/api";
-import { getToken } from "../../lib/token";
+import { getToken, clearToken } from "../../lib/token";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000", fetch, getToken);
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [copy, setCopy] = useState("");
   const [url, setUrl] = useState("https://");
@@ -43,9 +45,15 @@ export default function CampaignsPage() {
     }
   }
 
+  function logout() {
+    clearToken();
+    router.push("/login");
+  }
+
   return (
     <main>
       <h1>My campaigns</h1>
+      <button onClick={logout}>Log out</button>
       <section>
         <h2>New campaign (codex-panel)</h2>
         <input placeholder="ad copy (≤60)" value={copy} onChange={(e) => setCopy(e.target.value)} maxLength={60} />

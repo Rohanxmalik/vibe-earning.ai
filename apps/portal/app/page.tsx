@@ -8,6 +8,7 @@ export default function Home() {
       <p>
         <Link href="/login">Sign in / Register</Link> · <Link href="/campaigns">My campaigns</Link>
       </p>
+      <p>Developer? <Link href="/earnings">View your earnings</Link>.</p>
     </main>
   );
 }

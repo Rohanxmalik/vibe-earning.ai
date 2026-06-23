@@ -34,4 +34,27 @@ describe("PortalApi", () => {
     const api = new PortalApi("http://api", f as unknown as typeof fetch);
     await expect(api.login("e@x.com", "x")).rejects.toBeTruthy();
   });
+
+  it("ledgerSummary GETs the dev balance with auth", async () => {
+    const f = vi.fn().mockResolvedValue(json({ balancePaise: 1234, currency: "INR", validImpressions: 7 }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "devtok");
+    expect(await api.ledgerSummary()).toMatchObject({ balancePaise: 1234, validImpressions: 7 });
+    expect(f).toHaveBeenCalledWith("http://api/ledger/me/summary", expect.objectContaining({
+      method: "GET", headers: expect.objectContaining({ authorization: "Bearer devtok" }),
+    }));
+  });
+
+  it("setPayoutDestination POSTs the UPI destination", async () => {
+    const f = vi.fn().mockResolvedValue(json({ id: "d1", method: "upi", vpa: "dev@okaxis", status: "pending" }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "devtok");
+    await api.setPayoutDestination({ method: "upi", vpa: "dev@okaxis" });
+    expect(f).toHaveBeenCalledWith("http://api/payouts/destination", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("requestPayout POSTs to /payouts", async () => {
+    const f = vi.fn().mockResolvedValue(json({ id: "p1", provider: "razorpay", amountPaise: 15000, status: "paid" }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "devtok");
+    expect(await api.requestPayout()).toMatchObject({ status: "paid" });
+    expect(f).toHaveBeenCalledWith("http://api/payouts", expect.objectContaining({ method: "POST" }));
+  });
 });

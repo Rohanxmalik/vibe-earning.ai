@@ -2,31 +2,54 @@
 /**
  * Claude Code status-line integration (PROTOTYPE — verify against a live Claude Code).
  *
- * Claude Code can render a custom status line by running a command and showing its
- * stdout (configured under `statusLine` in ~/.claude/settings.json). This script asks
- * our API for the current top ad on the `claude-code-terminal` surface and prints one
- * sponsored line. It NEVER throws or hangs the agent: any error → prints nothing.
+ * Claude Code renders a custom status line by running a command and showing its stdout
+ * (configured under `statusLine` in ~/.claude/settings.json). On each refresh this script:
+ *   1. asks the API for the top ad on the `claude-code-terminal` surface,
+ *   2. decides — conservatively — whether this shown window has earned an impression,
+ *   3. if so, posts an authenticated /events impression (credited to the signed-in dev),
+ *   4. prints one sponsored line.
  *
- * This is the *official, non-adversarial* injection point (no UI hacking). Billing for a
- * status-line impression is intentionally NOT done here — the status line refreshes on a
- * timer with no reliable view-time, so impression/▼ accounting stays in the extension
- * pipeline. See docs/extension/claude-code-statusline.md.
+ * It NEVER throws or hangs the agent: any error → prints whatever line it had (or nothing).
+ * See docs/extension/claude-code-statusline.md.
  */
 import { composeStatusLine } from "./compose";
+import { decideBilling } from "./billing";
+import { loadToken, loadState, saveState } from "./store";
 import type { ServeResponse } from "@kbi/shared";
 
 const API = process.env.KICKBACKS_API ?? "http://localhost:3000";
 const SURFACE = "claude-code-terminal";
-const TIMEOUT_MS = 800; // keep the status line snappy; bail fast on a slow network
+const TIMEOUT_MS = 800; // keep the status line snappy
+
+function authHeaders(token: string | undefined): Record<string, string> {
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
 
 async function main(): Promise<void> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const token = loadToken();
   try {
-    const res = await fetch(`${API}/serve?surface=${SURFACE}&count=1`, { signal: controller.signal });
+    const res = await fetch(`${API}/serve?surface=${SURFACE}&count=1`, { signal: controller.signal, headers: authHeaders(token) });
     if (!res.ok) return;
-    const body = (await res.json()) as { ad: ServeResponse | null };
-    const line = composeStatusLine(body.ad ?? null);
+    const ad = ((await res.json()) as { ad: ServeResponse | null }).ad ?? null;
+
+    // Conservative billing: at most one impression per shown ad-window, after the
+    // minimum view time. Attribution requires a signed-in dev (token); anonymous
+    // impressions would forfeit to the platform, so we only bill when authenticated.
+    const state = loadState();
+    const { nextState, bill } = decideBilling(state, ad, Date.now());
+    if (bill && token) {
+      await fetch(`${API}/events`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "content-type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify({ installId: bill.installId, campaignId: bill.campaignId, surface: SURFACE, type: bill.type, nonce: bill.nonce, visibleMs: bill.visibleMs }),
+      }).catch(() => undefined);
+    }
+    saveState(nextState);
+
+    const line = composeStatusLine(ad);
     if (line) process.stdout.write(line);
   } catch {
     // swallow — never break the user's status line

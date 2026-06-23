@@ -2,7 +2,7 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **226 automated tests green** (api 165 · extension 31 · shared 17 · portal 13) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **233 automated tests green** (api 165 · extension 38 · shared 17 · portal 13) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -349,7 +349,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 165 · extension 31 · shared 17 · portal 13 = 226 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 165 · extension 38 · shared 17 · portal 13 = 233 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -400,7 +400,7 @@ Each sits behind a finished seam, so it's "fill in the implementation / plug in 
 
 ### 13.2 Real spinner injection (makes the extension actually earn)
 **Where:** `apps/extension/src/adapters/{claudeCode,codex,geminiCli}.ts` — stubs that report `isAvailable()===false`.
-**How:** the recommended path is each agent's **official** status-line/hook extension point, not hacking a webview. **Claude Code has a working prototype + guide: `docs/extension/claude-code-statusline.md`** — a standalone status-line script (`src/statusline/cli.ts` → `dist/statusline.js`) with a unit-tested line composer (`src/statusline/compose.ts`, labels ads "Sponsored", omits the label for house ads). What remains for Claude Code: live verification, a conservative status-line **billing** rule (the line refreshes on a timer with no view-time), and **attribution** (send the signed-in dev's token). Alternatively/additionally, implement the `SpinnerAdapter` interface (`isAvailable`/`start`/`render`/`clear`) for in-editor surfaces. Keep the always-safe no-op fallback so a vendor UI change never breaks the user's agent. The `Orchestrator` + `ViewTracker` + `ApiClient` are done and tested.
+**How:** the recommended path is each agent's **official** status-line/hook extension point, not hacking a webview. **Claude Code has a working prototype + guide: `docs/extension/claude-code-statusline.md`** — a standalone status-line script (`src/statusline/cli.ts` → `dist/statusline.js`) with three unit-tested pure modules: `compose.ts` (line text; "Sponsored" label, house ads exempt), `billing.ts` (**conservative** rule — at most one impression per shown ad-window, only after the 5s view threshold, stable nonce so refreshes dedupe; never over-bills), and `store.ts` (reads the dev token from `KICKBACKS_TOKEN`/`~/.kickbacks/token` and persists window state). It **attributes** earnings by sending the dev's bearer token on `/serve` + `/events`. What remains for Claude Code: **live verification** on a real install + then `count=3` rotation. Alternatively/additionally, implement the `SpinnerAdapter` interface (`isAvailable`/`start`/`render`/`clear`) for in-editor surfaces. Keep the always-safe no-op fallback so a vendor UI change never breaks the user's agent. The `Orchestrator` + `ViewTracker` + `ApiClient` are done and tested.
 
 ### 13.3 Killswitch poller — already wired
 `GET /config` exists and the extension's `Killswitch` already polls `${API_BASE}/config`. Nothing to do except set the global flag via `POST /admin/killswitch` in an incident.

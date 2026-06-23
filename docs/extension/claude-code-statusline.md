@@ -37,21 +37,27 @@ Claude Code (every status refresh)
    }
    ```
 3. Set `KICKBACKS_API` if the API isn't on `http://localhost:3000`.
-4. Open Claude Code — you should see the sponsored line. Fund a campaign on the `claude-code-terminal` surface so `/serve` returns an ad.
+4. **Sign in so earnings credit to you:** put your dev token in `KICKBACKS_TOKEN`, or write it to `~/.kickbacks/token`. Get the token from the web (Developers → sign up/log in) or the extension. Without it the script still shows ads but earns nothing (anonymous impressions forfeit to the platform).
+5. Open Claude Code — you should see the sponsored line. Fund a campaign on the `claude-code-terminal` surface so `/serve` returns an ad.
 
 > **Build note:** `esbuild.mjs` already emits `dist/statusline.js` from `src/statusline/cli.ts` (separate from the VS Code extension bundle).
 
-## What's deliberately NOT done here (and why)
+## Billing & attribution (now implemented — conservative by design)
 
-- **Billing an impression.** The status line refreshes on a timer with no reliable *view-time*, and Anthropic may cache/refresh unpredictably. Charging per refresh would be wrong (over-billing advertisers, over-paying devs). Impression accounting stays in the extension's `Orchestrator` + `ViewTracker` pipeline, which measures real focused on-screen time. A status-line-only billing model would need a separate, conservative "shown for ≥N seconds" heuristic — design before enabling.
-- **Rotation.** `count=1` for now. Once billing is sorted, request `count=3` and rotate per refresh (the API + `composeStatusLine` already support multiple ads).
-- **Auth/attribution.** This prototype serves anonymously (earnings would forfeit to platform under the current policy). To credit the developer, the script must send the dev's bearer token (from the extension's secret store) — wire once the dev is signed in.
+- **Conservative billing** (`billing.ts`, unit-tested): the status line refreshes on a timer with no reliable view-time, so we **never** bill per refresh. `decideBilling` bills **at most one impression per shown ad-window**, and only after that window has been visible for the minimum view time (5s, matching the server). The nonce is stable per window, so duplicate refreshes are deduped server-side. Worst case we *under*-bill — we never over-bill the advertiser or over-pay the dev. House ads are never billed. Window state persists in `~/.kickbacks/statusline-state.json`.
+- **Attribution:** when a token is present, both `/serve` and the `/events` impression are sent authenticated, so earnings credit the signed-in developer. No token → ads still show, but nothing is billed (anonymous would forfeit to platform anyway).
+
+## What's still NOT done here
+
+- **Live verification** against a real Claude Code (refresh cadence, status-line truncation behaviour).
+- **Rotation.** `count=1` for now; once verified, request `count=3` and rotate per window (the API + `composeStatusLine` already support multiple ads).
+- **Codex / Gemini** adapters (same pattern, each tool's own official surface).
 
 ## Acceptance (definition of done for this blocker)
 
 - [x] esbuild emits `dist/statusline.js`.
-- [ ] On a real Claude Code, the sponsored line renders from a funded campaign.
-- [ ] Errors/slow API never disrupt the agent (kill the API → status line just shows nothing).
-- [ ] Decide + implement the conservative status-line impression/billing rule.
-- [ ] Attribute to the signed-in developer (send bearer token).
+- [x] Conservative status-line impression/billing rule (`billing.ts`, unit-tested).
+- [x] Attribute to the signed-in developer (bearer token on `/serve` + `/events`).
+- [x] Fail-safe: errors/slow API never disrupt the agent (bounded timeout, all errors swallowed).
+- [ ] On a real Claude Code, the sponsored line renders from a funded campaign and an impression is credited.
 - [ ] Then: `count=3` rotation, and repeat for Codex / Gemini.

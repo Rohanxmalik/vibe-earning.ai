@@ -2,7 +2,7 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **222 automated tests green** (api 165 · extension 27 · shared 17 · portal 13) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **226 automated tests green** (api 165 · extension 31 · shared 17 · portal 13) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -349,7 +349,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 165 · extension 27 · shared 17 · portal 13 = 222 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 165 · extension 31 · shared 17 · portal 13 = 226 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -400,11 +400,7 @@ Each sits behind a finished seam, so it's "fill in the implementation / plug in 
 
 ### 13.2 Real spinner injection (makes the extension actually earn)
 **Where:** `apps/extension/src/adapters/{claudeCode,codex,geminiCli}.ts` — stubs that report `isAvailable()===false`.
-**How:** for each agent, implement the `SpinnerAdapter` interface:
-- `isAvailable()` — detect the agent is installed/active.
-- `start(handlers)` — hook the agent's "thinking" start/stop and call `onWaitStart`/`onWaitEnd`.
-- `render(ad)` / `clear()` — write/restore the sponsored line.
-The mechanism is **agent-specific and undocumented** — likely via the agent's own status-line/hook extension points (e.g., Claude Code's terminal status line) rather than hacking another extension's webview. Build one adapter at a time, verify against the live agent (`MANUAL-TEST.md`), and keep the always-safe no-op fallback so a vendor UI change never breaks the user's agent. The `Orchestrator` + `ViewTracker` + `ApiClient` they plug into are done and tested.
+**How:** the recommended path is each agent's **official** status-line/hook extension point, not hacking a webview. **Claude Code has a working prototype + guide: `docs/extension/claude-code-statusline.md`** — a standalone status-line script (`src/statusline/cli.ts` → `dist/statusline.js`) with a unit-tested line composer (`src/statusline/compose.ts`, labels ads "Sponsored", omits the label for house ads). What remains for Claude Code: live verification, a conservative status-line **billing** rule (the line refreshes on a timer with no view-time), and **attribution** (send the signed-in dev's token). Alternatively/additionally, implement the `SpinnerAdapter` interface (`isAvailable`/`start`/`render`/`clear`) for in-editor surfaces. Keep the always-safe no-op fallback so a vendor UI change never breaks the user's agent. The `Orchestrator` + `ViewTracker` + `ApiClient` are done and tested.
 
 ### 13.3 Killswitch poller — already wired
 `GET /config` exists and the extension's `Killswitch` already polls `${API_BASE}/config`. Nothing to do except set the global flag via `POST /admin/killswitch` in an incident.
@@ -447,6 +443,7 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 ---
 
 ## 15. Where to read more
+- **Launch-prep guides [NEW4]:** `docs/launch/DEPLOY.md` (deploy runbook + `.env.prod.example`), `docs/launch/PAYMENTS_SETUP.md` (PSP/KYC account setup → env mapping), `docs/extension/claude-code-statusline.md` (first real ad adapter), `docs/legal/` (advertiser/developer ToS + privacy templates — lawyer review required). High-level non-coding view: `LAUNCH_CHECKLIST.md`.
 - **Design spec:** `docs/superpowers/specs/2026-06-22-kickbacks-india-ad-marketplace-design.md` — the architecture + decisions + risks.
 - **Implementation plans** (`docs/superpowers/plans/`): one per slice (01 foundation, 02 metrics, 03 extension, 04 auth, 05 ledger, 06 payments, 07 advertiser-billing, 07b portal, 08 auction, 09 fraud). Each has the exact files, code, and reasoning — the best onboarding path is to read these in order.
 - **Hardening batches 1 & 2 [NEW]/[NEW2]** (analytics, moderation, IP-clustering, real PSP adapters + webhooks, RazorpayX payout + KYC, pacing/throttling/overspend-guard, dev & admin portal, CI/CD/migrations/Dockerfiles/compose, security + Sentry, Playwright, flake fix): implemented **inline, TDD, no per-slice plan docs** (by request). Read the `feat(...)`/`chore(...)`/`test(...)`/`docs(...)` commits on `main` — each commit message documents the rationale and verification for its slice.

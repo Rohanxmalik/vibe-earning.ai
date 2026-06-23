@@ -41,10 +41,12 @@ this order. Each says *what it is*, *why*, and *what "done" looks like*.
 
 ## Phase 4 — The ad-injection (the hard technical piece; needs an engineer + the live tools)
 
-- [ ] Build **one** real "adapter" first — Claude Code is the best candidate because it has an *official* status-line feature we can use without hacking.
+- [ ] Build **one** real "adapter" first — Claude Code is the best candidate because it has an *official* status-line feature we can use without hacking. **A working prototype + step-by-step guide already exists: `docs/extension/claude-code-statusline.md`** (the line-composing code is built and unit-tested; only live verification + billing/attribution remain).
 - [ ] **Strongly prefer official integration points** over hacking another tool's UI — far lower legal/ban risk (see legal note below).
 - [ ] Test it earns end-to-end on a real machine, then add Codex / Gemini.
 - **Done looks like:** an ad actually shows in a real AI tool's spinner and a developer gets paid.
+
+> **Engineer-facing detail guides now live in the repo:** `docs/launch/DEPLOY.md` (Phase 3), `docs/launch/PAYMENTS_SETUP.md` (Phase 2), `docs/legal/` (Phase 6 templates), `docs/extension/claude-code-statusline.md` (Phase 4).
 
 ## Phase 5 — Distribution
 

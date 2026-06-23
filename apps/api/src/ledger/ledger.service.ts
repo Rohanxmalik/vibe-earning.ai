@@ -63,6 +63,29 @@ export class LedgerService {
     return this.balance(`earnings:dev:${accountId}`);
   }
 
+  /**
+   * Reverse every posting made for an event by writing opposite entries keyed
+   * `void:<eventId>` (idempotent). Used to claw back earnings from confirmed fraud —
+   * credits escrow back, debits the dev's earnings and platform revenue.
+   */
+  async reverseEvent(eventId: string): Promise<void> {
+    const entries = await this.prisma.ledgerEntry.findMany({ where: { eventId } });
+    if (entries.length === 0) return;
+    const voidId = `void:${eventId}`;
+    const already = await this.prisma.ledgerEntry.count({ where: { eventId: voidId } });
+    if (already > 0) return; // idempotent
+    await this.prisma.ledgerEntry.createMany({
+      data: entries.map((e) => ({
+        eventId: voidId,
+        account: e.account,
+        direction: e.direction === "debit" ? "credit" : "debit",
+        amount: e.amount,
+        currency: e.currency,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   async recordPayout(payoutId: string, accountId: string, amountPaise: number): Promise<void> {
     if (amountPaise <= 0) return;
     const already = await this.prisma.ledgerEntry.count({ where: { eventId: payoutId } });

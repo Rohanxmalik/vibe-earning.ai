@@ -106,6 +106,28 @@ describe("LedgerService", () => {
     expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
   });
 
+  it("reverseEvent writes the opposite entries keyed void:<id> (idempotent)", async () => {
+    prismaMock.ledgerEntry.findMany.mockResolvedValueOnce([
+      { eventId: "E", account: "escrow:campaign:c1", direction: "debit", amount: 20, currency: "INR" },
+      { eventId: "E", account: "earnings:dev:acc1", direction: "credit", amount: 10, currency: "INR" },
+      { eventId: "E", account: "revenue:platform", direction: "credit", amount: 10, currency: "INR" },
+    ]);
+    prismaMock.ledgerEntry.count.mockResolvedValue(0);
+    await svc.reverseEvent("E");
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ eventId: string; account: string; direction: string; amount: number }>;
+    expect(arg).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventId: "void:E", account: "escrow:campaign:c1", direction: "credit", amount: 20 }),
+      expect.objectContaining({ eventId: "void:E", account: "earnings:dev:acc1", direction: "debit", amount: 10 }),
+      expect.objectContaining({ eventId: "void:E", account: "revenue:platform", direction: "debit", amount: 10 }),
+    ]));
+  });
+
+  it("reverseEvent is idempotent and a no-op for an unknown event", async () => {
+    prismaMock.ledgerEntry.findMany.mockResolvedValueOnce([]);
+    await svc.reverseEvent("nope");
+    expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
+  });
+
   it("fundEscrow debits cash and credits the campaign escrow", async () => {
     await svc.fundEscrow("buy1", "c1", 200000);
     const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; direction: string; amount: number }>;

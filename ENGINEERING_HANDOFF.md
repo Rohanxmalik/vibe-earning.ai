@@ -2,7 +2,7 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **185 automated tests green** (api 134 · extension 27 · shared 17 · portal 7) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **203 automated tests green** (api 149 · extension 27 · shared 17 · portal 10) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -251,8 +251,12 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 | `POST /admin/campaigns/:id/approve` **[NEW]** | `x-admin-key` | — | `{ok}` — moderates a pending campaign live + ranks its bids |
 | `GET /admin/payout-destinations/pending` **[NEW2]** | `x-admin-key` | — | `PayoutDestination[]` (KYC queue) |
 | `POST /admin/payout-destinations/:id/verify` **[NEW2]** | `x-admin-key` | `{providerRef?}` | `{ok}` — KYC-verify a destination |
-| `POST /admin/killswitch` | `x-admin-key` | `{active,scope?}` | `{ok}` |
-| `POST /admin/accounts/:id/suspend` | `x-admin-key` | `{suspended}` | `{ok}` |
+| `POST /admin/fraud/void-cluster` **[NEW4]** | admin | `{ipHash}` | `{voided}` — claw back a confirmed fraud cluster |
+| `POST /admin/login` **[NEW4]** | — | `{email,password}` | `{token, account}` — admin JWT (alt to the static key) |
+| `POST /admin/killswitch` | admin | `{active,scope?}` | `{ok}` |
+| `POST /admin/accounts/:id/suspend` | admin | `{suspended}` | `{ok}` |
+
+> **[NEW4]** "admin" auth = **either** the static `x-admin-key` header **or** a Bearer token from `POST /admin/login` (an `Account` of `type:"admin"`).
 
 ### Request validation
 Every controller parses the body/query with a **zod schema from `@kbi/shared`** and throws `400` on failure. No DTO classes / class-validator.
@@ -337,7 +341,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 134 · extension 27 · shared 17 · portal 7 = 185 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 149 · extension 27 · shared 17 · portal 10 = 203 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -423,12 +427,12 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~`db push` not migrations~~ — fixed (versioned baseline; §13.5).
 - ✅ ~~RazorpayX payout not wired~~ — implemented (REST seam; §13.1). Only RazorpayX KYC/fund_account onboarding + live keys remain.
 - ✅ ~~No admin moderation UI~~ — portal `/admin` (§9).
-- **IP-clustering flags after the threshold** — first N installs behind an IP still earn before the cluster is detected; no retroactive void yet (§13.4).
-- **Escrow guard bounds, doesn't reserve** — the ledger refuses to post when escrow < price (no negative escrow), but `/serve` can still hand out an impression that won't pay if budget runs out mid-flight. Add a per-serve reservation if exactness matters.
+- **IP-clustering flags after the threshold** — first N installs behind an IP still earn before the cluster is detected, but an admin can now claw them back: **`POST /admin/fraud/void-cluster {ipHash}`** invalidates those events and reverses their ledger postings (`FraudService.voidCluster` + `LedgerService.reverseEvent`).
+- **Escrow safety** — the ledger refuses to post when escrow < price (no negative escrow), AND `/serve` now skips a campaign whose escrow can't cover one impression at its own bid. A full atomic cross-request reservation (so two concurrent serves can't both commit the last paisa) is still future; current behaviour is conservative (never overspends, may under-serve a near-empty campaign).
 - ✅ ~~Ledger prices off the winner's own bid~~ — now a **generalized second-price auction** ([NEW3]): the winner pays the next-highest bid on the surface (falls back to its own bid when there's no competition). Pricing is point-in-time off current active bids, not the exact bid at serve — fine for one-bid-per-surface; revisit if a campaign holds multiple bids.
 - **`earnings:unattributed`** accrues for anonymous impressions and is never reconciled — decide policy (forfeit vs. claim-on-signin).
 - **Docker images carry dev dependencies** — runtime copies the full workspace (so the prisma CLI is available for `migrate deploy`); slim later with `pnpm deploy`/prod-prune.
-- **Portal UI is bare** — functional reference UI; no design system. Admin key stored in `localStorage` (fine for an internal tool; move to a real admin auth before exposing).
+- **Portal UI is bare** — functional reference UI; no design system. The portal admin page still uses the static `x-admin-key`, but the API also accepts a real **admin login** (`POST /admin/login` → JWT for `type:"admin"` accounts; admin endpoints accept either the key or an admin Bearer token). Wire the portal to admin login + remove the static key before exposing publicly.
 
 ---
 

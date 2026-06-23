@@ -29,8 +29,16 @@ export class ServeService {
       if (picked.length >= n) break;
       const c = await this.prisma.campaign.findUnique({ where: { id } });
       if (!c || c.status !== "active") continue;
-      if (!c.isHouseAd && (await this.ledger.escrowBalance(id)) <= 0) continue; // out of budget
-      if (!c.isHouseAd && !(await this.pacing.allow(id, c.pacePerMinute))) continue; // paced out this minute
+      if (!c.isHouseAd) {
+        // Affordability: skip if escrow can't cover even one impression at the campaign's
+        // own bid (its worst-case price; second-price only charges less). Avoids serving
+        // an ad that would earn the developer nothing.
+        const bid = await this.prisma.bid.findFirst({ where: { campaignId: id, surface, status: "active" }, orderBy: { amount: "desc" } });
+        const price = Math.floor((bid?.amount ?? 0) / 1000);
+        if (price <= 0) continue; // no / zero bid
+        if ((await this.ledger.escrowBalance(id)) < price) continue; // out of budget
+        if (!(await this.pacing.allow(id, c.pacePerMinute))) continue; // paced out this minute
+      }
       picked.push({
         adId: c.id,
         campaignId: c.id,

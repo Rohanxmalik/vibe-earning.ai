@@ -6,7 +6,7 @@ import { LedgerService } from "../ledger/ledger.service";
 import { PacingService } from "./pacing.service";
 
 const rankingMock = { topCampaigns: jest.fn() };
-const prismaMock = { campaign: { findUnique: jest.fn() } };
+const prismaMock = { campaign: { findUnique: jest.fn() }, bid: { findFirst: jest.fn() } };
 const ledgerMock = { escrowBalance: jest.fn() };
 const pacingMock = { allow: jest.fn() };
 
@@ -18,6 +18,7 @@ describe("ServeService", () => {
   beforeEach(async () => {
     jest.resetAllMocks();
     pacingMock.allow.mockResolvedValue(true);
+    prismaMock.bid.findFirst.mockResolvedValue({ amount: 1000 }); // price 1 paise/impr — affordable by default escrow
     const mod = await Test.createTestingModule({
       providers: [
         ServeService,
@@ -68,6 +69,14 @@ describe("ServeService", () => {
     prismaMock.campaign.findUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) => paid(id));
     ledgerMock.escrowBalance.mockResolvedValue(5000);
     pacingMock.allow.mockImplementation(async (id: string) => id !== "A"); // A paced out
+    expect(await service.pickAd("codex-panel")).toMatchObject({ campaignId: "B" });
+  });
+
+  it("skips a campaign whose escrow can't cover one impression at its own bid", async () => {
+    rankingMock.topCampaigns.mockResolvedValue(["A", "B"]);
+    prismaMock.campaign.findUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) => paid(id));
+    prismaMock.bid.findFirst.mockResolvedValue({ amount: 20000 }); // price 20 paise/impr
+    ledgerMock.escrowBalance.mockImplementation(async (id: string) => (id === "A" ? 5 : 5000)); // A can't afford 20
     expect(await service.pickAd("codex-panel")).toMatchObject({ campaignId: "B" });
   });
 

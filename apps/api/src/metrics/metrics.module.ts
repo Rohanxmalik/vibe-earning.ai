@@ -10,5 +10,6 @@ import { LedgerModule } from "../ledger/ledger.module";
   imports: [AuthModule, LedgerModule],
   controllers: [MetricsController],
   providers: [MetricsService, RateLimitService, FraudService],
+  exports: [FraudService],
 })
 export class MetricsModule {}

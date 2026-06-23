@@ -18,6 +18,7 @@ describe("LedgerService", () => {
     prismaMock.bid.findFirst.mockResolvedValue({ amount: 20000 }); // ₹200/block → 20 paise/impr
     prismaMock.ledgerEntry.count.mockResolvedValue(0);
     prismaMock.ledgerEntry.createMany.mockResolvedValue({ count: 3 });
+    prismaMock.ledgerEntry.findMany.mockResolvedValue([{ direction: "credit", amount: 10_000_000 }]); // ample escrow by default
     const mod = await Test.createTestingModule({
       providers: [LedgerService, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
@@ -58,6 +59,12 @@ describe("LedgerService", () => {
   it("posts nothing for a house ad / no bid", async () => {
     prismaMock.bid.findFirst.mockResolvedValue(null);
     await svc.postForEvent(ev({ id: "ev4" }));
+    expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it("posts nothing when escrow is below the price (no overspend into negative)", async () => {
+    prismaMock.ledgerEntry.findMany.mockResolvedValue([{ direction: "credit", amount: 5 }]); // escrow 5 < price 20
+    await svc.postForEvent(ev({ id: "ev_low" }));
     expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
   });
 

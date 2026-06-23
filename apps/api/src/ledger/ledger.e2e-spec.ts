@@ -36,6 +36,9 @@ describe("/ledger (e2e)", () => {
     const campaign = await prisma.campaign.create({ data: { copy: "Ledger ad", url: "https://x.dev", isHouseAd: false } });
     campaignId = campaign.id;
     await prisma.bid.create({ data: { campaignId, surface: "codex-panel", amount: 20000, status: "active" } });
+    // Fund escrow so the impression actually posts (serving now enforces a no-overspend guard).
+    await prisma.ledgerEntry.deleteMany({ where: { account: `escrow:campaign:${campaignId}` } });
+    await prisma.ledgerEntry.create({ data: { eventId: `escrow_seed_${campaignId}`, account: `escrow:campaign:${campaignId}`, direction: "credit", amount: 100000 } });
     // Clear prior-run state so the impression isn't deduped and posts fresh to this run's account.
     await prisma.adEvent.deleteMany({ where: { installId: "ledger_inst" } });
     await prisma.ledgerEntry.deleteMany({ where: { account: `earnings:dev:${accountId}` } });

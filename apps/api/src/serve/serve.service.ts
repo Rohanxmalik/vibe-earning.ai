@@ -3,6 +3,7 @@ import type { ServeResponse } from "@kbi/shared";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
+import { PacingService } from "./pacing.service";
 
 const MAX_CANDIDATES = 10;
 
@@ -12,6 +13,7 @@ export class ServeService {
     private readonly ranking: RankingService,
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly pacing: PacingService,
   ) {}
 
   async pickAd(surface: string): Promise<ServeResponse | null> {
@@ -20,6 +22,7 @@ export class ServeService {
       const c = await this.prisma.campaign.findUnique({ where: { id } });
       if (!c || c.status !== "active") continue;
       if (!c.isHouseAd && (await this.ledger.escrowBalance(id)) <= 0) continue; // out of budget
+      if (!c.isHouseAd && !(await this.pacing.allow(id, c.pacePerMinute))) continue; // paced out this minute
       return {
         adId: c.id,
         campaignId: c.id,

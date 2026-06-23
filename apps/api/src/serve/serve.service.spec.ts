@@ -3,24 +3,28 @@ import { ServeService } from "./serve.service";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
+import { PacingService } from "./pacing.service";
 
 const rankingMock = { topCampaigns: jest.fn() };
 const prismaMock = { campaign: { findUnique: jest.fn() } };
 const ledgerMock = { escrowBalance: jest.fn() };
+const pacingMock = { allow: jest.fn() };
 
-const paid = (id: string) => ({ id, copy: `ad ${id}`, url: "https://x.dev", iconUrl: null, isHouseAd: false, status: "active" });
-const house = (id: string) => ({ id, copy: `house ${id}`, url: "https://x.dev", iconUrl: null, isHouseAd: true, status: "active" });
+const paid = (id: string) => ({ id, copy: `ad ${id}`, url: "https://x.dev", iconUrl: null, isHouseAd: false, status: "active", pacePerMinute: null });
+const house = (id: string) => ({ id, copy: `house ${id}`, url: "https://x.dev", iconUrl: null, isHouseAd: true, status: "active", pacePerMinute: null });
 
 describe("ServeService", () => {
   let service: ServeService;
   beforeEach(async () => {
     jest.resetAllMocks();
+    pacingMock.allow.mockResolvedValue(true);
     const mod = await Test.createTestingModule({
       providers: [
         ServeService,
         { provide: RankingService, useValue: rankingMock },
         { provide: PrismaService, useValue: prismaMock },
         { provide: LedgerService, useValue: ledgerMock },
+        { provide: PacingService, useValue: pacingMock },
       ],
     }).compile();
     service = mod.get(ServeService);
@@ -57,5 +61,13 @@ describe("ServeService", () => {
   it("returns null when nothing ranked", async () => {
     rankingMock.topCampaigns.mockResolvedValue([]);
     expect(await service.pickAd("codex-panel")).toBeNull();
+  });
+
+  it("skips a funded campaign that is paced out and serves the next", async () => {
+    rankingMock.topCampaigns.mockResolvedValue(["A", "B"]);
+    prismaMock.campaign.findUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) => paid(id));
+    ledgerMock.escrowBalance.mockResolvedValue(5000);
+    pacingMock.allow.mockImplementation(async (id: string) => id !== "A"); // A paced out
+    expect(await service.pickAd("codex-panel")).toMatchObject({ campaignId: "B" });
   });
 });

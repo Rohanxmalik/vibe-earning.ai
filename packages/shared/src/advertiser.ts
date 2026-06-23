@@ -13,6 +13,7 @@ export const createCampaignSchema = z.object({
   iconUrl: z.string().url().optional(),
   surface: surfaceSchema,
   bidPerBlockPaise: z.number().int().positive(),
+  pacePerMinute: z.number().int().positive().optional(), // delivery cap (impressions/min)
 });
 export type CreateCampaign = z.infer<typeof createCampaignSchema>;
 

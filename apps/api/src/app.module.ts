@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
-import { APP_FILTER } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { AllExceptionsFilter } from "./common/all-exceptions.filter";
 import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -29,9 +30,15 @@ import { ConfigModule } from "./config/config.module";
         ],
       },
     }),
+    ThrottlerModule.forRoot([
+      { ttl: 60000, limit: Number(process.env.THROTTLE_LIMIT ?? 300) }, // per-IP requests/min
+    ]),
     PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule, AdvertiserModule, ConfigModule,
   ],
   controllers: [HealthController],
-  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
+  providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

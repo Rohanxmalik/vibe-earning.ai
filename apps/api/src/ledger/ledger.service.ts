@@ -32,6 +32,9 @@ export class LedgerService {
     const already = await this.prisma.ledgerEntry.count({ where: { eventId: e.id } });
     if (already > 0) return; // idempotent
 
+    // Don't let concurrent in-flight impressions drive a campaign's escrow negative.
+    if ((await this.escrowBalance(e.campaignId)) < price) return; // budget exhausted
+
     const devShare = Math.floor((price * devShareBps()) / 10000);
     const platformShare = price - devShare;
     const earnings = e.accountId ? `earnings:dev:${e.accountId}` : "earnings:unattributed";

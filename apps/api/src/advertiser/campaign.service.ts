@@ -14,7 +14,7 @@ export class CampaignService {
     // New advertiser campaigns land in moderation. They are NOT ranked (and so
     // never serve) until an admin approves them. House ads bypass this.
     const campaign = await this.prisma.campaign.create({
-      data: { advertiserId, copy: dto.copy, url: dto.url, iconUrl: dto.iconUrl ?? null, isHouseAd: false, status: "pending" },
+      data: { advertiserId, copy: dto.copy, url: dto.url, iconUrl: dto.iconUrl ?? null, isHouseAd: false, status: "pending", pacePerMinute: dto.pacePerMinute ?? null },
     });
     await this.prisma.bid.create({
       data: { campaignId: campaign.id, surface: dto.surface, amount: dto.bidPerBlockPaise, status: "active" },

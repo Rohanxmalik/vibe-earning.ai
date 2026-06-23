@@ -14,6 +14,7 @@ model Campaign {
   iconUrl   String?
   isHouseAd Boolean  @default(false)
   status    String   @default("active")
+  pacePerMinute Int?  // optional delivery cap: max impressions served per minute (null = unlimited)
   bids      Bid[]
   createdAt DateTime @default(now())
   advertiserId String?

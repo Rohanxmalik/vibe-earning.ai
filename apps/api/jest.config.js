@@ -1,4 +1,5 @@
 process.env.LOG_LEVEL = process.env.LOG_LEVEL || "silent"; // keep pino quiet during tests
+process.env.THROTTLE_LIMIT = process.env.THROTTLE_LIMIT || "1000000"; // don't rate-limit the test suite
 
 module.exports = {
   moduleFileExtensions: ["js", "json", "ts"],

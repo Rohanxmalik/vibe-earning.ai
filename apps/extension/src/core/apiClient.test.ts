@@ -22,6 +22,21 @@ describe("ApiClient", () => {
     expect(await c.serve("codex-panel")).toBeNull();
   });
 
+  it("serveMany() requests count and returns the ads rotation list", async () => {
+    const ad2 = { ...ad, adId: "a2", campaignId: "c2" };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ ad, ads: [ad, ad2] }));
+    const c = new ApiClient("http://api", fetchFn as unknown as typeof fetch);
+    expect(await c.serveMany("codex-panel", 3)).toEqual([ad, ad2]);
+    expect(fetchFn).toHaveBeenCalledWith("http://api/serve?surface=codex-panel&count=3", expect.anything());
+  });
+
+  it("serveMany() falls back to [ad] for an old single-ad response, and [] when empty", async () => {
+    const c1 = new ApiClient("http://api", vi.fn().mockResolvedValue(jsonResponse({ ad })) as unknown as typeof fetch);
+    expect(await c1.serveMany("codex-panel", 3)).toEqual([ad]);
+    const c2 = new ApiClient("http://api", vi.fn().mockResolvedValue(jsonResponse({ ad: null })) as unknown as typeof fetch);
+    expect(await c2.serveMany("codex-panel", 3)).toEqual([]);
+  });
+
   it("sendEvent() posts and returns true on success", async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ deduped: false, valid: true, reason: null }));
     const c = new ApiClient("http://api", fetchFn as unknown as typeof fetch);

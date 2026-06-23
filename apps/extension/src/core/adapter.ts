@@ -3,6 +3,8 @@ import type { ServeResponse, Surface } from "@kbi/shared";
 export interface WaitHandlers {
   onWaitStart(): void;
   onWaitEnd(): void;
+  /** Fires as the spinner updates (e.g. its status word changes) — drives ad rotation. Optional. */
+  onTick?(): void;
 }
 
 /** One per spinner surface. Implementations own the vendor-specific detection + rendering. */

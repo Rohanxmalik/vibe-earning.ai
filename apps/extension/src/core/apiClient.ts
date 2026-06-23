@@ -27,6 +27,15 @@ export class ApiClient {
     return body.ad;
   }
 
+  /** Fetch up to `count` ads to rotate through during one wait-state. */
+  async serveMany(surface: Surface, count: number): Promise<ServeResponse[]> {
+    const res = await this.fetchFn(`${this.baseUrl}/serve?surface=${surface}&count=${count}`, { headers: this.headers() });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { ad: ServeResponse | null; ads?: ServeResponse[] };
+    if (body.ads) return body.ads;
+    return body.ad ? [body.ad] : []; // back-compat with the old single-ad envelope
+  }
+
   /** Returns true if delivered now; false if queued for later retry. Never throws on network error. */
   async sendEvent(event: EventIngest): Promise<boolean> {
     try {

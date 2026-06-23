@@ -37,6 +37,13 @@ describe("/serve (e2e)", () => {
     expect(res.body.ad).toMatchObject({ copy: "Powered by Kickbacks-India", isHouseAd: true });
   });
 
+  it("returns an ads[] rotation list (capped by count)", async () => {
+    const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel&count=3").expect(200);
+    expect(Array.isArray(res.body.ads)).toBe(true);
+    expect(res.body.ads[0]).toMatchObject({ isHouseAd: true });
+    expect(res.body.ad).toEqual(res.body.ads[0]); // back-compat: `ad` mirrors the first
+  });
+
   it("400s on an invalid surface", async () => {
     await request(app.getHttpServer()).get("/serve?surface=cursor").expect(400);
   });

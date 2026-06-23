@@ -70,4 +70,31 @@ describe("ServeService", () => {
     pacingMock.allow.mockImplementation(async (id: string) => id !== "A"); // A paced out
     expect(await service.pickAd("codex-panel")).toMatchObject({ campaignId: "B" });
   });
+
+  describe("pickAds (top-N rotation)", () => {
+    it("returns up to N eligible ads in rank order", async () => {
+      rankingMock.topCampaigns.mockResolvedValue(["A", "B", "C", "D"]);
+      prismaMock.campaign.findUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) => paid(id));
+      ledgerMock.escrowBalance.mockResolvedValue(5000);
+      const ads = await service.pickAds("codex-panel", 3);
+      expect(ads.map((a) => a.campaignId)).toEqual(["A", "B", "C"]);
+    });
+
+    it("skips out-of-budget / paced campaigns and fills the slots from the next eligible", async () => {
+      rankingMock.topCampaigns.mockResolvedValue(["A", "B", "C", "D"]);
+      prismaMock.campaign.findUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) => paid(id));
+      ledgerMock.escrowBalance.mockImplementation(async (id: string) => (id === "B" ? 0 : 5000)); // B unfunded
+      pacingMock.allow.mockImplementation(async (id: string) => id !== "C"); // C paced out
+      const ads = await service.pickAds("codex-panel", 2);
+      expect(ads.map((a) => a.campaignId)).toEqual(["A", "D"]);
+    });
+
+    it("returns fewer than N when inventory runs out, and always includes house ads", async () => {
+      rankingMock.topCampaigns.mockResolvedValue(["A", "H"]);
+      prismaMock.campaign.findUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) => (id === "H" ? house("H") : paid("A")));
+      ledgerMock.escrowBalance.mockResolvedValue(0); // A unfunded; H is a house ad (no escrow needed)
+      const ads = await service.pickAds("codex-panel", 3);
+      expect(ads.map((a) => a.campaignId)).toEqual(["H"]);
+    });
+  });
 });

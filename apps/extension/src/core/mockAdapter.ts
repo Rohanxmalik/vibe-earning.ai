@@ -27,4 +27,5 @@ export class MockAdapter implements SpinnerAdapter {
 
   fireWaitStart(): unknown { return this.handlers?.onWaitStart(); }
   fireWaitEnd(): unknown { return this.handlers?.onWaitEnd(); }
+  fireTick(): unknown { return this.handlers?.onTick?.(); }
 }

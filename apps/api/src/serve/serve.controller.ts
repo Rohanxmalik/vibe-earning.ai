@@ -10,7 +10,9 @@ export class ServeController {
   async serve(@Query() raw: unknown) {
     const parsed = serveQuerySchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    const ad = await this.serveService.pickAd(parsed.data.surface);
-    return { ad }; // ad is null when no inventory — extension renders nothing
+    const ads = await this.serveService.pickAds(parsed.data.surface, parsed.data.count);
+    // `ad` (the top one, or null) stays for backward compatibility; `ads` is the
+    // rotation list the extension cycles through during a wait-state.
+    return { ad: ads[0] ?? null, ads };
   }
 }

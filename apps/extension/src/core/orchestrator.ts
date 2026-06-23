@@ -4,7 +4,7 @@ import { ViewTracker } from "./viewTracker";
 import { makeNonce } from "./nonce";
 
 interface ApiLike {
-  serve(surface: Surface): Promise<ServeResponse | null>;
+  serveMany(surface: Surface, count: number): Promise<ServeResponse[]>;
   sendEvent(event: EventIngest): Promise<boolean>;
 }
 interface KillswitchLike {
@@ -18,11 +18,16 @@ export interface OrchestratorDeps {
   killswitch: KillswitchLike;
   installId: string;
   now: () => number;
+  /** Max ads to rotate through in one wait-state (default 3). */
+  rotationCount?: number;
+  /** Min visible ms an ad must accrue before we rotate to the next (default 5000). */
+  holdMs?: number;
   onEarn?: (ad: ServeResponse) => void;
 }
 
 export class Orchestrator {
   private dispose: (() => void) | null = null;
+  private queue: ServeResponse[] = [];
   private current: { ad: ServeResponse; nonce: string } | null = null;
 
   constructor(private readonly d: OrchestratorDeps) {}
@@ -31,6 +36,7 @@ export class Orchestrator {
     this.dispose = this.d.adapter.start({
       onWaitStart: () => this.handleWaitStart(),
       onWaitEnd: () => this.handleWaitEnd(),
+      onTick: () => this.handleTick(),
     });
   }
 
@@ -46,7 +52,32 @@ export class Orchestrator {
 
   private async handleWaitStart(): Promise<void> {
     if (this.d.killswitch.isActive()) return;
-    const ad = await this.d.api.serve(this.d.adapter.surface);
+    const count = this.d.rotationCount ?? 3;
+    const ads = await this.d.api.serveMany(this.d.adapter.surface, count);
+    if (ads.length === 0) return;
+    this.queue = ads;
+    this.showNext();
+  }
+
+  /** Rotate when the current ad has been seen long enough and more ads are queued. */
+  private handleTick(): void {
+    if (!this.current || this.queue.length === 0) return;
+    const holdMs = this.d.holdMs ?? 5000;
+    if (this.d.tracker.visibleMs >= holdMs) {
+      void this.finalizeCurrent(); // bill the ad just shown
+      this.showNext();             // and rotate to the next
+    }
+  }
+
+  private async handleWaitEnd(): Promise<void> {
+    if (!this.current) return;
+    await this.finalizeCurrent();
+    this.d.adapter.clear();
+    this.queue = [];
+  }
+
+  private showNext(): void {
+    const ad = this.queue.shift();
     if (!ad) return;
     const nonce = makeNonce(this.d.installId, ad.campaignId, this.d.now());
     this.current = { ad, nonce };
@@ -54,20 +85,21 @@ export class Orchestrator {
     this.d.tracker.start();
   }
 
-  private async handleWaitEnd(): Promise<void> {
+  /** Record an impression for the currently shown ad (captures visibleMs synchronously first). */
+  private async finalizeCurrent(): Promise<void> {
     if (!this.current) return;
     const visibleMs = this.d.tracker.stop();
-    this.d.adapter.clear();
+    const cur = this.current;
+    this.current = null;
     const event: EventIngest = {
       installId: this.d.installId,
-      campaignId: this.current.ad.campaignId,
+      campaignId: cur.ad.campaignId,
       surface: this.d.adapter.surface,
       type: "impression",
-      nonce: this.current.nonce,
+      nonce: cur.nonce,
       visibleMs,
     };
     const delivered = await this.d.api.sendEvent(event);
-    if (delivered) this.d.onEarn?.(this.current.ad);
-    this.current = null;
+    if (delivered) this.d.onEarn?.(cur.ad);
   }
 }

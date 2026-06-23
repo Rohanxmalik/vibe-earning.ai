@@ -5,6 +5,7 @@ import { AppModule } from "../app.module";
 import { GoogleVerifier } from "../auth/google-verifier";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
+import { LedgerService } from "./ledger.service";
 
 describe("/ledger (e2e)", () => {
   let app: INestApplication;
@@ -68,5 +69,26 @@ describe("/ledger (e2e)", () => {
 
   it("requires auth for the balance endpoint", async () => {
     await request(app.getHttpServer()).get("/ledger/me/balance").expect(401);
+  });
+
+  it("never overspends escrow under concurrent impressions (atomic reservation)", async () => {
+    const ledger = app.get(LedgerService);
+    // Fresh campaign, isolated surface (no competing bids → pays own 20000 = 20 paise/impr).
+    const c = await prisma.campaign.create({ data: { copy: "Concurrency ad", url: "https://x.dev", isHouseAd: false } });
+    await prisma.bid.create({ data: { campaignId: c.id, surface: "claude-code-panel", amount: 20000, status: "active" } });
+    // Fund escrow for EXACTLY 3 impressions (3 × 20 paise = 60).
+    await prisma.ledgerEntry.create({ data: { eventId: `seed_concur_${c.id}`, account: `escrow:campaign:${c.id}`, direction: "credit", amount: 60 } });
+
+    // Fire many valid impressions concurrently against a budget for 3.
+    const events = Array.from({ length: 60 }, (_, i) => ({
+      id: `concur_${c.id}_${i}`, campaignId: c.id, surface: "claude-code-panel", type: "impression", valid: true, accountId: null,
+    }));
+    await Promise.all(events.map((e) => ledger.postForEvent(e)));
+
+    // Escrow must land at exactly 0 (3 paid), never negative.
+    expect(await ledger.escrowBalance(c.id)).toBe(0);
+    // Exactly 3 impressions were charged (one escrow debit each).
+    const debits = await prisma.ledgerEntry.findMany({ where: { eventId: { in: events.map((e) => e.id) }, account: `escrow:campaign:${c.id}`, direction: "debit" } });
+    expect(debits).toHaveLength(3);
   });
 });

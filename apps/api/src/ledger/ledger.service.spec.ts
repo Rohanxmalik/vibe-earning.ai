@@ -5,6 +5,8 @@ import { PrismaService } from "../prisma/prisma.service";
 const prismaMock = {
   bid: { findMany: jest.fn() },
   ledgerEntry: { count: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
+  $transaction: jest.fn(),
+  $executeRaw: jest.fn(),
 };
 
 const ev = (over: Record<string, unknown> = {}) => ({
@@ -19,6 +21,9 @@ describe("LedgerService", () => {
     prismaMock.ledgerEntry.count.mockResolvedValue(0);
     prismaMock.ledgerEntry.createMany.mockResolvedValue({ count: 3 });
     prismaMock.ledgerEntry.findMany.mockResolvedValue([{ direction: "credit", amount: 10_000_000 }]); // ample escrow by default
+    prismaMock.$executeRaw.mockResolvedValue(undefined);
+    // Run the interactive transaction body against the same mock (tx === prismaMock).
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => unknown) => fn(prismaMock));
     const mod = await Test.createTestingModule({
       providers: [LedgerService, { provide: PrismaService, useValue: prismaMock }],
     }).compile();
@@ -45,10 +50,14 @@ describe("LedgerService", () => {
     expect(arg.find((e) => e.direction === "debit")?.amount).toBe(1000); // 20 * 50
   });
 
-  it("credits 'unattributed' when there is no account", async () => {
+  it("forfeits the dev share to the platform for an anonymous impression (no signed-in dev)", async () => {
     await svc.postForEvent(ev({ accountId: null, id: "ev3" }));
-    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string }>;
-    expect(arg.some((e) => e.account === "earnings:unattributed")).toBe(true);
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; direction: string; amount: number }>;
+    // Nothing is held in limbo, and no dev is credited — the platform keeps the full price.
+    expect(arg.some((e) => e.account === "earnings:unattributed")).toBe(false);
+    expect(arg.some((e) => e.account.startsWith("earnings:"))).toBe(false);
+    expect(arg.find((e) => e.direction === "debit")?.amount).toBe(20);
+    expect(arg.find((e) => e.account === "revenue:platform")?.amount).toBe(20);
   });
 
   it("posts nothing for an invalid event", async () => {

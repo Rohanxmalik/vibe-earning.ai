@@ -34,23 +34,31 @@ export class LedgerService {
     if (e.type === "click") price *= 50;
     if (price <= 0) return;
 
-    const already = await this.prisma.ledgerEntry.count({ where: { eventId: e.id } });
-    if (already > 0) return; // idempotent
-
-    // Don't let concurrent in-flight impressions drive a campaign's escrow negative.
-    if ((await this.escrowBalance(e.campaignId)) < price) return; // budget exhausted
-
-    const devShare = Math.floor((price * devShareBps()) / 10000);
+    // Anonymous impressions (no signed-in dev) forfeit the dev share to the platform —
+    // the price still leaves the advertiser's escrow, but nothing is parked in limbo.
+    const devShare = e.accountId ? Math.floor((price * devShareBps()) / 10000) : 0;
     const platformShare = price - devShare;
-    const earnings = e.accountId ? `earnings:dev:${e.accountId}` : "earnings:unattributed";
+    const escrowKey = `escrow:campaign:${e.campaignId}`;
+    const data: { eventId: string; account: string; direction: string; amount: number }[] = [
+      { eventId: e.id, account: escrowKey, direction: "debit", amount: price },
+      { eventId: e.id, account: "revenue:platform", direction: "credit", amount: platformShare },
+    ];
+    if (e.accountId && devShare > 0) {
+      data.push({ eventId: e.id, account: `earnings:dev:${e.accountId}`, direction: "credit", amount: devShare });
+    }
 
-    await this.prisma.ledgerEntry.createMany({
-      data: [
-        { eventId: e.id, account: `escrow:campaign:${e.campaignId}`, direction: "debit", amount: price },
-        { eventId: e.id, account: earnings, direction: "credit", amount: devShare },
-        { eventId: e.id, account: "revenue:platform", direction: "credit", amount: platformShare },
-      ],
-      skipDuplicates: true,
+    // Atomic reserve-then-commit: take a per-campaign advisory lock so concurrent
+    // impressions for the same campaign serialize, re-check escrow INSIDE the
+    // transaction, and only then write the debit. Without this, two in-flight
+    // impressions could each read a sufficient balance and both commit, driving
+    // escrow negative (overspending the advertiser's budget).
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${escrowKey}))`;
+      if ((await tx.ledgerEntry.count({ where: { eventId: e.id } })) > 0) return; // idempotent
+      const entries = await tx.ledgerEntry.findMany({ where: { account: escrowKey } });
+      const escrow = entries.reduce((sum, le) => sum + (le.direction === "credit" ? le.amount : -le.amount), 0);
+      if (escrow < price) return; // budget exhausted
+      await tx.ledgerEntry.createMany({ data, skipDuplicates: true });
     });
   }
 

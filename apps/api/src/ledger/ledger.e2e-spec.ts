@@ -35,7 +35,9 @@ describe("/ledger (e2e)", () => {
 
     const campaign = await prisma.campaign.create({ data: { copy: "Ledger ad", url: "https://x.dev", isHouseAd: false } });
     campaignId = campaign.id;
-    await prisma.bid.create({ data: { campaignId, surface: "codex-panel", amount: 20000, status: "active" } });
+    // Use an isolated surface so second-price pricing has no competing bids from other
+    // specs — this campaign is the only bidder, so it pays its own 20000 (20 paise/impr).
+    await prisma.bid.create({ data: { campaignId, surface: "claude-code-terminal", amount: 20000, status: "active" } });
     // Fund escrow so the impression actually posts (serving now enforces a no-overspend guard).
     await prisma.ledgerEntry.deleteMany({ where: { account: `escrow:campaign:${campaignId}` } });
     await prisma.ledgerEntry.create({ data: { eventId: `escrow_seed_${campaignId}`, account: `escrow:campaign:${campaignId}`, direction: "credit", amount: 100000 } });
@@ -49,7 +51,7 @@ describe("/ledger (e2e)", () => {
     await request(app.getHttpServer())
       .post("/events")
       .set("authorization", `Bearer ${token}`)
-      .send({ installId: "ledger_inst", campaignId, surface: "codex-panel", type: "impression", nonce: "ledger_nonce_1", visibleMs: 6000 })
+      .send({ installId: "ledger_inst", campaignId, surface: "claude-code-terminal", type: "impression", nonce: "ledger_nonce_1", visibleMs: 6000 })
       .expect(201);
 
     const event = await prisma.adEvent.findUnique({ where: { installId_nonce: { installId: "ledger_inst", nonce: "ledger_nonce_1" } } });

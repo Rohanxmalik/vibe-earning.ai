@@ -3,7 +3,7 @@ import { LedgerService } from "./ledger.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 const prismaMock = {
-  bid: { findFirst: jest.fn() },
+  bid: { findMany: jest.fn() },
   ledgerEntry: { count: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
 };
 
@@ -15,7 +15,7 @@ describe("LedgerService", () => {
   let svc: LedgerService;
   beforeEach(async () => {
     jest.resetAllMocks();
-    prismaMock.bid.findFirst.mockResolvedValue({ amount: 20000 }); // ₹200/block → 20 paise/impr
+    prismaMock.bid.findMany.mockResolvedValue([{ campaignId: "c1", amount: 20000 }]); // single bidder → pays own bid (20 paise/impr)
     prismaMock.ledgerEntry.count.mockResolvedValue(0);
     prismaMock.ledgerEntry.createMany.mockResolvedValue({ count: 3 });
     prismaMock.ledgerEntry.findMany.mockResolvedValue([{ direction: "credit", amount: 10_000_000 }]); // ample escrow by default
@@ -57,9 +57,19 @@ describe("LedgerService", () => {
   });
 
   it("posts nothing for a house ad / no bid", async () => {
-    prismaMock.bid.findFirst.mockResolvedValue(null);
+    prismaMock.bid.findMany.mockResolvedValue([]);
     await svc.postForEvent(ev({ id: "ev4" }));
     expect(prismaMock.ledgerEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it("charges the runner-up's bid, not the winner's own (second-price)", async () => {
+    prismaMock.bid.findMany.mockResolvedValue([
+      { campaignId: "c1", amount: 30000 }, // winner (event is for c1)
+      { campaignId: "c2", amount: 20000 }, // runner-up sets the price
+    ]);
+    await svc.postForEvent(ev({ id: "ev_gsp" }));
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ direction: string; amount: number }>;
+    expect(arg.find((e) => e.direction === "debit")?.amount).toBe(20); // 20000/1000, NOT 30
   });
 
   it("posts nothing when escrow is below the price (no overspend into negative)", async () => {

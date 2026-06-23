@@ -18,12 +18,17 @@ export class LedgerService {
   async postForEvent(e: PostableEvent): Promise<void> {
     if (!e.valid) return;
 
-    const bid = await this.prisma.bid.findFirst({
-      where: { campaignId: e.campaignId, surface: e.surface, status: "active" },
+    // Generalized second-price auction: the winner pays the NEXT-highest bid on the
+    // surface, not their own. Fairer and the standard for ad auctions (advertisers
+    // never pay more than they bid, and less when competition is thinner).
+    const bids = await this.prisma.bid.findMany({
+      where: { surface: e.surface, status: "active" },
       orderBy: { amount: "desc" },
     });
-    const blockBid = bid?.amount ?? 0;
-    if (blockBid <= 0) return; // house ad / no bid
+    const winnerBid = bids.find((b) => b.campaignId === e.campaignId)?.amount ?? 0;
+    if (winnerBid <= 0) return; // house ad / no bid
+    const runnerUp = bids.find((b) => b.campaignId !== e.campaignId && b.amount <= winnerBid);
+    const blockBid = runnerUp ? runnerUp.amount : winnerBid; // fall back to own bid if no competition
 
     let price = Math.floor(blockBid / 1000); // paise per impression
     if (e.type === "click") price *= 50;

@@ -425,7 +425,7 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~No admin moderation UI~~ — portal `/admin` (§9).
 - **IP-clustering flags after the threshold** — first N installs behind an IP still earn before the cluster is detected; no retroactive void yet (§13.4).
 - **Escrow guard bounds, doesn't reserve** — the ledger refuses to post when escrow < price (no negative escrow), but `/serve` can still hand out an impression that won't pay if budget runs out mid-flight. Add a per-serve reservation if exactness matters.
-- **Ledger prices off the campaign's current top bid**, not the exact bid that served — fine now (one bid per surface); revisit for true 2nd-price auctions.
+- ✅ ~~Ledger prices off the winner's own bid~~ — now a **generalized second-price auction** ([NEW3]): the winner pays the next-highest bid on the surface (falls back to its own bid when there's no competition). Pricing is point-in-time off current active bids, not the exact bid at serve — fine for one-bid-per-surface; revisit if a campaign holds multiple bids.
 - **`earnings:unattributed`** accrues for anonymous impressions and is never reconciled — decide policy (forfeit vs. claim-on-signin).
 - **Docker images carry dev dependencies** — runtime copies the full workspace (so the prisma CLI is available for `migrate deploy`); slim later with `pnpm deploy`/prod-prune.
 - **Portal UI is bare** — functional reference UI; no design system. Admin key stored in `localStorage` (fine for an internal tool; move to a real admin auth before exposing).

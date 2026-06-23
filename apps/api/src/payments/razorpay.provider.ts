@@ -8,10 +8,29 @@ export interface RazorpayClient {
   };
 }
 
+/** Minimal HTTP seam for the RazorpayX REST API (payouts aren't in the SDK). */
+export type HttpFn = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body: string },
+) => Promise<{ ok: boolean; status: number; json(): Promise<any> }>;
+
+/** Map RazorpayX payout lifecycle to our 3-state result. */
+export function mapRazorpayXPayoutStatus(status: string): PayoutResult["status"] {
+  if (status === "processed") return "paid";
+  if (["failed", "rejected", "cancelled", "reversed"].includes(status)) return "failed";
+  return "pending"; // queued | pending | processing | scheduled
+}
+
 @Injectable()
 export class RazorpayProvider extends PaymentProvider {
   readonly name = "razorpay";
   private cached?: RazorpayClient;
+  private http: HttpFn = (url, init) => fetch(url, init) as unknown as ReturnType<HttpFn>;
+
+  /** Test/DI seam for the RazorpayX REST calls. */
+  setHttp(fn: HttpFn): void {
+    this.http = fn;
+  }
 
   /** Lazily builds the real SDK client from env. Tests bypass this via setClient. */
   protected buildClient(): RazorpayClient {
@@ -42,10 +61,32 @@ export class RazorpayProvider extends PaymentProvider {
     return { providerRef: order.id, status: "pending" };
   }
 
-  async payout(_req: PayoutRequest): Promise<PayoutResult> {
-    // RazorpayX payouts are a separate product/API (not in the `razorpay` SDK).
-    // Wire RAZORPAYX_ACCOUNT_NUMBER + the /v1/payouts REST call (and complete KYC)
-    // before enabling INR cashouts.
-    throw new Error("razorpayx_not_configured: implement RazorpayX /v1/payouts before enabling INR payouts");
+  async payout(req: PayoutRequest): Promise<PayoutResult> {
+    // RazorpayX payouts are a separate product/API (not in the `razorpay` SDK), so
+    // we call the REST endpoint directly. payeeRef = the dev's RazorpayX fund_account_id
+    // (created + verified during KYC and stored on PayoutDestination.providerRef).
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const accountNumber = process.env.RAZORPAYX_ACCOUNT_NUMBER;
+    if (!keyId || !keySecret || !accountNumber) {
+      throw new Error("razorpayx_not_configured: set RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET/RAZORPAYX_ACCOUNT_NUMBER");
+    }
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const res = await this.http("https://api.razorpay.com/v1/payouts", {
+      method: "POST",
+      headers: { authorization: `Basic ${auth}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        account_number: accountNumber,
+        fund_account_id: req.payeeRef,
+        amount: req.amountPaise,
+        currency: req.currency,
+        mode: req.method === "bank" ? "IMPS" : "UPI",
+        purpose: "payout",
+        queue_if_low_balance: true,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(`razorpayx_payout_failed: ${res.status} ${body?.error?.description ?? ""}`.trim());
+    return { providerRef: body.id, status: mapRazorpayXPayoutStatus(body.status) };
   }
 }

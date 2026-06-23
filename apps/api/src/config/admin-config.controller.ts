@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Headers, Param, Post, Unauthoriz
 import { z } from "zod";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "../advertiser/campaign.service";
+import { PayoutDestinationService } from "../payments/payout-destination.service";
 import { KillswitchService } from "./killswitch.service";
 
 function requireAdmin(key: string | undefined): void {
@@ -14,6 +15,7 @@ export class AdminConfigController {
     private readonly killswitch: KillswitchService,
     private readonly prisma: PrismaService,
     private readonly campaigns: CampaignService,
+    private readonly destinations: PayoutDestinationService,
   ) {}
 
   @Post("killswitch")
@@ -38,5 +40,14 @@ export class AdminConfigController {
   async approveCampaign(@Headers("x-admin-key") key: string, @Param("id") id: string) {
     requireAdmin(key);
     return this.campaigns.approve(id);
+  }
+
+  @Post("payout-destinations/:id/verify")
+  async verifyDestination(@Headers("x-admin-key") key: string, @Param("id") id: string, @Body() raw: unknown) {
+    requireAdmin(key);
+    const p = z.object({ providerRef: z.string().optional() }).safeParse(raw ?? {});
+    if (!p.success) throw new BadRequestException(p.error.flatten());
+    await this.destinations.verify(id, p.data.providerRef);
+    return { ok: true };
   }
 }

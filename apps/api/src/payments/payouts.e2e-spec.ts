@@ -32,10 +32,26 @@ describe("/payouts (e2e)", () => {
 
     // Reset prior-run state and seed an earnings balance of 15000 paise.
     await prisma.payout.deleteMany({ where: { accountId } });
+    await prisma.payoutDestination.deleteMany({ where: { accountId } });
     await prisma.ledgerEntry.deleteMany({ where: { account: { in: [`earnings:dev:${accountId}`, `payouts:cleared:${accountId}`] } } });
     await prisma.ledgerEntry.create({ data: { eventId: `seed_${accountId}`, account: `earnings:dev:${accountId}`, direction: "credit", amount: 15000 } });
+    // A verified payout destination is required before cashing out.
+    await prisma.payoutDestination.create({ data: { accountId, method: "upi", vpa: "dev@okaxis", status: "verified", providerRef: "fa_dev" } });
   });
   afterAll(async () => { await app.close(); });
+
+  it("400s a payout while the destination is unverified, then succeeds once verified", async () => {
+    await prisma.payoutDestination.updateMany({ where: { accountId }, data: { status: "pending" } });
+    await request(app.getHttpServer()).post("/payouts").set("authorization", `Bearer ${token}`).expect(400);
+    await prisma.payoutDestination.updateMany({ where: { accountId }, data: { status: "verified" } });
+  });
+
+  it("registers a payout destination via the API", async () => {
+    const res = await request(app.getHttpServer())
+      .post("/payouts/destination").set("authorization", `Bearer ${token}`)
+      .send({ method: "upi", vpa: "newdev@okhdfc" }).expect(201);
+    expect(res.body).toMatchObject({ method: "upi", vpa: "newdev@okhdfc", status: "pending" });
+  });
 
   it("pays out the balance and zeroes earnings", async () => {
     const res = await request(app.getHttpServer()).post("/payouts").set("authorization", `Bearer ${token}`).expect(201);

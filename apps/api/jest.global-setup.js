@@ -14,6 +14,7 @@ module.exports = async () => {
   await prisma.blockPurchase.deleteMany();
   await prisma.bid.deleteMany();
   await prisma.payout.deleteMany();
+  await prisma.payoutDestination.deleteMany();
   await prisma.campaign.deleteMany();
   await prisma.account.deleteMany();
   await prisma.killswitch.deleteMany();

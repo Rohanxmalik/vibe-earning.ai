@@ -58,4 +58,20 @@ describe("/webhooks/razorpay (e2e)", () => {
     const escrow = await prisma.ledgerEntry.findMany({ where: { account: `escrow:campaign:${campaignId}`, direction: "credit" } });
     expect(escrow.reduce((s, e) => s + e.amount, 0)).toBe(100000); // unchanged
   });
+
+  it("settles a pending payout on payout.processed and debits earnings", async () => {
+    const acct = await prisma.account.create({ data: { type: "dev" } });
+    const payRef = `pout_wh_${Date.now()}`;
+    await prisma.ledgerEntry.create({ data: { eventId: `wh_seed_${acct.id}`, account: `earnings:dev:${acct.id}`, direction: "credit", amount: 20000 } });
+    const payout = await prisma.payout.create({ data: { accountId: acct.id, provider: "razorpay", amountPaise: 20000, currency: "INR", status: "pending", providerRef: payRef } });
+
+    const raw = JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: payRef } } } });
+    await post(raw, razorpaySignature(raw, SECRET)).expect(200);
+
+    const updated = await prisma.payout.findUnique({ where: { id: payout.id } });
+    expect(updated?.status).toBe("paid");
+    const entries = await prisma.ledgerEntry.findMany({ where: { account: `earnings:dev:${acct.id}` } });
+    const balance = entries.reduce((s, e) => s + (e.direction === "credit" ? e.amount : -e.amount), 0);
+    expect(balance).toBe(0); // earnings debited by recordPayout
+  });
 });

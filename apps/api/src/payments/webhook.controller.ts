@@ -23,6 +23,16 @@ export class WebhookController {
     if (!verifyRazorpaySignature(raw, signature, RZP_SECRET())) throw new UnauthorizedException("bad_signature");
 
     const event = body?.event as string | undefined;
+
+    // Payout lifecycle (RazorpayX) — providerRef is the payout id.
+    const payoutId: string | undefined = body?.payload?.payout?.entity?.id;
+    if (payoutId && event?.startsWith("payout.")) {
+      if (event === "payout.processed") await this.webhooks.markPayoutSettled(payoutId);
+      else if (event === "payout.failed" || event === "payout.reversed") await this.webhooks.markPayoutFailed(payoutId);
+      return { ok: true };
+    }
+
+    // Collection lifecycle — providerRef is the order id.
     const orderId: string | undefined =
       body?.payload?.payment?.entity?.order_id ?? body?.payload?.order?.entity?.id;
     if (!orderId) return { ok: true, ignored: true };

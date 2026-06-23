@@ -30,4 +30,26 @@ export class WebhookService {
     await this.prisma.blockPurchase.update({ where: { id: purchase.id }, data: { status: "failed" } });
     return { matched: true };
   }
+
+  /**
+   * An async payout settled. Flip the matching payout to paid and debit the ledger.
+   * recordPayout is idempotent (keyed on payout id), so re-deliveries are safe.
+   */
+  async markPayoutSettled(providerRef: string): Promise<{ matched: boolean; payoutId?: string }> {
+    const payout = await this.prisma.payout.findFirst({ where: { providerRef } });
+    if (!payout) return { matched: false };
+    if (payout.status !== "paid") {
+      await this.prisma.payout.update({ where: { id: payout.id }, data: { status: "paid" } });
+    }
+    await this.ledger.recordPayout(payout.id, payout.accountId, payout.amountPaise);
+    return { matched: true, payoutId: payout.id };
+  }
+
+  /** A payout failed/reversed. Mark it failed; the dev's earnings stay intact (never debited). */
+  async markPayoutFailed(providerRef: string): Promise<{ matched: boolean }> {
+    const payout = await this.prisma.payout.findFirst({ where: { providerRef } });
+    if (!payout) return { matched: false };
+    await this.prisma.payout.update({ where: { id: payout.id }, data: { status: "failed" } });
+    return { matched: true };
+  }
 }

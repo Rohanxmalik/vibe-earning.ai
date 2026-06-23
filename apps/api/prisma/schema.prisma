@@ -45,6 +45,22 @@ model Account {
   events    AdEvent[]
   payouts   Payout[]
   campaigns Campaign[]
+  payoutDestinations PayoutDestination[]
+}
+
+model PayoutDestination {
+  id            String   @id @default(cuid())
+  account       Account  @relation(fields: [accountId], references: [id])
+  accountId     String
+  method        String   // upi | bank
+  vpa           String?  // UPI VPA (method=upi)
+  accountNumber String?  // bank account (method=bank)
+  ifsc          String?  // bank IFSC (method=bank)
+  status        String   @default("pending") // pending | verified | rejected
+  providerRef   String?  // RazorpayX fund_account id once created during KYC
+  createdAt     DateTime @default(now())
+
+  @@index([accountId])
 }
 
 model AdEvent {

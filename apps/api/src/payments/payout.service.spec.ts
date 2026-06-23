@@ -4,11 +4,13 @@ import { PayoutService } from "./payout.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { PaymentRouter } from "./payment-router";
+import { PayoutDestinationService } from "./payout-destination.service";
 
 const prismaMock = { account: { findUnique: jest.fn() }, payout: { create: jest.fn() } };
 const ledgerMock = { earningsBalance: jest.fn(), recordPayout: jest.fn() };
 const provider = { name: "razorpay", payout: jest.fn(), collect: jest.fn() };
 const routerMock = { forCountry: jest.fn().mockReturnValue(provider) };
+const destinationsMock = { current: jest.fn() };
 
 describe("PayoutService", () => {
   let svc: PayoutService;
@@ -17,6 +19,7 @@ describe("PayoutService", () => {
     routerMock.forCountry.mockReturnValue(provider);
     prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN" });
     prismaMock.payout.create.mockImplementation(async (a: { data: Record<string, unknown> }) => ({ id: "pay1", ...a.data }));
+    destinationsMock.current.mockResolvedValue({ id: "d1", method: "upi", vpa: "dev@okaxis", providerRef: "fa_dev", status: "verified" });
     process.env.PAYOUT_MIN_PAISE = "10000";
     const mod = await Test.createTestingModule({
       providers: [
@@ -24,6 +27,7 @@ describe("PayoutService", () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: LedgerService, useValue: ledgerMock },
         { provide: PaymentRouter, useValue: routerMock },
+        { provide: PayoutDestinationService, useValue: destinationsMock },
       ],
     }).compile();
     svc = mod.get(PayoutService);
@@ -44,6 +48,7 @@ describe("PayoutService", () => {
     expect(prismaMock.payout.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ accountId: "acc1", provider: "razorpay", amountPaise: 15000, status: "paid" }) }),
     );
+    expect(provider.payout).toHaveBeenCalledWith(expect.objectContaining({ payeeRef: "fa_dev", method: "upi" }));
     expect(ledgerMock.recordPayout).toHaveBeenCalledWith("pay1", "acc1", 15000);
     expect(payout).toMatchObject({ id: "pay1", status: "paid" });
   });
@@ -54,6 +59,21 @@ describe("PayoutService", () => {
     await svc.requestPayout("acc1");
     expect(prismaMock.payout.create).toHaveBeenCalled();
     expect(ledgerMock.recordPayout).not.toHaveBeenCalled();
+  });
+
+  it("does NOT debit the ledger for a pending (async) payout — the webhook settles it", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    provider.payout.mockResolvedValue({ providerRef: "pout_1", status: "pending" });
+    const payout = await svc.requestPayout("acc1");
+    expect(payout).toMatchObject({ status: "pending" });
+    expect(ledgerMock.recordPayout).not.toHaveBeenCalled();
+  });
+
+  it("rejects payout when there is no verified destination", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    destinationsMock.current.mockResolvedValue(null);
+    await expect(svc.requestPayout("acc1")).rejects.toThrow("no_verified_payout_destination");
+    expect(provider.payout).not.toHaveBeenCalled();
   });
 
   it("refuses payout for a suspended account", async () => {

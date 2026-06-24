@@ -2,7 +2,7 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **239 automated tests green** (api 165 · extension 44 · shared 17 · portal 13) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **274 automated tests green** (api 194 · extension 47 · shared 17 · portal 16) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -11,6 +11,8 @@
 > **Batch 3 (marked [NEW3] inline):** **top-N ad rotation** — `/serve?count=N` returns the top-N eligible ads; the extension rotates through them as the spinner ticks (`adapter.onTick`), holding each ~5s of *visible* time and billing each ad as its own impression. Short waits show one ad; long sessions reach #2/#3. The real spinner adapters still need to fire `onTick` (deferred with injection).
 >
 > **Batch 4 (marked [NEW4] inline):** safety + onboarding + UX — fraud-cluster void (`/admin/fraud/void-cluster`) · serve affordability skip · **admin email/password login** (`/admin/login`) · **second-price auction** pricing · advertiser **pause/resume/top-up/edit** · **developer web onboarding** (email/password `/dev/register` + `/dev/login` — no extension needed) · **portal design system** (clean minimal UI: nav, hero, cards, tabs, badges, alerts) restyling all pages · admin portal **wired to `/admin/login`** (static `x-admin-key` dropped from the web) · **unattributed earnings forfeited to platform** (no more limbo bucket) · **atomic escrow reservation** (per-campaign advisory lock prevents concurrent overspend).
+>
+> **Batch 5 (marked [NEW5] inline) — production-readiness:** **Redis-backed throttler** (rate limits shared across instances) · **graceful shutdown** (drain + Sentry flush) · **readiness probe** `/health/ready` (DB+Redis) · **email uniqueness** (`@@unique([email,type])`) + **email verification** + **password reset** (`/auth/*`, Notifier seam) · **admin audit log** (`AdminAudit` + `/admin/audit`) · **DSAR** (`/me/export`, `DELETE /me`) · **seed script** (admin + house ads) · portal **recovery/verify pages**, **accessibility** (aria-live alerts, role=tab), **loading states**, **spend chart**, **confirm dialogs**, **CSP/security headers**, **favicon + OG** · **slimmed API Docker image** (pnpm-deploy prune, verified) + **compose healthchecks/restart** + **CD deploy scaffold** · **configurable status-line surface** (Codex/Gemini reuse via `KICKBACKS_SURFACE`).
 
 ---
 
@@ -155,6 +157,10 @@ pnpm --filter @kbi/shared test         # 11 tests
 | `SENTRY_DSN` / `SENTRY_TRACES_SAMPLE_RATE` | api | **[NEW2]** error reporting; unset ⇒ Sentry disabled (no-op) |
 | `CORS_ORIGINS` | api | **[NEW]** comma-separated allowlist; unset reflects request origin (dev) |
 | `LOG_LEVEL` | api | **[NEW]** pino level; tests force `silent` |
+| `PORTAL_BASE_URL` | api | **[NEW5]** base URL put in password-reset / verify-email links (default `http://localhost:3001`) |
+| `KICKBACKS_SURFACE` | extension status-line | **[NEW5]** which ad surface the status-line script serves (default `claude-code-terminal`) |
+| `NEXT_PUBLIC_SITE_URL` | portal | **[NEW5]** absolute site URL for OG/metadata (`metadataBase`) |
+| `DEPLOY_WEBHOOK` | CD (secret) | **[NEW5]** deploy hook the CD `deploy` job POSTs to; unset ⇒ deploy step no-ops |
 | `KICKBACKS_API` | extension | api base URL (default http://localhost:3000) |
 | `NEXT_PUBLIC_API_BASE` | portal | api base URL (build-time inlined) |
 | `NEXT_OUTPUT` | portal build | **[NEW]** set to `standalone` for the Docker build (off by default so Windows builds work) |
@@ -228,7 +234,15 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 ### Every endpoint
 | Method & path | Auth | Body | Returns |
 |---------------|------|------|---------|
-| `GET /health` | — | — | `{status:"ok"}` |
+| `GET /health` | — | — | `{status:"ok"}` (liveness) |
+| `GET /health/ready` **[NEW5]** | — | — | `{status:"ready",db,redis}` or **503** — pings Postgres + Redis (readiness) |
+| `POST /auth/password-reset/request` **[NEW5]** | — | `{email,type}` | `{ok}` — emails a reset link (never reveals if the email exists) |
+| `POST /auth/password-reset` **[NEW5]** | — | `{token,password}` | `{ok}` |
+| `POST /auth/verify-email/request` **[NEW5]** | Bearer | — | `{ok}` — emails a verification link |
+| `POST /auth/verify-email` **[NEW5]** | — | `{token}` | `{ok}` |
+| `GET /me/export` **[NEW5]** | Bearer | — | full data export (DSAR) |
+| `DELETE /me` **[NEW5]** | Bearer | — | `{ok}` — erasure (anonymizes PII; keeps financial rows) |
+| `GET /admin/audit` **[NEW5]** | admin | — | `AdminAudit[]` (recent privileged actions) |
 | `GET /serve?surface=&count=` | — | — | `{ad, ads}` — `ads` = top-N eligible (count 1–3, default 1) for in-spinner rotation; `ad` mirrors `ads[0]` for back-compat **[NEW3]** |
 | `POST /events` | optional Bearer | `{installId,campaignId,surface,type,nonce,visibleMs}` | `{deduped,valid,reason}` |
 | `POST /auth/google` | — | `{idToken}` | `{token, account}` |
@@ -349,7 +363,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 165 · extension 44 · shared 17 · portal 13 = 239 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 194 · extension 47 · shared 17 · portal 16 = 274 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -435,7 +449,11 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~Escrow safety / no atomic reservation~~ — **fixed [NEW4]:** `postForEvent` now runs inside a transaction that takes a **per-campaign Postgres advisory lock** (`pg_advisory_xact_lock`), re-checks escrow, then writes — so concurrent impressions serialize per campaign and can never drive escrow negative. Proven by a concurrency e2e (60 simultaneous impressions on a 3-impression budget → exactly 3 paid, escrow 0; without the lock it overspent to ≈ −1000).
 - ✅ ~~Ledger prices off the winner's own bid~~ — now a **generalized second-price auction** ([NEW3]): the winner pays the next-highest bid on the surface (falls back to its own bid when there's no competition). Pricing is point-in-time off current active bids, not the exact bid at serve — fine for one-bid-per-surface; revisit if a campaign holds multiple bids.
 - ✅ ~~`earnings:unattributed` never reconciled~~ — **fixed [NEW4]:** anonymous impressions now **forfeit the dev share to the platform** (`revenue:platform`); nothing is parked in limbo.
-- **Docker images carry dev dependencies** — runtime copies the full workspace (so the prisma CLI is available for `migrate deploy`); slim later with `pnpm deploy`/prod-prune.
+- ✅ ~~Docker images carry dev dependencies~~ — **fixed [NEW5]:** the API image now ships a `pnpm deploy --prod` bundle (no nest/jest/ts toolchain); `prisma` moved to deps so `migrate deploy` still runs in the pruned runtime. Verified: image boots, migrates, `/health/ready` reports db+redis up.
+- ✅ ~~In-memory throttler / shallow health / no graceful shutdown~~ — **fixed [NEW5]:** Redis-backed `ThrottlerStorage` (limits shared across instances), `/health/ready` deep check, and `enableShutdownHooks` + SIGTERM drain + Sentry flush.
+- ✅ ~~No password reset / email verification / email uniqueness~~ — **fixed [NEW5]:** `/auth/password-reset*` + `/auth/verify-email*` (Notifier seam — bind a real provider in prod), `emailVerified` column, and a per-type unique email index.
+- ✅ ~~No admin audit log / no DSAR / hand-written admin seed~~ — **fixed [NEW5]:** `AdminAudit` + `/admin/audit`, `/me/export` + `DELETE /me`, and `scripts/seed.mjs` (admin + house ads).
+- **Notifier is a LogNotifier** — emails are logged, not sent, until you bind `Notifier` to a real provider (SES/SendGrid/Resend). Tokens still work end-to-end; only delivery is stubbed.
 - ✅ ~~Portal UI is bare / admin uses static key~~ — **fixed [NEW4]:** portal now has a clean **design system** (`app/globals.css`) across all pages, and the admin page logs in via **`POST /admin/login`** (admin JWT Bearer); the static `x-admin-key` is no longer used by the web (the API still accepts it as a legacy/break-glass header).
 - **Campaign edit re-moderation is coarse** — *any* creative change on a live campaign sends the whole campaign back to `pending` (safe default). A lighter flow (e.g. auto-approve trivial URL tweaks, or a separate "pending creative" field that keeps the old copy serving until re-approval) could reduce advertiser friction later.
 - **Developer web vs Google identity** — a dev who signs up by email (`type:"dev"`) and a dev who signed in with Google are **separate accounts** even with the same email. Acceptable now; merge-on-verified-email later if needed.

@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "../advertiser/campaign.service";
 import { PayoutDestinationService } from "../payments/payout-destination.service";
 import { FraudService } from "../metrics/fraud.service";
+import { FraudSweepService } from "../metrics/fraud-sweep.service";
 import { AuthService } from "../auth/auth.service";
 import { TokenService } from "../auth/token.service";
 import { bearer } from "../auth/auth.guard";
@@ -21,6 +22,7 @@ export class AdminConfigController {
     private readonly campaigns: CampaignService,
     private readonly destinations: PayoutDestinationService,
     private readonly fraud: FraudService,
+    private readonly fraudSweep: FraudSweepService,
     private readonly auth: AuthService,
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
@@ -111,6 +113,14 @@ export class AdminConfigController {
     if (!p.success) throw new BadRequestException(p.error.flatten());
     const result = await this.fraud.voidCluster(p.data.ipHash);
     await this.audit.record(actor, "fraud.void-cluster", p.data.ipHash, result);
+    return result;
+  }
+
+  @Post("fraud/sweep")
+  async fraudSweepRun(@Req() req: AdminReq) {
+    const actor = await this.requireAdmin(req);
+    const result = await this.fraudSweep.sweep();
+    await this.audit.record(actor, "fraud.sweep", undefined, result);
     return result;
   }
 }

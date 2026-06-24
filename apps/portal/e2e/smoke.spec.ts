@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 // Static pages — no API needed.
 test("home page renders hero and links to both sides", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Sponsor the line/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Get paid while your AI thinks/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Earn as a developer/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Advertise with us/i })).toBeVisible();
 });

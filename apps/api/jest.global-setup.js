@@ -18,6 +18,7 @@ module.exports = async () => {
   await prisma.campaign.deleteMany();
   await prisma.account.deleteMany();
   await prisma.killswitch.deleteMany();
+  await prisma.adminAudit.deleteMany();
   await prisma.$disconnect();
 
   const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");

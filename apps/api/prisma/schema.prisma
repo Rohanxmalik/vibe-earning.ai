@@ -135,3 +135,14 @@ model Killswitch {
   active    Boolean  @default(false)
   updatedAt DateTime @updatedAt
 }
+
+model AdminAudit {
+  id        String   @id @default(cuid())
+  actor     String   // admin account id, or "apikey" for the static break-glass key
+  action    String   // e.g. killswitch.set | campaign.approve | destination.verify | account.suspend | fraud.void-cluster
+  target    String?  // affected entity id, when applicable
+  detail    String?  // small JSON blob of context
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

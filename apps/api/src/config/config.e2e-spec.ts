@@ -39,6 +39,15 @@ describe("config + fraud (e2e)", () => {
     await request(app.getHttpServer()).post("/admin/killswitch").send({ active: true }).expect(401);
   });
 
+  it("records admin actions to the audit log", async () => {
+    await request(app.getHttpServer()).post("/admin/killswitch").set("x-admin-key", ADMIN).send({ active: true }).expect(201);
+    const res = await request(app.getHttpServer()).get("/admin/audit").set("x-admin-key", ADMIN).expect(200);
+    const entry = res.body.find((e: { action: string }) => e.action === "killswitch.set");
+    expect(entry).toBeTruthy();
+    expect(entry.actor).toBe("apikey");
+    await request(app.getHttpServer()).get("/admin/audit").expect(401); // requires admin
+  });
+
   it("admin can log in and use a Bearer token instead of the static key", async () => {
     const email = `admin_${Date.now()}@x.com`;
     await prisma.account.create({ data: { type: "admin", email, passwordHash: await bcrypt.hash("adminpass1", 8) } });

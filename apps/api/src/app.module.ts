@@ -18,6 +18,7 @@ import { PaymentsModule } from "./payments/payments.module";
 import { AdvertiserModule } from "./advertiser/advertiser.module";
 import { ConfigModule } from "./config/config.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { MeModule } from "./me/me.module";
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
         storage: new RedisThrottlerStorage(redis),
       }),
     }),
-    PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule, AdvertiserModule, ConfigModule, NotificationsModule,
+    PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule, AdvertiserModule, ConfigModule, NotificationsModule, MeModule,
   ],
   controllers: [HealthController],
   providers: [

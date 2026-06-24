@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { RedisService } from "./redis/redis.service";
+import { RedisThrottlerStorage } from "./common/redis-throttler.storage";
 import { AllExceptionsFilter } from "./common/all-exceptions.filter";
 import { HealthController } from "./health/health.controller";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -30,9 +32,14 @@ import { ConfigModule } from "./config/config.module";
         ],
       },
     }),
-    ThrottlerModule.forRoot([
-      { ttl: 60000, limit: Number(process.env.THROTTLE_LIMIT ?? 300) }, // per-IP requests/min
-    ]),
+    // Redis-backed storage so per-IP limits are shared across all API instances.
+    ThrottlerModule.forRootAsync({
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [{ ttl: 60000, limit: Number(process.env.THROTTLE_LIMIT ?? 300) }], // per-IP requests/min
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule, AdvertiserModule, ConfigModule,
   ],
   controllers: [HealthController],

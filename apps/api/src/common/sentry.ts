@@ -18,3 +18,8 @@ export function initSentry(): void {
 export function captureException(err: unknown): void {
   if (enabled) Sentry.captureException(err);
 }
+
+/** Flush buffered events on shutdown so we don't lose the last errors. No-op if disabled. */
+export async function flushSentry(timeoutMs = 2000): Promise<void> {
+  if (enabled) await Sentry.flush(timeoutMs);
+}

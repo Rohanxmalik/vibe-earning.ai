@@ -15,10 +15,11 @@
 import { composeStatusLine } from "./compose";
 import { tickRotation } from "./billing";
 import { loadToken, loadState, saveState } from "./store";
+import { resolveSurface } from "./surface";
 import type { ServeResponse } from "@kbi/shared";
 
 const API = process.env.KICKBACKS_API ?? "http://localhost:3000";
-const SURFACE = "claude-code-terminal";
+const SURFACE = resolveSurface(process.env.KICKBACKS_SURFACE); // claude-code-terminal | codex-panel | gemini-cli-terminal | ...
 const ROTATION_COUNT = 3; // request the top-N ads and rotate through them
 const TIMEOUT_MS = 800; // keep the status line snappy
 

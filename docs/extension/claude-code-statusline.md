@@ -51,10 +51,13 @@ Claude Code (every status refresh)
 
 The CLI requests the **top 3** ads (`/serve?count=3`) and `tickRotation` (`billing.ts`, unit-tested) holds each for `holdMs` (default 8s — long enough to bill once at the 5s view threshold) then advances, cycling. Each rotated-in ad opens a fresh billable window via `decideBilling`. Short sessions just show ad #1; longer ones reach #2/#3 — mirroring the in-editor `Orchestrator` rotation.
 
+## Codex / Gemini reuse
+
+The same script backs other agents — set `KICKBACKS_SURFACE` (`codex-panel`, `gemini-cli-terminal`, …; defaults to `claude-code-terminal`, falls back to it for any unknown value via `resolveSurface`). Point each agent's status-line/hook command at `dist/statusline.js` with the right `KICKBACKS_SURFACE`.
+
 ## What's still NOT done here
 
-- **Live verification** against a real Claude Code (refresh cadence, status-line truncation behaviour, whether the refresh interval makes the 8s hold feel right).
-- **Codex / Gemini** adapters (same pattern, each tool's own official surface).
+- **Live verification** against a real Claude Code / Codex / Gemini (refresh cadence, status-line truncation behaviour, whether the refresh interval makes the 8s hold feel right). The wiring into each tool's official hook is the remaining per-agent step.
 
 ## Acceptance (definition of done for this blocker)
 

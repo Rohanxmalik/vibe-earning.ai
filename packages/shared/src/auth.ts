@@ -10,6 +10,19 @@ export type DevRegister = z.infer<typeof devRegisterSchema>;
 export const devLoginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 export type DevLogin = z.infer<typeof devLoginSchema>;
 
+// Account recovery (shared across dev/advertiser/admin).
+export const passwordResetRequestSchema = z.object({
+  email: z.string().email(),
+  type: z.enum(["dev", "advertiser", "admin"]),
+});
+export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
+
+export const passwordResetSchema = z.object({ token: z.string().min(10), password: z.string().min(8) });
+export type PasswordReset = z.infer<typeof passwordResetSchema>;
+
+export const verifyEmailSchema = z.object({ token: z.string().min(10) });
+export type VerifyEmail = z.infer<typeof verifyEmailSchema>;
+
 export const accountSchema = z.object({
   id: z.string(),
   email: z.string().nullable(),

@@ -38,6 +38,7 @@ model Account {
   id        String    @id @default(cuid())
   type      String    @default("dev") // dev | advertiser | admin
   email     String?
+  emailVerified Boolean @default(false)
   oauthSub  String?   @unique
   country   String?
   createdAt DateTime  @default(now())
@@ -47,6 +48,9 @@ model Account {
   payouts   Payout[]
   campaigns Campaign[]
   payoutDestinations PayoutDestination[]
+
+  // One account per email per role (NULL emails — e.g. some OAuth users — stay distinct).
+  @@unique([email, type])
 }
 
 model PayoutDestination {

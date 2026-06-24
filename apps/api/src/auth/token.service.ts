@@ -17,8 +17,26 @@ export class TokenService {
 
   verify(token: string): TokenClaims | null {
     try {
-      const decoded = jwt.verify(token, this.secret()) as { sub?: string };
+      const decoded = jwt.verify(token, this.secret()) as { sub?: string; purpose?: string };
+      // Session tokens carry no purpose; purpose-scoped tokens must not be usable as a session.
+      if (decoded.purpose) return null;
       return decoded.sub ? { sub: decoded.sub } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Short-lived, single-purpose token (e.g. email verification, password reset). */
+  issuePurpose(accountId: string, purpose: string, expiresIn: string): string {
+    return jwt.sign({ sub: accountId, purpose }, this.secret(), { expiresIn } as jwt.SignOptions);
+  }
+
+  /** Verify a purpose token; returns the accountId only if the purpose matches. */
+  verifyPurpose(token: string, purpose: string): string | null {
+    try {
+      const decoded = jwt.verify(token, this.secret()) as { sub?: string; purpose?: string };
+      if (decoded.purpose !== purpose || !decoded.sub) return null;
+      return decoded.sub;
     } catch {
       return null;
     }

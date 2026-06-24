@@ -19,4 +19,17 @@ describe("TokenService", () => {
     expect(svc2.verify(other)).toBeNull();
     process.env.AUTH_JWT_SECRET = "test-secret";
   });
+
+  it("round-trips a purpose-scoped token", () => {
+    const t = svc.issuePurpose("acc_1", "pwreset", "1h");
+    expect(svc.verifyPurpose(t, "pwreset")).toBe("acc_1");
+  });
+  it("rejects a purpose token used for the wrong purpose", () => {
+    const t = svc.issuePurpose("acc_1", "pwreset", "1h");
+    expect(svc.verifyPurpose(t, "verify")).toBeNull();
+  });
+  it("a session token is not accepted as a purpose token", () => {
+    const session = svc.issue("acc_1");
+    expect(svc.verifyPurpose(session, "pwreset")).toBeNull();
+  });
 });

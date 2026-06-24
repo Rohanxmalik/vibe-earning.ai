@@ -12,7 +12,7 @@ test("earnings page offers developer sign up and an extension-token option", asy
   await page.goto("/earnings");
   await expect(page.getByRole("heading", { name: /Developer earnings/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Create developer account/i })).toBeVisible();
-  await page.getByRole("button", { name: /Extension token/i }).click();
+  await page.getByRole("tab", { name: /Extension token/i }).click();
   await expect(page.getByPlaceholder("paste token")).toBeVisible();
 });
 

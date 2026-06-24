@@ -211,6 +211,16 @@ p { margin: 0 0 0.75rem; }
 /* ---- Empty state ---- */
 .empty { color: var(--muted); font-size: 0.9rem; padding: 0.5rem 0; }
 
+/* ---- Loading ---- */
+.spinner { color: var(--muted); font-size: 0.9rem; }
+.spinner::before {
+  content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; margin-right: 0.45rem;
+  vertical-align: -1px; border: 2px solid var(--line-strong); border-top-color: var(--brand);
+  border-radius: 50%; animation: kb-spin 0.7s linear infinite;
+}
+@keyframes kb-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner::before { animation: none; } }
+
 /* ---- Tabs ---- */
 .tabs { display: inline-flex; gap: 0.25rem; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem; margin-bottom: 1.25rem; }
 .tab { border: none; background: transparent; font: inherit; font-weight: 600; font-size: 0.88rem; color: var(--muted); padding: 0.4rem 0.9rem; border-radius: 999px; cursor: pointer; }

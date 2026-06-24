@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PortalApi } from "../../lib/api";
 import { setToken } from "../../lib/token";
+import { Alert, Tabs } from "../../components/ui";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000");
 
@@ -12,11 +13,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    setError(null);
-    setBusy(true);
+    setError(null); setMsg(null); setBusy(true);
     try {
       const res = mode === "register" ? await api.register(email, password) : await api.login(email, password);
       setToken(res.token);
@@ -28,15 +29,23 @@ export default function LoginPage() {
     }
   }
 
+  async function forgot() {
+    setError(null); setMsg(null);
+    if (!email) { setError("Enter your email above first, then click reset."); return; }
+    await api.requestPasswordReset(email, "advertiser").catch(() => undefined);
+    setMsg("If that email is registered, a reset link is on its way.");
+  }
+
   return (
     <div className="narrow">
       <h1>Advertiser access</h1>
       <p className="muted">Run sponsored lines across AI coding agents.</p>
 
-      <div className="tabs" role="tablist">
-        <button className={`tab ${mode === "login" ? "active" : ""}`} onClick={() => setMode("login")}>Log in</button>
-        <button className={`tab ${mode === "register" ? "active" : ""}`} onClick={() => setMode("register")}>Register</button>
-      </div>
+      <Tabs
+        tabs={[{ id: "login", label: "Log in" }, { id: "register", label: "Register" }]}
+        active={mode}
+        onChange={setMode}
+      />
 
       <div className="card">
         <form onSubmit={(e) => { e.preventDefault(); void submit(); }}>
@@ -52,7 +61,13 @@ export default function LoginPage() {
             {busy ? "…" : mode === "register" ? "Create advertiser account" : "Log in"}
           </button>
         </form>
-        {error && <div className="alert alert-error">{error}</div>}
+        {mode === "login" && (
+          <p className="hint" style={{ marginTop: "0.75rem" }}>
+            Forgot your password? <a href="#" onClick={(e) => { e.preventDefault(); void forgot(); }}>Email me a reset link</a>.
+          </p>
+        )}
+        {msg && <Alert kind="ok">{msg}</Alert>}
+        {error && <Alert kind="error">{error}</Alert>}
       </div>
     </div>
   );

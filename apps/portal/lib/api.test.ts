@@ -29,6 +29,35 @@ describe("PortalApi", () => {
     expect(f).toHaveBeenCalledWith("http://api/admin/login", expect.objectContaining({ method: "POST" }));
   });
 
+  it("password reset request + reset hit the recovery endpoints", async () => {
+    const f = vi.fn().mockResolvedValue(json({ ok: true }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch);
+    await api.requestPasswordReset("a@x.com", "advertiser");
+    expect(f).toHaveBeenCalledWith("http://api/auth/password-reset/request", expect.objectContaining({ method: "POST" }));
+    await api.resetPassword("tok", "newpassword1");
+    expect(f).toHaveBeenCalledWith("http://api/auth/password-reset", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("verifyEmail posts the token; requestEmailVerification sends the bearer", async () => {
+    const f = vi.fn().mockResolvedValue(json({ ok: true }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "devtok");
+    await api.verifyEmail("vtok");
+    expect(f).toHaveBeenCalledWith("http://api/auth/verify-email", expect.objectContaining({ method: "POST" }));
+    await api.requestEmailVerification();
+    expect(f).toHaveBeenCalledWith("http://api/auth/verify-email/request", expect.objectContaining({
+      method: "POST", headers: expect.objectContaining({ authorization: "Bearer devtok" }),
+    }));
+  });
+
+  it("exportMyData GETs and deleteMyAccount DELETEs /me with auth", async () => {
+    const f = vi.fn().mockResolvedValue(json({ account: { id: "a1" } }));
+    const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "devtok");
+    await api.exportMyData();
+    expect(f).toHaveBeenCalledWith("http://api/me/export", expect.objectContaining({ method: "GET", headers: expect.objectContaining({ authorization: "Bearer devtok" }) }));
+    await api.deleteMyAccount();
+    expect(f).toHaveBeenCalledWith("http://api/me", expect.objectContaining({ method: "DELETE" }));
+  });
+
   it("createCampaign sends the bearer token", async () => {
     const f = vi.fn().mockResolvedValue(json({ id: "c1" }));
     const api = new PortalApi("http://api", f as unknown as typeof fetch, () => "tok");

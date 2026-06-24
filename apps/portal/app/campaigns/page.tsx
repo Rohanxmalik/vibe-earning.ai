@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PortalApi, type Campaign } from "../../lib/api";
+import { PortalApi, type Campaign, type DailySpend } from "../../lib/api";
 import { getToken, clearToken } from "../../lib/token";
+import { Alert, Spinner, ConfirmButton, SpendChart } from "../../components/ui";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000", fetch, getToken);
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
@@ -15,6 +16,7 @@ function statusBadge(status?: string) {
 export default function CampaignsPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [copy, setCopy] = useState("");
   const [url, setUrl] = useState("https://");
@@ -25,14 +27,14 @@ export default function CampaignsPage() {
   const [editCopy, setEditCopy] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editBid, setEditBid] = useState(20000);
+  const [statsId, setStatsId] = useState<string | null>(null);
+  const [spend, setSpend] = useState<DailySpend[]>([]);
 
   async function refresh() {
-    try {
-      setCampaigns(await api.listCampaigns());
-      setAuthed(true);
-    } catch {
-      setAuthed(false);
-    }
+    setLoading(true);
+    try { setCampaigns(await api.listCampaigns()); setAuthed(true); }
+    catch { setAuthed(false); }
+    finally { setLoading(false); }
   }
   useEffect(() => { void refresh(); }, []);
 
@@ -40,20 +42,13 @@ export default function CampaignsPage() {
     setMsg(null); setErr(null);
     try {
       await api.createCampaign({ copy, url, surface: "codex-panel", bidPerBlockPaise: Number(bid) });
-      setCopy("");
-      setMsg("Campaign created — it goes live once an admin approves it.");
-      await refresh();
-    } catch {
-      setErr("Create failed — check the copy (3–60 chars), a valid URL, and your bid.");
-    }
+      setCopy(""); setMsg("Campaign created — it goes live once an admin approves it."); await refresh();
+    } catch { setErr("Create failed — check the copy (3–60 chars), a valid URL, and your bid."); }
   }
   async function buy(id: string) {
     setMsg(null); setErr(null);
-    try {
-      const p = await api.buyBlocks(id, 5);
-      setMsg(`Topped up 5 blocks (${rupees(p.amountPaise)}, ${p.status}).`);
-      await refresh();
-    } catch { setErr("Top-up failed."); }
+    try { const p = await api.buyBlocks(id, 5); setMsg(`Topped up 5 blocks (${rupees(p.amountPaise)}, ${p.status}).`); await refresh(); }
+    catch { setErr("Top-up failed."); }
   }
   async function pause(id: string) {
     setMsg(null); setErr(null);
@@ -66,13 +61,7 @@ export default function CampaignsPage() {
     catch { setErr("Resume failed."); }
   }
 
-  function startEdit(c: Campaign) {
-    setMsg(null); setErr(null);
-    setEditId(c.id);
-    setEditCopy(c.copy);
-    setEditUrl(c.url);
-    setEditBid(20000);
-  }
+  function startEdit(c: Campaign) { setMsg(null); setErr(null); setEditId(c.id); setEditCopy(c.copy); setEditUrl(c.url); setEditBid(20000); }
   function cancelEdit() { setEditId(null); }
   async function saveEdit(id: string) {
     setMsg(null); setErr(null);
@@ -83,6 +72,14 @@ export default function CampaignsPage() {
       await refresh();
     } catch { setErr("Update failed — check the copy (3–60 chars), URL, and bid."); }
   }
+
+  async function toggleStats(id: string) {
+    if (statsId === id) { setStatsId(null); return; }
+    setErr(null);
+    try { setSpend(await api.campaignDailySpend(id)); setStatsId(id); }
+    catch { setErr("Could not load spend."); }
+  }
+
   function logout() { clearToken(); router.push("/login"); }
 
   if (!authed) {
@@ -126,17 +123,17 @@ export default function CampaignsPage() {
         <button className="btn btn-primary" onClick={create}>Create campaign</button>
       </div>
 
-      {msg && <div className="alert alert-ok">{msg}</div>}
-      {err && <div className="alert alert-error">{err}</div>}
+      {msg && <Alert kind="ok">{msg}</Alert>}
+      {err && <Alert kind="error">{err}</Alert>}
 
       <div className="card">
         <h2>Your campaigns ({campaigns.length})</h2>
-        {campaigns.length === 0 ? (
+        {loading ? <Spinner label="Loading campaigns…" /> : campaigns.length === 0 ? (
           <p className="empty">No campaigns yet. Create one above to get started.</p>
         ) : (
           <ul className="list">
             {campaigns.map((c) => (
-              <li key={c.id} className="list-item" style={editId === c.id ? { display: "block" } : undefined}>
+              <li key={c.id} className="list-item" style={editId === c.id || statsId === c.id ? { display: "block" } : undefined}>
                 {editId === c.id ? (
                   <div className="stack" style={{ width: "100%" }}>
                     <div className="field" style={{ margin: 0 }}>
@@ -159,17 +156,26 @@ export default function CampaignsPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="item-main">
-                      <div className="item-copy">{c.copy}</div>
-                      <div className="item-sub">{c.url}</div>
+                    <div className="row-between">
+                      <div className="item-main">
+                        <div className="item-copy">{c.copy}</div>
+                        <div className="item-sub">{c.url}</div>
+                      </div>
+                      <div className="row">
+                        {statusBadge(c.status)}
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggleStats(c.id)}>{statsId === c.id ? "Hide" : "Stats"}</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => startEdit(c)}>Edit</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => buy(c.id)}>Top up 5</button>
+                        {c.status === "active" && <ConfirmButton message="Pause this campaign? It stops serving until resumed." className="btn btn-ghost btn-sm" onConfirm={() => pause(c.id)}>Pause</ConfirmButton>}
+                        {c.status === "paused" && <button className="btn btn-ghost btn-sm" onClick={() => resume(c.id)}>Resume</button>}
+                      </div>
                     </div>
-                    <div className="row">
-                      {statusBadge(c.status)}
-                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(c)}>Edit</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => buy(c.id)}>Top up 5</button>
-                      {c.status === "active" && <button className="btn btn-ghost btn-sm" onClick={() => pause(c.id)}>Pause</button>}
-                      {c.status === "paused" && <button className="btn btn-ghost btn-sm" onClick={() => resume(c.id)}>Resume</button>}
-                    </div>
+                    {statsId === c.id && (
+                      <div style={{ marginTop: "0.9rem" }}>
+                        <div className="stat-label">Daily spend</div>
+                        <SpendChart data={spend} />
+                      </div>
+                    )}
                   </>
                 )}
               </li>

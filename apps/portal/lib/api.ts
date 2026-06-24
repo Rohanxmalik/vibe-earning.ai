@@ -6,6 +6,7 @@ export interface DailySpend { date: string; spendPaise: number }
 export interface LedgerSummary { balancePaise: number; currency: string; validImpressions: number }
 export interface Payout { id: string; provider: string; amountPaise: number; status: string; createdAt?: string }
 export interface PayoutDestination { id: string; method: string; vpa: string | null; accountNumber: string | null; status: string }
+export interface AuditEntry { id: string; actor: string; action: string; target: string | null; detail: string | null; createdAt: string }
 
 export class PortalApi {
   constructor(
@@ -53,6 +54,28 @@ export class PortalApi {
   }
   adminLogin(email: string, password: string): Promise<AuthResult> {
     return this.req("/admin/login", { method: "POST", body: JSON.stringify({ email, password }) });
+  }
+
+  // --- Account recovery ---
+  requestPasswordReset(email: string, type: "dev" | "advertiser" | "admin"): Promise<{ ok: boolean }> {
+    return this.req("/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email, type }) });
+  }
+  resetPassword(token: string, password: string): Promise<{ ok: boolean }> {
+    return this.req("/auth/password-reset", { method: "POST", body: JSON.stringify({ token, password }) });
+  }
+  requestEmailVerification(): Promise<{ ok: boolean }> {
+    return this.req("/auth/verify-email/request", { method: "POST" });
+  }
+  verifyEmail(token: string): Promise<{ ok: boolean }> {
+    return this.req("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+  }
+
+  // --- Data subject requests (DSAR) ---
+  exportMyData(): Promise<unknown> {
+    return this.req("/me/export", { method: "GET" });
+  }
+  deleteMyAccount(): Promise<{ ok: boolean }> {
+    return this.req("/me", { method: "DELETE" });
   }
   createCampaign(dto: CreateCampaign): Promise<{ id: string }> {
     return this.req("/advertiser/campaigns", { method: "POST", body: JSON.stringify(dto) });
@@ -108,5 +131,8 @@ export class PortalApi {
   }
   adminSetKillswitch(adminKey: string, active: boolean): Promise<{ ok: boolean }> {
     return this.adminReq(adminKey, "/admin/killswitch", { method: "POST", body: JSON.stringify({ active }) });
+  }
+  adminAudit(adminKey: string): Promise<AuditEntry[]> {
+    return this.adminReq(adminKey, "/admin/audit", { method: "GET" });
   }
 }

@@ -8,10 +8,10 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post("google")
-  async google(@Body() raw: unknown) {
+  async google(@Body() raw: unknown, @Req() req: { headers: Record<string, unknown> }) {
     const parsed = googleLoginSchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    return this.auth.loginWithGoogle(parsed.data.idToken);
+    return this.auth.loginWithGoogle(parsed.data.idToken, { headers: req.headers });
   }
 
   @UseGuards(AuthGuard)

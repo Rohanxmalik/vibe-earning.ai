@@ -55,7 +55,7 @@ this order. Each says *what it is*, *why*, and *what "done" looks like*.
 ## Phase 5 — Distribution
 
 - [ ] **Publish the extension** to the VS Code Marketplace (needs a free Microsoft publisher account).
-- [ ] **A landing page** explaining the deal to developers ("install, earn while your AI thinks").
+- [x] **A landing page** explaining the deal to developers ("install, earn while your AI thinks"). **Built** — marketing home (hero, animated spinner demo, live counter, bid market, FAQ accordion), a long-form `/faq`, a full developer dashboard (geo banner, Today/Month/Lifetime + earning-limit cards, an earnings/impressions chart with 24h/7d/30d windows, activity ledger, UPI payouts), and the advertiser + admin consoles. Indigo theme, responsive, scroll-reveal animation.
 - [ ] First **advertisers** — reach out to dev-tool companies (databases, APIs, AI tools) who want to reach developers.
 
 ## Phase 6 — Legal / trust (in parallel; before real money & scale)
@@ -75,7 +75,14 @@ this order. Each says *what it is*, *why*, and *what "done" looks like*.
 5. Publish the extension; get first advertisers.
 6. Lawyer + ToS in parallel.
 
-Everything else (the marketplace, money math, payouts, fraud controls, websites, CI/CD,
+Everything else (the marketplace, money math, payouts, fraud controls, the **redesigned
+portal — marketing site, FAQ, developer dashboard, advertiser & admin consoles**, CI/CD,
 **and the production hardening — rate limits, health/readiness, graceful shutdown, password
-reset & email verification, admin audit log, data export/delete, a slimmed deploy image**)
-is already built and tested (**274 automated tests green**).
+reset & email verification, admin audit log, data export/delete, nonce-based CSP, a slimmed
+deploy image**) is already built and tested (**~295 automated unit/integration tests + a
+Playwright e2e smoke suite, all green**). New dashboard endpoints (`/ledger/me/stats`,
+`/ledger/me/activity`, `/ledger/me/events`, `/metrics/me/usage`, `/me/eligibility`) ship
+with their own Jest tests.
+
+> Note: the API test suite needs Postgres + Redis up (`docker compose up -d`) — it uses a
+> real test DB. The portal, shared, and extension suites run without any services.

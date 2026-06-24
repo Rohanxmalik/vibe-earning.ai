@@ -36,6 +36,28 @@ describe("AuthService", () => {
     expect(res).toEqual({ token: "kbi.jwt", account: { id: "acc_1", email: "dev@x.com", type: "dev" } });
   });
 
+  it("stamps the inferred country only on the create path of the upsert", async () => {
+    verifierMock.verify.mockResolvedValue({ sub: "g-123", email: "dev@x.com" });
+    prismaMock.account.upsert.mockResolvedValue({ id: "acc_1", email: "dev@x.com", type: "dev" });
+    tokenMock.issue.mockReturnValue("kbi.jwt");
+
+    await svc.loginWithGoogle("idtok", { headers: { "x-vercel-ip-country": "IN" } });
+    const arg = prismaMock.account.upsert.mock.calls[0][0];
+    expect(arg.create).toEqual(expect.objectContaining({ country: "IN" }));
+    // The update path must never carry a country, so an existing account's is preserved.
+    expect(arg.update).not.toHaveProperty("country");
+  });
+
+  it("creates with null country when no geo header is present", async () => {
+    verifierMock.verify.mockResolvedValue({ sub: "g-123", email: "dev@x.com" });
+    prismaMock.account.upsert.mockResolvedValue({ id: "acc_1", email: "dev@x.com", type: "dev" });
+    tokenMock.issue.mockReturnValue("kbi.jwt");
+
+    await svc.loginWithGoogle("idtok");
+    const arg = prismaMock.account.upsert.mock.calls[0][0];
+    expect(arg.create).toEqual(expect.objectContaining({ country: null }));
+  });
+
   it("accountFromToken returns null for no token / bad token", async () => {
     expect(await svc.accountFromToken(undefined)).toBeNull();
     tokenMock.verify.mockReturnValue(null);

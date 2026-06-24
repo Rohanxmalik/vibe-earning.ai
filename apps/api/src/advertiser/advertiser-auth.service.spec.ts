@@ -30,6 +30,21 @@ describe("AdvertiserAuthService", () => {
     expect(res).toEqual({ token: "kbi.jwt", account: { id: "adv1", email: "a@b.com", type: "advertiser" } });
   });
 
+  it("persists the inferred country on register, null when unknown", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(null);
+    prismaMock.account.create.mockResolvedValue({ id: "adv1", email: "a@b.com", type: "advertiser" });
+    await svc.register("a@b.com", "password1", "IN");
+    expect(prismaMock.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ country: "IN" }) }),
+    );
+
+    prismaMock.account.create.mockClear();
+    await svc.register("a@b.com", "password1");
+    expect(prismaMock.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ country: null }) }),
+    );
+  });
+
   it("rejects duplicate registration", async () => {
     prismaMock.account.findFirst.mockResolvedValue({ id: "adv1" });
     await expect(svc.register("a@b.com", "password1")).rejects.toBeTruthy();

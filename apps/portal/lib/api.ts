@@ -4,16 +4,53 @@ export interface AuthResult { token: string; account: { id: string; email: strin
 export interface Campaign { id: string; copy: string; url: string; surface?: string; status?: string; createdAt?: string }
 export interface DailySpend { date: string; spendPaise: number }
 export interface LedgerSummary { balancePaise: number; currency: string; validImpressions: number }
+export interface LedgerStats { todayPaise: number; monthPaise: number; lifetimePaise: number; validImpressions: number; currency: string }
+export interface ActivityPoint { bucket: string; earnedPaise: number; impressions: number }
+export interface LedgerEvent { id: string; type: string; campaign: string | null; amountPaise: number; valid: boolean; createdAt: string }
+export interface LimitInfo { count: number; cap: number; resetAt: string }
+export interface UsageInfo { hourly: LimitInfo; daily: LimitInfo }
+export interface Eligibility { country: string | null; inIndia: boolean; canPayout: boolean; reason?: string; method: string; payoutMinPaise: number }
+export type ActivityWindow = "24h" | "7d" | "30d";
 export interface Payout { id: string; provider: string; amountPaise: number; status: string; createdAt?: string }
 export interface PayoutDestination { id: string; method: string; vpa: string | null; accountNumber: string | null; status: string }
 export interface AuditEntry { id: string; actor: string; action: string; target: string | null; detail: string | null; createdAt: string }
 
+/**
+ * Error from a portal API call. `status === 0` means the request never reached the
+ * server (network error / API not running). `code` is the server's `message` field
+ * when it's a string (e.g. "email_taken", "invalid_credentials").
+ */
+export class ApiError extends Error {
+  constructor(public readonly status: number, public readonly code?: string) {
+    super(code ?? (status === 0 ? "network error" : `request failed: ${status}`));
+    this.name = "ApiError";
+  }
+}
+
+/** Best-effort extraction of the server's string error code (e.g. NestJS `message`). */
+async function errorCode(res: Response): Promise<string | undefined> {
+  try {
+    const body = (await res.json()) as { message?: unknown };
+    return typeof body?.message === "string" ? body.message : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class PortalApi {
+  private readonly fetchFn: typeof fetch;
+
   constructor(
     private readonly baseUrl: string,
-    private readonly fetchFn: typeof fetch = fetch,
+    fetchFn: typeof fetch = fetch,
     private readonly getToken: () => string | undefined = () => undefined,
-  ) {}
+  ) {
+    // Native `fetch` must be invoked with `this === window`. Stored on an instance
+    // and called as `this.fetchFn(...)`, the receiver becomes the PortalApi object and
+    // the browser throws "Illegal invocation". Bind the real fetch to the global so it
+    // works regardless of how it's called. (Injected test mocks are left untouched.)
+    this.fetchFn = fetchFn === fetch ? fetch.bind(globalThis) : fetchFn;
+  }
 
   private headers(): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
@@ -23,18 +60,28 @@ export class PortalApi {
   }
 
   private async req<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await this.fetchFn(`${this.baseUrl}${path}`, { ...init, headers: this.headers() });
-    if (!res.ok) throw new Error(`request failed: ${res.status}`);
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${this.baseUrl}${path}`, { ...init, headers: this.headers() });
+    } catch {
+      throw new ApiError(0); // never reached the server (network / API down)
+    }
+    if (!res.ok) throw new ApiError(res.status, await errorCode(res));
     return (await res.json()) as T;
   }
 
   // Admin requests authenticate with a logged-in admin's JWT (Bearer), issued by /admin/login.
   private async adminReq<T>(adminToken: string, path: string, init?: RequestInit): Promise<T> {
-    const res = await this.fetchFn(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { "content-type": "application/json", authorization: `Bearer ${adminToken}` },
-    });
-    if (!res.ok) throw new Error(`request failed: ${res.status}`);
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: { "content-type": "application/json", authorization: `Bearer ${adminToken}` },
+      });
+    } catch {
+      throw new ApiError(0);
+    }
+    if (!res.ok) throw new ApiError(res.status, await errorCode(res));
     return (await res.json()) as T;
   }
 
@@ -100,8 +147,26 @@ export class PortalApi {
   }
 
   // --- Developer (supply) side ---
+  me(): Promise<{ id: string; email: string | null; type: string }> {
+    return this.req("/auth/me", { method: "GET" });
+  }
   ledgerSummary(): Promise<LedgerSummary> {
     return this.req("/ledger/me/summary", { method: "GET" });
+  }
+  ledgerStats(): Promise<LedgerStats> {
+    return this.req("/ledger/me/stats", { method: "GET" });
+  }
+  ledgerActivity(window: ActivityWindow): Promise<ActivityPoint[]> {
+    return this.req(`/ledger/me/activity?window=${window}`, { method: "GET" });
+  }
+  ledgerEvents(limit = 500): Promise<LedgerEvent[]> {
+    return this.req(`/ledger/me/events?limit=${limit}`, { method: "GET" });
+  }
+  usage(): Promise<UsageInfo> {
+    return this.req("/metrics/me/usage", { method: "GET" });
+  }
+  eligibility(): Promise<Eligibility> {
+    return this.req("/me/eligibility", { method: "GET" });
   }
   myPayouts(): Promise<Payout[]> {
     return this.req("/payouts/me", { method: "GET" });

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import "./globals.css";
+import { Footer } from "../components/ui/Footer";
 
 const description = "Sponsor the line developers watch while their AI agent thinks — and pay India's developers for it.";
 
@@ -20,24 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <nav className="nav">
-          <div className="nav-inner">
-            <Link href="/" className="brand">
-              <span className="brand-dot" /> Kickbacks<span className="muted">·India</span>
-            </Link>
-            <div className="nav-links">
-              <Link href="/campaigns" className="nav-link">Advertisers</Link>
-              <Link href="/earnings" className="nav-link">Developers</Link>
-              <Link href="/admin" className="nav-link">Admin</Link>
-            </div>
-          </div>
-        </nav>
-        <main className="container">{children}</main>
-        <footer className="footer">
-          <div className="footer-inner">
-            Kickbacks-India — the ad marketplace for AI coding agents. Built for India&apos;s developers.
-          </div>
-        </footer>
+        <noscript>
+          {/* Without JS, scroll-reveal can't fire — make sure content is never left hidden. */}
+          <style>{`.reveal{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
+        {children}
+        <Footer />
       </body>
     </html>
   );

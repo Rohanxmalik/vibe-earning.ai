@@ -14,11 +14,11 @@ export class AdvertiserAuthService {
     return { token: this.tokens.issue(account.id), account: { id: account.id, email: account.email, type: account.type } };
   }
 
-  async register(email: string, password: string) {
+  async register(email: string, password: string, country: string | null = null) {
     const existing = await this.prisma.account.findFirst({ where: { email, type: "advertiser" } });
     if (existing) throw new BadRequestException("email_taken");
     const passwordHash = await bcrypt.hash(password, 8);
-    const account = await this.prisma.account.create({ data: { type: "advertiser", email, passwordHash } });
+    const account = await this.prisma.account.create({ data: { type: "advertiser", email, passwordHash, country } });
     return this.result(account);
   }
 

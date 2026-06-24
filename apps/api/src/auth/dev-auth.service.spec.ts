@@ -32,6 +32,24 @@ describe("DevAuthService", () => {
     expect(res).toEqual({ token: "kbi.jwt", account: { id: "dev1", email: "d@b.com", type: "dev" } });
   });
 
+  it("persists the inferred country on register", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(null);
+    prismaMock.account.create.mockResolvedValue({ id: "dev1", email: "d@b.com", type: "dev" });
+    await svc.register("d@b.com", "password1", "IN");
+    expect(prismaMock.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ country: "IN" }) }),
+    );
+  });
+
+  it("stores null country when none can be inferred", async () => {
+    prismaMock.account.findFirst.mockResolvedValue(null);
+    prismaMock.account.create.mockResolvedValue({ id: "dev1", email: "d@b.com", type: "dev" });
+    await svc.register("d@b.com", "password1");
+    expect(prismaMock.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ country: null }) }),
+    );
+  });
+
   it("rejects duplicate developer registration", async () => {
     prismaMock.account.findFirst.mockResolvedValue({ id: "dev1" });
     await expect(svc.register("d@b.com", "password1")).rejects.toBeTruthy();

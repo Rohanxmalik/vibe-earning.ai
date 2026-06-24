@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PortalApi } from "../../lib/api";
+import { PortalApi, ApiError } from "../../lib/api";
 import { setToken } from "../../lib/token";
 import { Alert, Tabs } from "../../components/ui";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000");
 
@@ -22,8 +23,19 @@ export default function LoginPage() {
       const res = mode === "register" ? await api.register(email, password) : await api.login(email, password);
       setToken(res.token);
       router.push("/campaigns");
-    } catch {
-      setError(mode === "register" ? "Could not register — email may already be in use." : "Login failed — check your email and password.");
+    } catch (e) {
+      const err = e instanceof ApiError ? e : null;
+      if (!err || err.status === 0) {
+        setError("Can't reach the server — make sure the backend API is running (default http://localhost:3000).");
+      } else if (mode === "register") {
+        setError(err.code === "email_taken"
+          ? "That email is already registered — switch to “Log in”."
+          : "Could not register — use a valid work email and a password of at least 8 characters.");
+      } else {
+        setError(err.status === 401
+          ? "Login failed — check your email and password."
+          : "Could not log in — please try again.");
+      }
     } finally {
       setBusy(false);
     }
@@ -37,10 +49,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="narrow">
-      <h1>Advertiser access</h1>
-      <p className="muted">Run sponsored lines across AI coding agents.</p>
-
+    <>
+      <PageHeader
+        eyebrow="Advertiser portal"
+        title="Reach developers at peak focus."
+        subtitle="Bid on the most-watched spinner in AI coding — pay only for verified impressions, in INR."
+      />
+      <main className="bg-[#F4F6FF]">
+        <div className="mx-auto max-w-md px-6 py-12 md:py-16">
       <Tabs
         tabs={[{ id: "login", label: "Log in" }, { id: "register", label: "Register" }]}
         active={mode}
@@ -69,6 +85,8 @@ export default function LoginPage() {
         {msg && <Alert kind="ok">{msg}</Alert>}
         {error && <Alert kind="error">{error}</Alert>}
       </div>
-    </div>
+        </div>
+      </main>
+    </>
   );
 }

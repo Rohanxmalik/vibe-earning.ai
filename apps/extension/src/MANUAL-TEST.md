@@ -20,5 +20,9 @@ The api verifies Google ID tokens; the real OAuth consent UI is a follow-up. For
 2. Command Palette → **Kickbacks: Sign in (dev: paste Google ID token)** → paste it.
 3. Re-run the simulate/end commands; the recorded `AdEvent` should now have a non-null `accountId`.
 
-## Real adapters (NOT yet implemented)
-`claudeCode.ts` / `codex.ts` / `geminiCli.ts` are stubs (`isAvailable() === false`). Implementing real wait-state detection + line rendering for each agent is a separate research task — verify each against its live agent before enabling.
+## Real adapters
+- **Claude Code** is implemented two ways and unit-tested end-to-end:
+  - the standalone status-line script (`statusline/cli.ts` → `dist/statusline.js`, the official `statusLine` command — preferred), and
+  - the in-editor `claudeCode.ts` adapter (`isAvailable()` self-detects via `CLAUDECODE`/`CLAUDE_CODE_ENTRYPOINT`; renders via an injectable `StatusSink`; driven by an injectable `WaitSource`).
+  Remaining work is **live verification** against a real Claude Code and binding the production `WaitSource`/`StatusSink` — see `docs/extension/claude-code-statusline.md` → "Manual live-verification".
+- `codex.ts` / `geminiCli.ts` are still stubs (`isAvailable() === false`); they reuse the same status-line script via `KICKBACKS_SURFACE`. Implementing each tool's native wait-state detection is a follow-up — verify against its live agent before enabling.

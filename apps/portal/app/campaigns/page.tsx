@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { PortalApi, type Campaign, type DailySpend } from "../../lib/api";
 import { getToken, clearToken } from "../../lib/token";
 import { Alert, Spinner, ConfirmButton, SpendChart } from "../../components/ui";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000", fetch, getToken);
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
@@ -84,26 +85,34 @@ export default function CampaignsPage() {
 
   if (!authed) {
     return (
-      <div className="narrow">
-        <h1>My campaigns</h1>
-        <div className="card">
-          <p className="muted">You need to sign in to manage campaigns.</p>
-          <button className="btn btn-primary" onClick={() => router.push("/login")}>Go to sign in</button>
-        </div>
-      </div>
+      <>
+        <PageHeader
+          eyebrow="Advertiser portal"
+          title="My campaigns"
+          subtitle="Sign in to create and manage campaigns."
+        />
+        <main className="bg-[#F4F6FF]">
+          <div className="mx-auto max-w-lg px-6 py-12 md:py-16">
+            <div className="card">
+              <p className="muted">You need to sign in to manage campaigns.</p>
+              <button className="btn btn-primary" onClick={() => router.push("/login")}>Go to sign in</button>
+            </div>
+          </div>
+        </main>
+      </>
     );
   }
 
   return (
     <>
-      <div className="row-between">
-        <div>
-          <h1>My campaigns</h1>
-          <p className="muted">Surface: codex-panel · paid per verified impression (second-price).</p>
-        </div>
-        <button className="btn btn-ghost btn-sm" onClick={logout}>Log out</button>
-      </div>
-
+      <PageHeader
+        eyebrow="Advertiser portal"
+        title="My campaigns"
+        subtitle="Surface: codex-panel · paid per verified impression, second-price auction."
+        actions={<button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={logout}>Log out</button>}
+      />
+      <main className="bg-[#F4F6FF]">
+        <div className="mx-auto max-w-4xl px-6 py-12 md:py-16">
       <div className="card">
         <h2>New campaign</h2>
         <div className="field">
@@ -183,6 +192,8 @@ export default function CampaignsPage() {
           </ul>
         )}
       </div>
+        </div>
+      </main>
     </>
   );
 }

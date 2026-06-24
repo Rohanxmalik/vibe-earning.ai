@@ -1,22 +1,6 @@
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000";
-const dev = process.env.NODE_ENV !== "production";
-
-// Security headers for the portal (helmet only covers the API). CSP allows the app's
-// own assets + XHR to the API origin; inline styles are permitted (we use style attrs).
-// In dev we relax script/connect for Next's HMR (eval + websocket); prod stays strict.
-const csp = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "img-src 'self' data:",
-  "style-src 'self' 'unsafe-inline'",
-  "script-src 'self'" + (dev ? " 'unsafe-eval'" : ""),
-  `connect-src 'self' ${apiBase}` + (dev ? " ws: wss:" : ""),
-].join("; ");
-
+// Security headers for the portal (helmet only covers the API). The Content-Security-Policy
+// is set per-request in middleware.ts so it can carry a nonce for Next's inline scripts.
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

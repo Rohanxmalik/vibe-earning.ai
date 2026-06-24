@@ -40,3 +40,5 @@ playwright/.cache/
 # Local UI screenshots / scratch captures (repo-root only)
 /ui-*.png
 /new-*.png
+/kb-*.jpeg
+/kbi-*.jpeg

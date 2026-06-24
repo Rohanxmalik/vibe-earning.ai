@@ -3,6 +3,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PortalApi } from "../../lib/api";
 import { Alert } from "../../components/ui";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000");
 
@@ -27,8 +28,14 @@ function ResetForm() {
   }
 
   return (
-    <div className="narrow">
-      <h1>Set a new password</h1>
+    <>
+      <PageHeader
+        eyebrow="Account"
+        title="Set a new password"
+        subtitle="Choose a new password for your account."
+      />
+      <main className="bg-[#F4F6FF]">
+        <div className="mx-auto max-w-md px-6 py-12 md:py-16">
       {!token && <Alert kind="error">Missing or invalid reset link.</Alert>}
       {done ? (
         <div className="card">
@@ -47,13 +54,15 @@ function ResetForm() {
           {error && <Alert kind="error">{error}</Alert>}
         </div>
       )}
-    </div>
+        </div>
+      </main>
+    </>
   );
 }
 
 export default function ResetPage() {
   return (
-    <Suspense fallback={<div className="narrow"><h1>Set a new password</h1></div>}>
+    <Suspense fallback={<PageHeader title="Set a new password" />}>
       <ResetForm />
     </Suspense>
   );

@@ -123,4 +123,84 @@ export class LedgerService {
   async escrowBalance(campaignId: string): Promise<number> {
     return this.balance(`escrow:campaign:${campaignId}`);
   }
+
+  // ---- Developer dashboard reads ----
+
+  /** Credited earnings bucketed into today / this-month / lifetime (gross credit), plus lifetime valid impressions. */
+  async earningsStats(accountId: string, now = new Date()) {
+    const account = `earnings:dev:${accountId}`;
+    const [credits, validImpressions] = await Promise.all([
+      this.prisma.ledgerEntry.findMany({ where: { account, direction: "credit" }, select: { amount: true, createdAt: true } }),
+      this.prisma.adEvent.count({ where: { accountId, type: "impression", valid: true } }),
+    ]);
+    const startToday = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const startMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+    let todayPaise = 0, monthPaise = 0, lifetimePaise = 0;
+    for (const e of credits) {
+      const t = new Date(e.createdAt).getTime();
+      lifetimePaise += e.amount;
+      if (t >= startMonth) monthPaise += e.amount;
+      if (t >= startToday) todayPaise += e.amount;
+    }
+    return { todayPaise, monthPaise, lifetimePaise, validImpressions, currency: "INR" as const };
+  }
+
+  /** Zero-filled earned+impressions time series: 24 hourly buckets (24h) or N daily buckets (7d/30d). */
+  async earningsActivity(accountId: string, window: "24h" | "7d" | "30d", now = new Date()) {
+    const hourly = window === "24h";
+    const count = window === "24h" ? 24 : window === "7d" ? 7 : 30;
+    const bucketMs = hourly ? 3_600_000 : 86_400_000;
+    const currentStart = hourly
+      ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())
+      : Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const startMs = currentStart - bucketMs * (count - 1);
+    const since = new Date(startMs);
+    const account = `earnings:dev:${accountId}`;
+    const [credits, impressions] = await Promise.all([
+      this.prisma.ledgerEntry.findMany({ where: { account, direction: "credit", createdAt: { gte: since } }, select: { amount: true, createdAt: true } }),
+      this.prisma.adEvent.findMany({ where: { accountId, type: "impression", valid: true, createdAt: { gte: since } }, select: { createdAt: true } }),
+    ]);
+    const earned = new Array(count).fill(0);
+    const imps = new Array(count).fill(0);
+    const idx = (t: number) => Math.floor((t - startMs) / bucketMs);
+    for (const e of credits) { const i = idx(new Date(e.createdAt).getTime()); if (i >= 0 && i < count) earned[i] += e.amount; }
+    for (const e of impressions) { const i = idx(new Date(e.createdAt).getTime()); if (i >= 0 && i < count) imps[i] += 1; }
+    const fmt = (ms: number) => {
+      const d = new Date(ms);
+      return hourly
+        ? `${String(d.getUTCHours()).padStart(2, "0")}:00`
+        : d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    };
+    return Array.from({ length: count }, (_, i) => ({ bucket: fmt(startMs + i * bucketMs), earnedPaise: earned[i], impressions: imps[i] }));
+  }
+
+  /** Most recent ad events for this developer with the credit each one earned (for the activity ledger). */
+  async recentEvents(accountId: string, limit = 500) {
+    const take = Math.min(Math.max(1, limit), 500);
+    const events = await this.prisma.adEvent.findMany({
+      where: { accountId },
+      orderBy: { createdAt: "desc" },
+      take,
+      select: { id: true, type: true, campaignId: true, valid: true, createdAt: true },
+    });
+    if (events.length === 0) return [];
+    const ids = events.map((e) => e.id);
+    const campaignIds = [...new Set(events.map((e) => e.campaignId))];
+    const account = `earnings:dev:${accountId}`;
+    const [credits, campaigns] = await Promise.all([
+      this.prisma.ledgerEntry.findMany({ where: { account, direction: "credit", eventId: { in: ids } }, select: { eventId: true, amount: true } }),
+      this.prisma.campaign.findMany({ where: { id: { in: campaignIds } }, select: { id: true, copy: true } }),
+    ]);
+    const creditByEvent = new Map<string, number>();
+    for (const c of credits) creditByEvent.set(c.eventId, (creditByEvent.get(c.eventId) ?? 0) + c.amount);
+    const copyById = new Map(campaigns.map((c) => [c.id, c.copy]));
+    return events.map((e) => ({
+      id: e.id,
+      type: e.type,
+      campaign: copyById.get(e.campaignId) ?? null,
+      amountPaise: creditByEvent.get(e.id) ?? 0,
+      valid: e.valid,
+      createdAt: e.createdAt,
+    }));
+  }
 }

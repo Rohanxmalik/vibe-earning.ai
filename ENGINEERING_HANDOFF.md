@@ -2,7 +2,7 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **274 automated tests green** (api 194 · extension 47 · shared 17 · portal 16) + 3 Playwright browser smokes (run separately). Tree clean.
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches. **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **281 automated tests green** (api 201 · extension 47 · shared 17 · portal 16) + 3 Playwright browser smokes (run separately). Tree clean.
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -162,6 +162,8 @@ pnpm --filter @kbi/shared test         # 17 tests
 | `KICKBACKS_SURFACE` | extension status-line | **[NEW5]** which ad surface the status-line script serves (default `claude-code-terminal`) |
 | `NEXT_PUBLIC_SITE_URL` | portal | **[NEW5]** absolute site URL for OG/metadata (`metadataBase`) |
 | `DEPLOY_WEBHOOK` | CD (secret) | **[NEW5]** deploy hook the CD `deploy` job POSTs to; unset ⇒ deploy step no-ops |
+| `RESEND_API_KEY` / `EMAIL_FROM` | api notifications | **[NEW6]** bind the real email provider; unset ⇒ `LogNotifier` (emails logged, not sent) |
+| `FRAUD_SWEEP_INTERVAL_MS` | api fraud | **[NEW6]** >0 runs the auto-void sweep on that interval (default 0 = off; also `POST /admin/fraud/sweep`) |
 | `KICKBACKS_API` | extension | api base URL (default http://localhost:3000) |
 | `NEXT_PUBLIC_API_BASE` | portal | api base URL (build-time inlined) |
 | `NEXT_OUTPUT` | portal build | **[NEW]** set to `standalone` for the Docker build (off by default so Windows builds work) |
@@ -238,6 +240,8 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 |---------------|------|------|---------|
 | `GET /health` | — | — | `{status:"ok"}` (liveness) |
 | `GET /health/ready` **[NEW5]** | — | — | `{status:"ready",db,redis}` or **503** — pings Postgres + Redis (readiness) |
+| `GET /metrics` **[NEW6]** | — | — | Prometheus text (request counts + duration histogram); restrict at network layer |
+| `POST /admin/fraud/sweep` **[NEW6]** | admin | — | `{clustersVoided,eventsVoided}` — voids all over-threshold IP clusters |
 | `POST /auth/password-reset/request` **[NEW5]** | — | `{email,type}` | `{ok}` — emails a reset link (never reveals if the email exists) |
 | `POST /auth/password-reset` **[NEW5]** | — | `{token,password}` | `{ok}` |
 | `POST /auth/verify-email/request` **[NEW5]** | Bearer | — | `{ok}` — emails a verification link |
@@ -365,7 +369,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 194 · extension 47 · shared 17 · portal 16 = 274 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 201 · extension 47 · shared 17 · portal 16 = 281 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -450,7 +454,8 @@ Versioned migrations are in place: a squashed baseline `apps/api/prisma/migratio
 - ✅ **Error reporting** via **Sentry** (`common/sentry.ts`, DSN-guarded; 500s captured; flushed on shutdown [NEW5]).
 - ✅ **Health/readiness** — `/health` (liveness) + `/health/ready` (DB+Redis deep check, [NEW5]); **graceful shutdown** ([NEW5]); **Redis-backed throttler** (multi-instance, [NEW5]); **admin audit log** ([NEW5]).
 - ✅ **CI** (`.github/workflows/ci.yml`) + **CD** (`cd.yml` — builds & pushes api/portal images to GHCR, plus a **deploy job** that fires once `DEPLOY_WEBHOOK` is set, [NEW5]) + **Dockerfiles** (**slimmed API image via `pnpm deploy --prod`**, verified to boot+migrate+serve, [NEW5]) + **`docker-compose.prod.yml`** (restart policies + healthchecks, [NEW5]). Deploy runbook: `docs/launch/DEPLOY.md`.
-- **Still to do (external):** actually deploy (managed Postgres+Redis in an **India region**, portal hosting, publish the extension); **bind a real email provider** to the `Notifier` seam; request tracing (OpenTelemetry) + metrics dashboards (Prometheus) + uptime alerting; secrets via a manager (not env files) in prod.
+- ✅ **Metrics [NEW6]** — `/metrics` (no-dep Prometheus: request counts + duration histogram) via a global interceptor; scrape with Prometheus/Grafana. **Email [NEW6]** — `ResendNotifier` sends for real when keyed.
+- **Still to do (external):** actually deploy (managed Postgres+Redis in an **India region**, portal hosting, publish the extension); set `RESEND_API_KEY` (provider account); distributed **tracing** (OpenTelemetry) + Grafana dashboards + uptime alerting; secrets via a manager (not env files) in prod.
 
 ### 13.7 Legal / entity (blocks real money)
 India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay from abroad); **GST** on the platform fee; **TDS** on developer payouts; advertiser + developer ToS + privacy policy. Vendor risk: injecting into Anthropic/OpenAI/Google agent UIs is adversarial — their ToS/UI changes can break or ban us; mitigate with versioned adapters + the killswitch.
@@ -470,7 +475,9 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~In-memory throttler / shallow health / no graceful shutdown~~ — **fixed [NEW5]:** Redis-backed `ThrottlerStorage` (limits shared across instances), `/health/ready` deep check, and `enableShutdownHooks` + SIGTERM drain + Sentry flush.
 - ✅ ~~No password reset / email verification / email uniqueness~~ — **fixed [NEW5]:** `/auth/password-reset*` + `/auth/verify-email*` (Notifier seam — bind a real provider in prod), `emailVerified` column, and a per-type unique email index.
 - ✅ ~~No admin audit log / no DSAR / hand-written admin seed~~ — **fixed [NEW5]:** `AdminAudit` + `/admin/audit`, `/me/export` + `DELETE /me`, and `scripts/seed.mjs` (admin + house ads).
-- **Notifier is a LogNotifier** — emails are logged, not sent, until you bind `Notifier` to a real provider (SES/SendGrid/Resend). Tokens still work end-to-end; only delivery is stubbed.
+- ✅ ~~Notifier only logs~~ — **fixed [NEW6]:** `ResendNotifier` (HTTP, no SDK) sends real email when `RESEND_API_KEY` is set; falls back to `LogNotifier` otherwise. Swap the one file for SES/SendGrid.
+- ✅ ~~No metrics / auto fraud backfill / marketing page / extension packaging~~ — **done [NEW6]:** `/metrics` (no-dep Prometheus) + request interceptor; `FraudSweepService` (`POST /admin/fraud/sweep` + `FRAUD_SWEEP_INTERVAL_MS`); a real marketing landing page; extension marketplace metadata + README + `.vscodeignore`.
+- **Tracing still TODO** — request metrics exist, but distributed tracing (OpenTelemetry) needs the otel packages + a collector; deferred.
 - ✅ ~~Portal UI is bare / admin uses static key~~ — **fixed [NEW4]:** portal now has a clean **design system** (`app/globals.css`) across all pages, and the admin page logs in via **`POST /admin/login`** (admin JWT Bearer); the static `x-admin-key` is no longer used by the web (the API still accepts it as a legacy/break-glass header).
 - **Campaign edit re-moderation is coarse** — *any* creative change on a live campaign sends the whole campaign back to `pending` (safe default). A lighter flow (e.g. auto-approve trivial URL tweaks, or a separate "pending creative" field that keeps the old copy serving until re-approval) could reduce advertiser friction later.
 - **Developer web vs Google identity** — a dev who signs up by email (`type:"dev"`) and a dev who signed in with Google are **separate accounts** even with the same email. Acceptable now; merge-on-verified-email later if needed.

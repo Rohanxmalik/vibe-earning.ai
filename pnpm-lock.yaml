@@ -65,6 +65,9 @@ importers:
       pino-http:
         specifier: ^11.0.0
         version: 11.0.0
+      prisma:
+        specifier: ^5.20.0
+        version: 5.22.0
       razorpay:
         specifier: ^2.9.6
         version: 2.9.6
@@ -105,9 +108,6 @@ importers:
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@22.20.0)
-      prisma:
-        specifier: ^5.20.0
-        version: 5.22.0
       supertest:
         specifier: ^7.0.0
         version: 7.2.2

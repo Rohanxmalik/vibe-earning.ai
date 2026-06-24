@@ -5,6 +5,7 @@
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-kbi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kbi}
@@ -18,6 +19,7 @@ services:
 
   redis:
     image: redis:7
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -28,9 +30,16 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-kbi}:${POSTGRES_PASSWORD:-kbi}@postgres:5432/${POSTGRES_DB:-kbi}?schema=public
       REDIS_URL: redis://redis:6379
@@ -56,7 +65,14 @@ services:
       dockerfile: apps/portal/Dockerfile
       args:
         NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:3000}
+    restart: unless-stopped
     depends_on: [api]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     environment:
       PORT: 3001
     ports: ["3001:3001"]

@@ -4,5 +4,13 @@
 **/.turbo
 **/coverage
 .git
+.github
+.playwright-mcp
 *.log
 **/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.prod.example
+ui-*.png
+new-*.png

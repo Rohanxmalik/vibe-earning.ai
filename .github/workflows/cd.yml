@@ -53,3 +53,23 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Triggers the host to roll the new images. No-ops until DEPLOY_WEBHOOK is set, so
+  # this is safe to merge before infra exists. Point it at your host's deploy hook
+  # (Render/Railway/Fly deploy hook URL) or replace with an SSH `docker compose pull && up`.
+  deploy:
+    needs: images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger deploy
+        env:
+          DEPLOY_WEBHOOK: ${{ secrets.DEPLOY_WEBHOOK }}
+        run: |
+          if [ -z "$DEPLOY_WEBHOOK" ]; then
+            echo "No DEPLOY_WEBHOOK secret configured — skipping deploy."
+            echo "Set it (repo Settings → Secrets) to a deploy hook to enable continuous deploy."
+            exit 0
+          fi
+          curl -fsSL -X POST "$DEPLOY_WEBHOOK"
+          echo "Deploy triggered."

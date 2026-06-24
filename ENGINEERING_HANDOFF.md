@@ -120,20 +120,21 @@ pnpm --filter @kbi/shared build
 ```bash
 # API (http://localhost:3000)
 pnpm --filter @kbi/api dev
-pnpm --filter @kbi/api test            # 111 tests (needs docker up)
+pnpm --filter @kbi/api test            # 194 tests (needs docker up)
+pnpm --filter @kbi/api seed            # seed first admin + house ads (SEED_ADMIN_EMAIL/PASSWORD)
 
 # Portal (http://localhost:3001)  — set NEXT_PUBLIC_API_BASE if api isn't on :3000
 pnpm --filter @kbi/portal dev
-pnpm --filter @kbi/portal test         # 4 tests
+pnpm --filter @kbi/portal test         # 16 tests
 pnpm --filter @kbi/portal build        # next build
 
 # Extension (unit-tested core; UI is manual via VS Code F5)
-pnpm --filter @kbi/extension test      # 22 tests
-pnpm --filter @kbi/extension build     # esbuild → dist/extension.js
+pnpm --filter @kbi/extension test      # 47 tests
+pnpm --filter @kbi/extension build     # esbuild → dist/extension.js + dist/statusline.js
 # see apps/extension/src/MANUAL-TEST.md to run the real Extension Host
 
 # Shared
-pnpm --filter @kbi/shared test         # 11 tests
+pnpm --filter @kbi/shared test         # 17 tests
 ```
 
 ### Environment variables (`.env.example`)
@@ -169,11 +170,11 @@ pnpm --filter @kbi/shared test         # 11 tests
 
 ## 5. Data model (`apps/api/prisma/schema.prisma`)
 
-9 tables. Money fields are integer paise.
+11 tables. Money fields are integer paise.
 
 | Model | Purpose | Key fields |
 |-------|---------|-----------|
-| **Account** | One row per user (dev / advertiser / admin) | `type`, `email?`, `oauthSub? @unique` (Google), `passwordHash?` (advertiser), `country?`, `suspended` |
+| **Account** | One row per user (dev / advertiser / admin) | `type`, `email?`, **`emailVerified` [NEW5]**, `oauthSub? @unique` (Google), `passwordHash?` (advertiser/admin/dev), `country?`, `suspended`; **`@@unique([email, type])` [NEW5]** |
 | **Campaign** | An ad | `copy` (≤60), `url`, `iconUrl?`, `isHouseAd`, `status` (**advertiser campaigns start `pending`; house ads `active`** — see moderation §7), **`pacePerMinute?`** (delivery cap, **[NEW2]**), `advertiserId?` |
 | **Bid** | A campaign's price for a surface | `campaignId`, `surface`, `amount` (paise per 1000-impression block), `status` |
 | **AdEvent** | A recorded impression/click | `installId`, `campaignId`, `surface`, `type`, `nonce`, `visibleMs`, `valid`, `reason?` (incl. `ip_cluster`), **`ipHash?`** (server-derived salted hash, **[NEW]**), `accountId?`; **`@@unique([installId, nonce])`** (idempotency) |
@@ -182,8 +183,9 @@ pnpm --filter @kbi/shared test         # 11 tests
 | **Payout** | A developer withdrawal | `accountId`, `provider`, `amountPaise`, `status`, `providerRef?` |
 | **PayoutDestination** **[NEW2]** | A dev's UPI/bank cash-out target | `accountId`, `method` (upi/bank), `vpa?`, `accountNumber?`, `ifsc?`, `status` (pending/verified/rejected), `providerRef?` (RazorpayX fund_account) |
 | **Killswitch** | Global/scoped kill flag | `scope @unique`, `active` |
+| **AdminAudit** **[NEW5]** | Append-only log of privileged admin actions | `actor` (admin id or `apikey`), `action`, `target?`, `detail?` (JSON) |
 
-**FK note (matters for test/cleanup ordering):** `Bid` and `BlockPurchase` reference `Campaign`; `Payout` and `PayoutDestination` reference `Account` — all required FKs. The Jest `globalSetup` truncates in FK-safe order (`ledgerEntry → adEvent → blockPurchase → bid → payout → payoutDestination → campaign → account → killswitch`). `AdEvent.campaignId` is a **plain string (no FK)** on purpose, so event ingestion never 500s on a missing/cleaned campaign.
+**FK note (matters for test/cleanup ordering):** `Bid` and `BlockPurchase` reference `Campaign`; `Payout` and `PayoutDestination` reference `Account` — all required FKs. The Jest `globalSetup` truncates in FK-safe order (`ledgerEntry → adEvent → blockPurchase → bid → payout → payoutDestination → campaign → account → killswitch → adminAudit`). `AdEvent.campaignId` is a **plain string (no FK)** on purpose, so event ingestion never 500s on a missing/cleaned campaign.
 
 ---
 
@@ -400,7 +402,20 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 - ✅ **Developer earnings dashboard** + **admin operations console** in the portal (approve campaigns, KYC-verify destinations, killswitch).
 - ✅ **README**, **prod `docker-compose`**, **CD** (GHCR images), **Sentry** (DSN-guarded), **Playwright** portal smokes.
 - ✅ Pushed to **github.com/Rohanxmalik/vibe-earning.ai**.
-- ✅ **173 tests + 3 Playwright, all green**; everything on `main`.
+
+**Batches 3 & 4 [NEW3]/[NEW4]:**
+- ✅ **Top-N ad rotation** (`/serve?count=N`), **second-price auction** pricing, **fraud-cluster void**, **serve affordability** skip.
+- ✅ **Admin email/password login** (`/admin/login`), advertiser **pause/resume/top-up/edit**, **developer web onboarding** (`/dev/*`).
+- ✅ **Portal design system** + restyle; admin wired to login (static key dropped from web).
+- ✅ **Unattributed earnings → platform**; **atomic escrow reservation** (per-campaign advisory lock).
+
+**Production-readiness batch [NEW5]:**
+- ✅ **Redis-backed throttler** (multi-instance), **graceful shutdown**, **readiness probe** (`/health/ready`).
+- ✅ **Email uniqueness** + **email verification** + **password reset** (`/auth/*`, Notifier seam).
+- ✅ **Admin audit log** (`/admin/audit`), **DSAR** (`/me/export`, `DELETE /me`), **seed script**.
+- ✅ Portal **recovery/verify pages**, **accessibility**, **loading states**, **spend chart**, **confirm dialogs**, **CSP/security headers**, **favicon + OG**.
+- ✅ **Slimmed API Docker image** (verified) + compose healthchecks/restart + **CD deploy scaffold** + **configurable status-line surface**.
+- ✅ **274 tests + 3 Playwright, all green**; everything on `main`.
 
 ---
 
@@ -424,16 +439,18 @@ Each sits behind a finished seam, so it's "fill in the implementation / plug in 
 - ✅ **Creative moderation — done [NEW]** (pending → `POST /admin/campaigns/:id/approve`).
 - ✅ **Pacing — done [NEW2]** (`Campaign.pacePerMinute` + Redis per-minute counter in `PacingService`; `/serve` skips paced-out campaigns).
 - ✅ **Admin moderation UI — done [NEW2]** (portal `/admin`: approve campaigns, KYC-verify destinations, killswitch).
-- **Still to do — backfill invalidation:** clustering flags events *after* the threshold is crossed; the first N installs already earned. A batch job could retroactively void a confirmed cluster (debit `earnings:dev` / reverse the postings).
+- ✅ **Retroactive cluster void — done [NEW4]** (`POST /admin/fraud/void-cluster {ipHash}` → `FraudService.voidCluster` invalidates the events + reverses their ledger postings).
+- **Still to do — automatic backfill:** the void is admin-triggered; a scheduled job that auto-voids clusters above a confidence threshold is future work.
 
 ### 13.5 Production migrations — **done [NEW]**
 Versioned migrations are in place: a squashed baseline `apps/api/prisma/migrations/20260623000000_init` (the old 8-digit folder name wasn't replayable), verified to apply cleanly to a fresh DB with **zero drift**. CI and the Docker entrypoint run `prisma migrate deploy`; the dev DB was baselined via `prisma migrate resolve --applied`. To add a migration, diff against a shadow DB (see §4). `prisma:deploy` script added.
 
-### 13.6 Observability & deployment — **mostly done [NEW2]**
-- ✅ **Structured logging** via pino with secret redaction; **global exception filter**; **helmet + CORS**.
-- ✅ **Error reporting** via **Sentry** (`common/sentry.ts`, DSN-guarded; 500s captured from the filter).
-- ✅ **CI** (`.github/workflows/ci.yml`) + **CD** (`.github/workflows/cd.yml` — builds & pushes api/portal images to GHCR on `main`/tags) + **Dockerfiles** (api image builds clean; portal Next standalone via `NEXT_OUTPUT`) + **`docker-compose.prod.yml`**.
-- **Still to do (external):** actually deploy (managed Postgres+Redis in an **India region**, portal hosting, publish the extension to the VS Code Marketplace); request tracing + metrics dashboards; secrets via a manager (not env files) in prod.
+### 13.6 Observability & deployment — **mostly done [NEW2]/[NEW5]**
+- ✅ **Structured logging** via pino with secret redaction; **global exception filter**; **helmet + CORS**; **CSP/security headers on the portal** (`next.config.mjs`, [NEW5]).
+- ✅ **Error reporting** via **Sentry** (`common/sentry.ts`, DSN-guarded; 500s captured; flushed on shutdown [NEW5]).
+- ✅ **Health/readiness** — `/health` (liveness) + `/health/ready` (DB+Redis deep check, [NEW5]); **graceful shutdown** ([NEW5]); **Redis-backed throttler** (multi-instance, [NEW5]); **admin audit log** ([NEW5]).
+- ✅ **CI** (`.github/workflows/ci.yml`) + **CD** (`cd.yml` — builds & pushes api/portal images to GHCR, plus a **deploy job** that fires once `DEPLOY_WEBHOOK` is set, [NEW5]) + **Dockerfiles** (**slimmed API image via `pnpm deploy --prod`**, verified to boot+migrate+serve, [NEW5]) + **`docker-compose.prod.yml`** (restart policies + healthchecks, [NEW5]). Deploy runbook: `docs/launch/DEPLOY.md`.
+- **Still to do (external):** actually deploy (managed Postgres+Redis in an **India region**, portal hosting, publish the extension); **bind a real email provider** to the `Notifier` seam; request tracing (OpenTelemetry) + metrics dashboards (Prometheus) + uptime alerting; secrets via a manager (not env files) in prod.
 
 ### 13.7 Legal / entity (blocks real money)
 India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay from abroad); **GST** on the platform fee; **TDS** on developer payouts; advertiser + developer ToS + privacy policy. Vendor risk: injecting into Anthropic/OpenAI/Google agent UIs is adversarial — their ToS/UI changes can break or ban us; mitigate with versioned adapters + the killswitch.
@@ -469,11 +486,14 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 
 ---
 
-## 16. Suggested next-step priority (updated [NEW2])
-1. **Live PSP credentials + RazorpayX KYC onboarding** (§13.1) — the code is done; create the accounts, complete RazorpayX contact/fund_account KYC, set keys. This turns on real money.
-2. **One real spinner adapter** (Claude Code) (§13.2) — proves real earning end-to-end (still needs the live agent).
-3. **Actual deploy** (§13.6): the CD workflow already builds+pushes images — point it at managed Postgres+Redis (India region) + portal hosting; publish the extension.
-4. **Legal entity** in parallel (§13.7) — gates going live with real funds.
-5. **Retroactive cluster void + 2nd-price pricing + escrow reservation** (§13.4, §14) as scale demands.
+## 16. Suggested next-step priority (updated [NEW5])
+
+The codebase is **production-hardened**; what remains is external/operational, not engineering.
+1. **Live PSP credentials + RazorpayX KYC onboarding** (§13.1, `docs/launch/PAYMENTS_SETUP.md`) — turns on real money.
+2. **Actual deploy** (§13.6, `docs/launch/DEPLOY.md`): buy managed Postgres+Redis (India region) + portal hosting + domain, run the seed script, set `DEPLOY_WEBHOOK`.
+3. **Bind a real email provider** to the `Notifier` seam (SES/SendGrid/Resend) — enables password reset / verification / payout notices to actually send.
+4. **One real spinner adapter** (Claude Code, then Codex/Gemini) (§13.2) — live-verify `dist/statusline.js`; proves real earning end-to-end.
+5. **Legal entity + ToS sign-off** (§13.7, `docs/legal/` templates) — gates going live with real funds.
+6. **Ops polish** as scale demands: tracing/metrics dashboards, uptime alerting, automatic fraud backfill, secrets manager.
 
 The marketplace is now **code-complete on the happy path** — money-in (collect+webhooks), money-out (RazorpayX payout + KYC gating + payout webhooks), serving with moderation/pacing/fraud guards, dev & admin web, and CI/CD. What's left is **credentials, the live spinner injection, deployment, and legal** — each behind a clean, documented seam.

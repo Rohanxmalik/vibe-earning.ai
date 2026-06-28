@@ -1,4 +1,4 @@
-import { join } from "node:path/posix";
+import { join } from "node:path";
 
 /** Filesystem facade (injected so the locator is unit-testable without real disk). */
 export interface LocatorFs {

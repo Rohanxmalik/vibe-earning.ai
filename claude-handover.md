@@ -111,13 +111,20 @@ same way as the CLI path. Distinct ad surface: **`claude-code-panel`**.
 **Progress (subagent-driven TDD, two-stage review per task):**
 - ✅ Task 1 — `ClaudeCodeAdapter.surface` → `claude-code-panel`; `StatusSink.write(line, url?)`; render passes `ad.url`. (commit `cf05c56`)
 - ✅ Task 2 — `SessionLocator` (`projectSlug` + `findNewestTranscript`, injectable `LocatorFs`). (commits `4f20e9f`, `b5b2f5f`)
-- ⬜ Task 3 — `ThinkingWaitSource` (the transcript-driven state machine). **← resume here**
-- ⬜ Task 4 — `StatusBarSink`.
-- ⬜ Task 5 — wire `extension.ts` (ad status item + open command, production watch/readLastLine deps, adapter selection by extension presence, token fallback to `~/.kickbacks/token`).
-- ⬜ Task 6 — seed `claude-code-panel` inventory (`seed.mjs` + `seed-demo.mjs`).
-- ⬜ Task 7 — manual end-to-end verification in the VS Code extension (run via Extension Development Host / F5).
+- ✅ Task 3 — `ThinkingWaitSource` (the transcript-driven state machine). (commit `38697b3`) — review clean.
+- ✅ Task 4 — `StatusBarSink`. (commit `5086c24`) — review clean.
+- ✅ Task 5 — wired `extension.ts` (ad status item + open command, production watch/readLastLine deps, adapter selection by extension presence, token fallback to `~/.kickbacks/token`). (commit `9c1d9f5`) — lint+build clean, watcher-dispose chain verified.
+- ✅ Task 6 — seeded `claude-code-panel` inventory (`seed.mjs` house ad + `seed-demo.mjs` funded campaign on both surfaces). (commit `4fca7bb`) — **code only; the run+`curl` verify (plan steps 3-4) is DEFERRED to Task 7 because the local stack was down.**
+- ⬜ Task 7 — **manual end-to-end verification in the VS Code extension (F5 Extension Development Host). ← the only thing left, and it is the real gate.** Includes the deferred Task 6 steps: bring the stack up, run both seeders, and `curl "http://localhost:3000/serve?surface=claude-code-panel&count=3"` to confirm a funded panel ad serves; then confirm the status-bar line renders while Claude thinks, is clickable, and that `/ledger/me/stats` increments.
+- Polish commit `5c0b1c7`: added a positive `tool_use`-doesn't-end-turn test + documented the folderless-window adapter guard.
 
-Full code for every remaining task (tests + implementation) is already written verbatim in the plan file.
+Tasks 3–6 were executed via `superpowers:subagent-driven-development` (implementer + per-task spec/quality review, then a whole-branch review on Opus). Extension suite green at **94/94**. Final review verdict: **ready to merge with fixes (none blocking)** — no Critical, no true-bug Important.
+
+### Known limitations to confirm/note during Task 7 (from the final review — neither is a billing/correctness hole; both are fail-safe)
+1. **Folderless VS Code window** → no in-editor ad (no workspace path ⇒ no transcript slug to resolve; falls back to the dev MockAdapter, which renders nothing without the dev `simulateWait` command). Now documented in code so nobody "simplifies" the guard away.
+2. **Two VS Code windows running Claude at once** → `findNewestTranscript`'s global-newest fallback can cross workspaces, so a window could briefly show an ad keyed to the OTHER window's turn. Impressions still bill to the same install; single-session is the norm. Flag as a v1 follow-up.
+
+Full code for every task (tests + implementation) is also written verbatim in the plan file.
 
 ---
 

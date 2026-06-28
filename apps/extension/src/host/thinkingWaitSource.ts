@@ -19,11 +19,48 @@ export interface ThinkingDeps {
   idleTimeoutMs?: number;
 }
 
+/**
+ * A real user prompt: a `user` line whose content is text the human typed. Claude Code
+ * writes the prompt as a content ARRAY of blocks (`[{type:"text",...}]`), not a bare string,
+ * so we accept either. A `user` line carrying a `tool_result` block is the agent feeding a
+ * tool's output back to itself — NOT a new turn — so it is excluded.
+ */
 function isPrompt(line: TranscriptLine): boolean {
-  return line.type === "user" && typeof line.message?.content === "string";
+  if (line.type !== "user") return false;
+  const c = line.message?.content;
+  if (typeof c === "string") return c.trim().length > 0;
+  if (Array.isArray(c)) {
+    const blocks = c as Array<{ type?: string }>;
+    return blocks.some((b) => b?.type === "text") && !blocks.some((b) => b?.type === "tool_result");
+  }
+  return false;
 }
 function isEndTurn(line: TranscriptLine): boolean {
   return line.type === "assistant" && line.message?.stop_reason === "end_turn";
+}
+
+/**
+ * From raw transcript JSONL text, return the last STATE-DETERMINING line — a `user` or
+ * `assistant` message — scanning from the end and skipping Claude Code's bookkeeping lines
+ * (`attachment`, `file-history-snapshot`, `last-prompt`, `ai-title`, `queue-operation`, …)
+ * and any unparseable line. The newest prompt line is quickly buried under such bookkeeping,
+ * so reading only the physically-last line misses it; this finds the real signal. Returns
+ * null if there is no user/assistant line.
+ */
+export function lastMeaningfulLine(raw: string): TranscriptLine | null {
+  const lines = raw.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const s = lines[i].trim();
+    if (!s) continue;
+    let obj: TranscriptLine;
+    try {
+      obj = JSON.parse(s) as TranscriptLine;
+    } catch {
+      continue;
+    }
+    if (obj.type === "user" || obj.type === "assistant") return obj;
+  }
+  return null;
 }
 
 /**

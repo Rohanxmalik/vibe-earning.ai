@@ -11,7 +11,7 @@ import { firstAvailable } from "../adapters/registry";
 import type { SpinnerAdapter } from "../core/adapter";
 import { ClaudeCodeAdapter } from "../adapters/claudeCode";
 import { StatusBarSink } from "./statusBarSink";
-import { createThinkingWaitSource, type TranscriptLine } from "./thinkingWaitSource";
+import { createThinkingWaitSource, lastMeaningfulLine, type TranscriptLine } from "./thinkingWaitSource";
 import { findNewestTranscript, type LocatorFs } from "./sessionLocator";
 import { loadToken } from "../statusline/store";
 
@@ -128,11 +128,9 @@ function readLastLine(workspaceDir: string): TranscriptLine | null {
   const file = findNewestTranscript(workspaceDir, locatorFs);
   if (!file) return null;
   try {
-    const data = fs.readFileSync(file, "utf8");
-    const body = data.endsWith("\n") ? data.slice(0, -1) : data;
-    const nl = body.lastIndexOf("\n");
-    const last = (nl >= 0 ? body.slice(nl + 1) : body).trim();
-    return last ? (JSON.parse(last) as TranscriptLine) : null;
+    // Scan for the last user/assistant line (Claude Code interleaves many bookkeeping
+    // lines, so the physically-last line is usually not the state-determining one).
+    return lastMeaningfulLine(fs.readFileSync(file, "utf8"));
   } catch {
     return null;
   }
@@ -149,6 +147,7 @@ function buildInEditorAdapter(sink: StatusBarSink): SpinnerAdapter | null {
   if (!workspaceDir || !claudeCodePresent()) return null;
 
   const watch = (onChange: () => void): (() => void) => {
+    let disposeWatcher: () => void = () => {};
     try {
       const base = vscode.Uri.file(join(os.homedir(), ".claude", "projects"));
       // Recursive: catch the active session regardless of the exact slug dir. Duplicate
@@ -161,10 +160,18 @@ function buildInEditorAdapter(sink: StatusBarSink): SpinnerAdapter | null {
       );
       watcher.onDidChange(onChange);
       watcher.onDidCreate(onChange);
-      return () => watcher.dispose();
+      disposeWatcher = () => watcher.dispose();
     } catch {
-      return () => {};
+      disposeWatcher = () => {};
     }
+    // Belt-and-suspenders: VS Code file watchers are unreliable for paths OUTSIDE the
+    // workspace (the transcripts live under ~/.claude, not the open folder), so also poll.
+    // onChange is idempotent/level-triggered, so the extra calls are safe.
+    const poll = setInterval(onChange, 1500);
+    return () => {
+      clearInterval(poll);
+      disposeWatcher();
+    };
   };
 
   const waitSource = createThinkingWaitSource({

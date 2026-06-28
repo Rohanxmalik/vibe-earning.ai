@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createThinkingWaitSource, type TranscriptLine } from "./thinkingWaitSource";
+import { createThinkingWaitSource, lastMeaningfulLine, type TranscriptLine } from "./thinkingWaitSource";
 import type { WaitHandlers } from "../core/adapter";
 
 const prompt: TranscriptLine = { type: "user", message: { content: "do a thing" } };
+// Real Claude Code writes the prompt as a content ARRAY of blocks, not a string.
+const promptBlocks: TranscriptLine = { type: "user", message: { content: [{ type: "text", text: "hi" }] } };
 const toolResult: TranscriptLine = { type: "user", message: { content: [{ type: "tool_result" }] } };
 const endTurn: TranscriptLine = { type: "assistant", message: { stop_reason: "end_turn" } };
 const midTurn: TranscriptLine = { type: "assistant", message: { stop_reason: "tool_use" } };
@@ -33,6 +35,12 @@ describe("createThinkingWaitSource", () => {
   it("fires onWaitStart when a real user prompt is appended", () => {
     const { handlers, emit } = setup();
     emit(prompt);
+    expect(handlers.onWaitStart).toHaveBeenCalledOnce();
+  });
+
+  it("fires onWaitStart when the prompt content is a block array (real CC format)", () => {
+    const { handlers, emit } = setup();
+    emit(promptBlocks);
     expect(handlers.onWaitStart).toHaveBeenCalledOnce();
   });
 
@@ -106,5 +114,35 @@ describe("createThinkingWaitSource", () => {
     (handlers.onTick as ReturnType<typeof vi.fn>).mockClear();
     vi.advanceTimersByTime(3000);
     expect(handlers.onTick).not.toHaveBeenCalled();
+  });
+});
+
+describe("lastMeaningfulLine", () => {
+  const userLine = JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "write a haiku" }] } });
+  const attach = JSON.stringify({ type: "attachment", attachment: {} });
+  const snapshot = JSON.stringify({ type: "file-history-snapshot" });
+  const asstEnd = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text" }], stop_reason: "end_turn" } });
+
+  it("returns the user prompt even when bookkeeping lines were written after it", () => {
+    // The real lifecycle: a user line, then several attachment/snapshot lines on top.
+    const raw = [userLine, attach, attach, snapshot].join("\n") + "\n";
+    const line = lastMeaningfulLine(raw);
+    expect(line?.type).toBe("user");
+  });
+
+  it("returns the assistant end_turn line when it is the latest meaningful line", () => {
+    const raw = [userLine, attach, asstEnd, snapshot].join("\n");
+    const line = lastMeaningfulLine(raw);
+    expect(line?.type).toBe("assistant");
+    expect(line?.message?.stop_reason).toBe("end_turn");
+  });
+
+  it("skips unparseable/blank lines and returns null when no user/assistant line exists", () => {
+    const raw = [attach, "not json", "", snapshot].join("\n");
+    expect(lastMeaningfulLine(raw)).toBeNull();
+  });
+
+  it("returns null for empty input", () => {
+    expect(lastMeaningfulLine("")).toBeNull();
   });
 });

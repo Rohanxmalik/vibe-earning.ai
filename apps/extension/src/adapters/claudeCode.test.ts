@@ -31,8 +31,8 @@ describe("detectClaudeCode", () => {
 });
 
 describe("ClaudeCodeAdapter", () => {
-  it("exposes the claude-code-terminal surface", () => {
-    expect(new ClaudeCodeAdapter().surface).toBe("claude-code-terminal");
+  it("exposes the claude-code-panel surface", () => {
+    expect(new ClaudeCodeAdapter().surface).toBe("claude-code-panel");
   });
 
   it("isAvailable reflects the injected detector", () => {
@@ -137,13 +137,20 @@ describe("ClaudeCodeAdapter", () => {
     orch.start();
 
     await handlers!.onWaitStart();
-    expect(api.serveMany).toHaveBeenCalledWith("claude-code-terminal", 3);
+    expect(api.serveMany).toHaveBeenCalledWith("claude-code-panel", 3);
     expect(last()).toBe("Sponsored: TurboDB — ship faster · turbo.dev");
 
     t += 6000;
     await handlers!.onWaitEnd();
     expect(api.sendEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ campaignId: "c1", type: "impression", visibleMs: 6000, surface: "claude-code-terminal" }),
+      expect.objectContaining({ campaignId: "c1", type: "impression", visibleMs: 6000, surface: "claude-code-panel" }),
     );
+  });
+
+  it("passes the ad url to the sink so it can be opened on click", () => {
+    let gotUrl: string | undefined;
+    const sink: StatusSink = { write: (_line, url) => { gotUrl = url; }, restore: () => {} };
+    new ClaudeCodeAdapter({ sink }).render(paidAd);
+    expect(gotUrl).toBe("https://turbo.dev");
   });
 });

@@ -56,6 +56,13 @@ describe("createThinkingWaitSource", () => {
     expect(handlers.onWaitEnd).toHaveBeenCalledOnce();
   });
 
+  it("does NOT end the turn on a non-end_turn assistant line (tool_use)", () => {
+    const { handlers, emit } = setup();
+    emit(prompt);
+    emit(midTurn);
+    expect(handlers.onWaitEnd).not.toHaveBeenCalled();
+  });
+
   it("fires onTick on the interval while thinking", () => {
     const { handlers, emit } = setup();
     emit(prompt);

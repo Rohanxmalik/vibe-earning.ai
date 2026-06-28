@@ -144,6 +144,8 @@ function readLastLine(workspaceDir: string): TranscriptLine | null {
  */
 function buildInEditorAdapter(sink: StatusBarSink): SpinnerAdapter | null {
   const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  // No workspace folder => no transcript slug to resolve, so folderless windows
+  // intentionally get no in-editor ads (caller falls back to the dev MockAdapter).
   if (!workspaceDir || !claudeCodePresent()) return null;
 
   const watch = (onChange: () => void): (() => void) => {

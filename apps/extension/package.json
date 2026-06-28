@@ -18,7 +18,8 @@
     "commands": [
       { "command": "kickbacks.simulateWait", "title": "Kickbacks: Simulate Wait-State (dev)" },
       { "command": "kickbacks.endWait", "title": "Kickbacks: End Wait-State (dev)" },
-      { "command": "kickbacks.signIn", "title": "Kickbacks: Sign in (dev: paste Google ID token)" }
+      { "command": "kickbacks.signIn", "title": "Kickbacks: Sign in (dev: paste Google ID token)" },
+      { "command": "kickbacks.openSponsor", "title": "Kickbacks: Open the current sponsor" }
     ]
   },
   "scripts": {

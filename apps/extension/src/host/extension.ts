@@ -1,10 +1,19 @@
 import * as vscode from "vscode";
+import * as os from "node:os";
+import * as fs from "node:fs";
+import { join } from "node:path";
 import { ApiClient } from "../core/apiClient";
 import { Killswitch } from "../core/killswitch";
 import { ViewTracker } from "../core/viewTracker";
 import { Orchestrator } from "../core/orchestrator";
 import { MockAdapter } from "../core/mockAdapter";
 import { firstAvailable } from "../adapters/registry";
+import type { SpinnerAdapter } from "../core/adapter";
+import { ClaudeCodeAdapter } from "../adapters/claudeCode";
+import { StatusBarSink } from "./statusBarSink";
+import { createThinkingWaitSource, type TranscriptLine } from "./thinkingWaitSource";
+import { findNewestTranscript, type LocatorFs } from "./sessionLocator";
+import { loadToken } from "../statusline/store";
 
 const API_BASE = process.env.KICKBACKS_API ?? "http://localhost:3000";
 const INSTALL_KEY = "kickbacks.installId";
@@ -22,17 +31,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (e.key === "kickbacks.authToken") cachedToken = await context.secrets.get("kickbacks.authToken");
   });
 
-  const api = new ApiClient(API_BASE, fetch, () => cachedToken);
+  const api = new ApiClient(API_BASE, fetch, () => cachedToken ?? loadToken());
   const killswitch = new Killswitch(`${API_BASE}/config`, fetch);
   const tracker = new ViewTracker(() => Date.now());
-
-  // Dev: MockAdapter is the fallback so the pipeline is exercisable without a live agent.
-  const mock = new MockAdapter();
-  const adapter = firstAvailable(mock);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   status.text = "$(rocket) Kickbacks ₹0.00";
   status.show();
+
+  // The sponsored line gets its OWN status bar item, shown only while Claude is thinking.
+  const adItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+  adItem.tooltip = "Sponsored via Kickbacks — click to open. You earn while your AI works.";
+  adItem.command = "kickbacks.openSponsor";
+  const sink = new StatusBarSink(adItem);
+
+  const openSponsor = vscode.commands.registerCommand("kickbacks.openSponsor", () => {
+    const url = sink.currentUrl();
+    if (url) void vscode.env.openExternal(vscode.Uri.parse(url));
+  });
+
+  // Dev: MockAdapter is the fallback so the pipeline is exercisable without a live agent.
+  const mock = new MockAdapter();
+  const adapter: SpinnerAdapter = buildInEditorAdapter(sink) ?? firstAvailable(mock);
 
   const orch = new Orchestrator({
     adapter, api, tracker, killswitch, installId,
@@ -65,7 +85,93 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
 
-  context.subscriptions.push(status, focusSub, tokenSub, simulate, endWait, signIn, { dispose: () => { clearInterval(timer); orch.stop(); } });
+  context.subscriptions.push(status, adItem, openSponsor, focusSub, tokenSub, simulate, endWait, signIn, { dispose: () => { clearInterval(timer); orch.stop(); } });
+}
+
+/** True if Anthropic's Claude Code extension is installed (env vars don't reach the ext host). */
+function claudeCodePresent(): boolean {
+  try {
+    return Boolean(
+      vscode.extensions.getExtension("Anthropic.claude-code") ||
+        vscode.extensions.getExtension("anthropic.claude-code"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+const locatorFs: LocatorFs = {
+  homedir: () => os.homedir(),
+  listJsonl: (dir) => {
+    try {
+      return fs
+        .readdirSync(dir)
+        .filter((f) => f.endsWith(".jsonl"))
+        .map((name) => ({ name, mtimeMs: fs.statSync(join(dir, name)).mtimeMs }));
+    } catch {
+      return [];
+    }
+  },
+  listDirs: (dir) => {
+    try {
+      return fs
+        .readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name);
+    } catch {
+      return [];
+    }
+  },
+};
+
+function readLastLine(workspaceDir: string): TranscriptLine | null {
+  const file = findNewestTranscript(workspaceDir, locatorFs);
+  if (!file) return null;
+  try {
+    const data = fs.readFileSync(file, "utf8");
+    const body = data.endsWith("\n") ? data.slice(0, -1) : data;
+    const nl = body.lastIndexOf("\n");
+    const last = (nl >= 0 ? body.slice(nl + 1) : body).trim();
+    return last ? (JSON.parse(last) as TranscriptLine) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build the in-editor Claude Code adapter, or null if we shouldn't use it (no workspace,
+ * or Claude Code extension not installed) — caller falls back to the dev MockAdapter.
+ */
+function buildInEditorAdapter(sink: StatusBarSink): SpinnerAdapter | null {
+  const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspaceDir || !claudeCodePresent()) return null;
+
+  const watch = (onChange: () => void): (() => void) => {
+    try {
+      const base = vscode.Uri.file(join(os.homedir(), ".claude", "projects"));
+      // Recursive: catch the active session regardless of the exact slug dir. Duplicate
+      // events are harmless (onChange is idempotent).
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(base, "**/*.jsonl"),
+        false,
+        false,
+        true,
+      );
+      watcher.onDidChange(onChange);
+      watcher.onDidCreate(onChange);
+      return () => watcher.dispose();
+    } catch {
+      return () => {};
+    }
+  };
+
+  const waitSource = createThinkingWaitSource({
+    watch,
+    readLastLine: () => readLastLine(workspaceDir),
+    now: () => Date.now(),
+  });
+  // We already gated on claudeCodePresent(); force detect=true so the adapter is selected.
+  return new ClaudeCodeAdapter({ detect: () => true, waitSource, sink });
 }
 
 export function deactivate(): void {}

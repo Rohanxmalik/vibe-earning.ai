@@ -15,6 +15,7 @@ const HOUSE_ADS = [
   { copy: "Earn while your AI thinks — kickbacks.in", url: "https://kickbacks.in", surface: "claude-code-terminal" },
   { copy: "Get paid for your AI's idle moments", url: "https://kickbacks.in", surface: "codex-panel" },
   { copy: "Developers: turn spinner time into ₹", url: "https://kickbacks.in", surface: "gemini-cli-terminal" },
+  { copy: "Earn while Claude works — kickbacks.in", url: "https://kickbacks.in", surface: "claude-code-panel" },
 ];
 
 async function seedAdmin() {

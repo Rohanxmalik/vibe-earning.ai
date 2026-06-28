@@ -14,38 +14,32 @@ import Redis from "ioredis";
 const prisma = new PrismaClient();
 const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
 
-const SURFACE = "claude-code-terminal";
-const COPY = "Acme DB — serverless Postgres for devs. Try free →";
-const URL = "https://example.com/acme-db";
-const BID_AMOUNT = 50_000; // price = floor(amount/1000) = 50 paise per impression
-const ESCROW_PAISE = 5_000_000; // ₹50,000 of dummy budget (~100k impressions)
+const DEMOS = [
+  { surface: "claude-code-terminal", copy: "Acme DB — serverless Postgres for devs. Try free →", url: "https://example.com/acme-db" },
+  { surface: "claude-code-panel",    copy: "Acme DB (editor) — serverless Postgres. Try free →", url: "https://example.com/acme-db" },
+];
+const BID_AMOUNT = 50_000;     // price = floor(amount/1000) = 50 paise per impression
+const ESCROW_PAISE = 5_000_000; // ₹50,000 of dummy budget per campaign
 
-async function main() {
-  // 1. A dummy advertiser to own the campaign.
+async function seedOne({ surface, copy, url }) {
   let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@kbi.test", type: "advertiser" } });
   if (!advertiser) {
     advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@kbi.test", emailVerified: true } });
     console.log(`[demo] created advertiser ${advertiser.id}`);
   }
 
-  // 2. The funded (non-house) campaign — active so it's eligible to serve.
-  let campaign = await prisma.campaign.findFirst({ where: { copy: COPY, isHouseAd: false } });
+  let campaign = await prisma.campaign.findFirst({ where: { copy, isHouseAd: false } });
   if (!campaign) {
-    campaign = await prisma.campaign.create({
-      data: { copy: COPY, url: URL, isHouseAd: false, status: "active", advertiserId: advertiser.id },
-    });
-    console.log(`[demo] created campaign ${campaign.id}`);
+    campaign = await prisma.campaign.create({ data: { copy, url, isHouseAd: false, status: "active", advertiserId: advertiser.id } });
+    console.log(`[demo] created campaign ${campaign.id} (${surface})`);
   }
 
-  // 3. An active bid on the surface (drives ranking + the second-price billing).
-  const existingBid = await prisma.bid.findFirst({ where: { campaignId: campaign.id, surface: SURFACE, status: "active" } });
+  const existingBid = await prisma.bid.findFirst({ where: { campaignId: campaign.id, surface, status: "active" } });
   if (!existingBid) {
-    await prisma.bid.create({ data: { campaignId: campaign.id, surface: SURFACE, amount: BID_AMOUNT, status: "active" } });
-    console.log(`[demo] created bid amount=${BID_AMOUNT} on ${SURFACE}`);
+    await prisma.bid.create({ data: { campaignId: campaign.id, surface, amount: BID_AMOUNT, status: "active" } });
+    console.log(`[demo] created bid amount=${BID_AMOUNT} on ${surface}`);
   }
 
-  // 4. Fund escrow via the double-entry ledger (cash:platform → escrow:campaign:<id>).
-  //    Stable eventId => idempotent; re-runs never double-fund.
   const fundEventId = `demo-fund-v1:${campaign.id}`;
   await prisma.ledgerEntry.createMany({
     data: [
@@ -55,13 +49,12 @@ async function main() {
     skipDuplicates: true,
   });
 
-  // 5. Put it in the ranking zset ABOVE the house ad (score 0) so it wins the auction.
-  await redis.zadd(`rank:${SURFACE}`, BID_AMOUNT, campaign.id);
+  await redis.zadd(`rank:${surface}`, BID_AMOUNT, campaign.id);
+  console.log(`[demo] DONE ${surface} campaignId=${campaign.id}`);
+}
 
-  // Report final escrow balance.
-  const entries = await prisma.ledgerEntry.findMany({ where: { account: `escrow:campaign:${campaign.id}` } });
-  const escrow = entries.reduce((s, e) => s + (e.direction === "credit" ? e.amount : -e.amount), 0);
-  console.log(`[demo] DONE. campaignId=${campaign.id} surface=${SURFACE} escrow=${escrow} paise (₹${escrow / 100})`);
+async function main() {
+  for (const demo of DEMOS) await seedOne(demo);
 }
 
 main()

@@ -57,6 +57,12 @@ describe("composeStatusLine", () => {
     expect(line).not.toContain("Delivering"); // plain text is gone — it's bold now
   });
 
+  it("bold:false returns plain text (for terminals that apply real ANSI bold instead)", () => {
+    const line = composeStatusLine(ad({ headline: "Zomato", tagline: "Delivering Happiness" }), { bold: false });
+    expect(line).toBe("Sponsored: Zomato — Delivering Happiness · turbodb.example.com");
+    expect(line).not.toBe(boldText(line)); // not Unicode-bolded
+  });
+
   it("keeps a full tagline visible under the default cap (status bar auto-widens)", () => {
     const line = composeStatusLine(ad({ headline: "A".repeat(20), tagline: "B".repeat(40) }));
     expect(line).toContain(boldText("B".repeat(40))); // not truncated

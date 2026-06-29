@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { runStatusLine, ansiBrand, type StatusLineDeps } from "./cli";
-import { boldText } from "./compose";
+import { runStatusLine, ansiStyle, type StatusLineDeps } from "./cli";
 import type { BillingState } from "./billing";
 import type { ServeResponse } from "@kbi/shared";
 
@@ -51,19 +50,17 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
       "http://api/serve?surface=claude-code-terminal&count=3",
       expect.objectContaining({ headers: { authorization: "Bearer dev-token" } }),
     );
-    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
-    expect(write).toHaveBeenCalledWith(boldText("Sponsored: copy c1 · x.dev"));
+    expect(line).toBe("Sponsored: copy c1 · x.dev"); // returned value is plain (terminal bolds via ANSI)
+    expect(write).toHaveBeenCalledWith(ansiStyle("Sponsored: copy c1 · x.dev")); // bold ANSI, no color
   });
 
-  it("tints the written line with the brand color (ANSI truecolor) when present", async () => {
+  it("writes ANSI bold + brand color (truecolor) when a brand color is present", async () => {
     const fetchFn = vi.fn().mockResolvedValue(ok({ ads: [ad("c1", { brandColor: "#E23744" })] }));
     const write = vi.fn();
     const line = await runStatusLine(baseDeps({ fetchFn, write }));
-    // returned value stays the plain composed (bold) text…
-    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
-    // …but what's written to the status line is wrapped in the brand-color ANSI sequence.
-    expect(write).toHaveBeenCalledWith(ansiBrand("#E23744", boldText("Sponsored: copy c1 · x.dev")));
-    expect(write.mock.calls[0][0]).toContain("\x1b[38;2;226;55;68m");
+    expect(line).toBe("Sponsored: copy c1 · x.dev"); // returned plain
+    expect(write).toHaveBeenCalledWith(ansiStyle("Sponsored: copy c1 · x.dev", "#E23744"));
+    expect(write.mock.calls[0][0]).toContain("\x1b[1;38;2;226;55;68m"); // bold + truecolor
   });
 
   it("reports a diagnostic reason: 'ok' on render, 'no_inventory' when empty", async () => {
@@ -82,9 +79,10 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
     expect(reasons).toContain("error_or_timeout");
   });
 
-  it("ansiBrand is a no-op on a malformed hex", () => {
-    expect(ansiBrand("nope", "x")).toBe("x");
-    expect(ansiBrand(null, "x")).toBe("x");
+  it("ansiStyle always bolds; adds truecolor only for a valid hex", () => {
+    expect(ansiStyle("x")).toBe("\x1b[1mx\x1b[0m"); // bold only
+    expect(ansiStyle("x", "nope")).toBe("\x1b[1mx\x1b[0m"); // invalid hex → bold only
+    expect(ansiStyle("x", "#8B2CF5")).toBe("\x1b[1;38;2;139;44;245mx\x1b[0m"); // bold + color
   });
 
   it("serves anonymously (no auth header) when signed out but still renders", async () => {
@@ -94,7 +92,7 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
       "http://api/serve?surface=claude-code-terminal&count=3",
       expect.objectContaining({ headers: {} }),
     );
-    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
+    expect(line).toBe("Sponsored: copy c1 · x.dev");
   });
 
   // 4. impression posted exactly once per nonce, after the visible-time threshold, attributed
@@ -164,12 +162,12 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
 
     await runStatusLine({ ...deps, now: () => 1000 });       // show c1, open window
     let line = await runStatusLine({ ...deps, now: () => 6500 }); // 5.5s: still c1 (hold 8s), bill c1
-    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
+    expect(line).toBe("Sponsored: copy c1 · x.dev");
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ campaignId: "c1" });
 
     line = await runStatusLine({ ...deps, now: () => 9500 });  // 8.5s elapsed → rotate to c2
-    expect(line).toBe(boldText("Sponsored: copy c2 · x.dev"));
+    expect(line).toBe("Sponsored: copy c2 · x.dev");
     expect(store.current).toMatchObject({ campaignId: "c2", billed: false });
 
     // c2 reaches its own threshold → a second, distinct impression with a different nonce.
@@ -216,7 +214,7 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
 
     await runStatusLine({ ...deps, now: () => 1000 });
     const line = await runStatusLine({ ...deps, now: () => 6000 }); // bill attempt fails internally
-    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev")); // ad still rendered
-    expect(write).toHaveBeenLastCalledWith(boldText("Sponsored: copy c1 · x.dev"));
+    expect(line).toBe("Sponsored: copy c1 · x.dev"); // ad still rendered
+    expect(write).toHaveBeenLastCalledWith(ansiStyle("Sponsored: copy c1 · x.dev"));
   });
 });

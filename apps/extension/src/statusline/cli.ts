@@ -58,16 +58,16 @@ function authHeaders(token: string | undefined): Record<string, string> {
 }
 
 /**
- * Wrap text in a 24-bit ANSI truecolor sequence so the brand color shows in Claude Code's status
- * line (which renders ANSI). VS Code's editor status bar can't render ANSI — it tints via
- * `item.color` instead — so this lives only in the terminal/status-line path, not in `compose`.
- * No-op on a malformed hex.
+ * Style text for Claude Code's status line with real ANSI: **bold** always, plus the brand color
+ * (24-bit truecolor) when a valid hex is given. Terminals render ANSI bold using their own font —
+ * cleaner and copy-paste-safe vs. Unicode math-bold glyphs (which the VS Code editor status bar
+ * needs instead, since it can't render ANSI). So compose plain here and bold via ANSI.
  */
-export function ansiBrand(hex: string | null | undefined, text: string): string {
+export function ansiStyle(text: string, hex?: string | null): string {
+  const codes = [1]; // SGR 1 = bold
   const m = hex ? /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex) : null;
-  if (!m) return text;
-  const [r, g, b] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
-  return `\x1b[38;2;${r};${g};${b}m${text}\x1b[0m`;
+  if (m) codes.push(38, 2, parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)); // truecolor fg
+  return `\x1b[${codes.join(";")}m${text}\x1b[0m`;
 }
 
 /**
@@ -128,10 +128,10 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
     }
     deps.saveState(nextState);
 
-    const line = composeStatusLine(ad);
-    // Tint with the brand color in the terminal (ANSI); the returned value stays plain so callers
-    // and tests see the composed text unchanged.
-    if (line) deps.write(ansiBrand(ad?.brandColor, line));
+    // Compose PLAIN (no Unicode math-bold) for the terminal, then apply real ANSI bold + brand
+    // color. The returned value stays plain so callers and the heartbeat read clean text.
+    const line = composeStatusLine(ad, { bold: false });
+    if (line) deps.write(ansiStyle(line, ad?.brandColor));
     if (line) deps.onDiagnostic?.("ok");
     else if (ads.length > 0) deps.onDiagnostic?.("empty_line");
     return line;

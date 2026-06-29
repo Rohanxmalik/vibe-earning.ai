@@ -3,6 +3,13 @@ import type { ServeResponse } from "@kbi/shared";
 export interface ComposeOpts {
   /** Hard cap on the rendered line length (terminal status lines are narrow). */
   maxLen?: number;
+  /**
+   * Whether to bold via Unicode math-bold glyphs (default true). The VS Code editor status bar
+   * can't render ANSI/markdown, so it needs the glyphs. Terminals (Claude Code's status line)
+   * render true ANSI bold — pass `bold: false` there and apply ANSI bold instead (cleaner,
+   * font-independent, copy-paste-safe).
+   */
+  bold?: boolean;
 }
 
 /** Best-effort host extraction (no throw on a malformed URL). */
@@ -56,5 +63,7 @@ export function composeStatusLine(ad: ServeResponse | null, opts: ComposeOpts = 
   const plain = `${lead}${label}${body(ad)}${tail}`;
   const visible = Array.from(plain); // count by code point, not UTF-16 unit
   const clamped = visible.length <= maxLen ? plain : visible.slice(0, Math.max(0, maxLen - 1)).join("") + "…";
-  return boldText(clamped); // bold the entire line; emoji + punctuation pass through unchanged
+  // Unicode math-bold for surfaces that can't do ANSI (VS Code status bar); plain when the caller
+  // will apply real ANSI bold (terminal). Emoji + punctuation pass through either way.
+  return opts.bold === false ? clamped : boldText(clamped);
 }

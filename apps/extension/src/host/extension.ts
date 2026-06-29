@@ -11,7 +11,7 @@ import { firstAvailable } from "../adapters/registry";
 import type { SpinnerAdapter } from "../core/adapter";
 import { ClaudeCodeAdapter } from "../adapters/claudeCode";
 import { StatusBarSink } from "./statusBarSink";
-import { createThinkingWaitSource, currentStateLine, type TranscriptLine } from "./thinkingWaitSource";
+import { createThinkingWaitSource, stateLineWithStaleness, type TranscriptLine } from "./thinkingWaitSource";
 import { findNewestTranscript, type LocatorFs } from "./sessionLocator";
 import { loadToken } from "../statusline/store";
 
@@ -132,8 +132,10 @@ function readLastLine(workspaceDir: string): TranscriptLine | null {
   if (!file) return null;
   try {
     // Derive state by position (latest prompt vs latest end_turn) — a turn stays "in progress"
-    // through the assistant's tool_use/tool_result lines, which a last-line read would miss.
-    return currentStateLine(fs.readFileSync(file, "utf8"));
+    // through tool_use/tool_result lines — but also force-end when the transcript has gone idle
+    // (some turns never write an explicit end_turn), so the ad never shows while Claude is idle.
+    const mtimeMs = fs.statSync(file).mtimeMs;
+    return stateLineWithStaleness(fs.readFileSync(file, "utf8"), mtimeMs, Date.now());
   } catch {
     return null;
   }

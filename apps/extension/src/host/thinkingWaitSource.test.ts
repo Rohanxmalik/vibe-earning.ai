@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createThinkingWaitSource, currentStateLine, type TranscriptLine } from "./thinkingWaitSource";
+import { createThinkingWaitSource, currentStateLine, stateLineWithStaleness, type TranscriptLine } from "./thinkingWaitSource";
 import type { WaitHandlers } from "../core/adapter";
 
 const prompt: TranscriptLine = { type: "user", message: { content: "do a thing" } };
@@ -151,5 +151,25 @@ describe("currentStateLine", () => {
 
   it("returns null for empty input", () => {
     expect(currentStateLine("")).toBeNull();
+  });
+});
+
+describe("stateLineWithStaleness", () => {
+  // A transcript whose last real activity is a prompt with NO end_turn (interrupted turn).
+  const stuckRaw = [
+    JSON.stringify({ type: "user", message: { content: [{ type: "text" }] } }),
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use" }], stop_reason: "tool_use" } }),
+    JSON.stringify({ type: "user", message: { content: [{ type: "text" }] } }),
+  ].join("\n");
+
+  it("force-ends when the transcript is stale (idle beyond the window)", () => {
+    const line = stateLineWithStaleness(stuckRaw, 0, 40_000, 30_000); // 40s since last write > 30s
+    expect(line?.type).toBe("assistant");
+    expect(line?.message?.stop_reason).toBe("end_turn");
+  });
+
+  it("returns the live in-progress state when the transcript was written recently", () => {
+    const line = stateLineWithStaleness(stuckRaw, 0, 5_000, 30_000); // 5s since last write
+    expect(line?.type).toBe("user"); // => still thinking
   });
 });

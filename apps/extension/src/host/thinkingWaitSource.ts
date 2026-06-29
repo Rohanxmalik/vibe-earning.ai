@@ -76,6 +76,28 @@ export function currentStateLine(raw: string): TranscriptLine | null {
 }
 
 /**
+ * The state line to act on, accounting for STALENESS. Claude Code does not always write an
+ * explicit `end_turn` (interrupted/abandoned turns), and it sometimes leaves a trailing
+ * `user` text line — so the content heuristic alone can latch "in progress" forever. When the
+ * transcript hasn't been appended within `activityWindowMs`, we treat the turn as ended (the
+ * session is idle) and return a synthetic `end_turn`, so the ad doesn't linger while idle. The
+ * window must exceed the longest gap between writes during a live turn (tool calls run silently
+ * for a while), so it is generous; a cleanly-finished turn still hides immediately via its real
+ * `end_turn` line.
+ */
+export function stateLineWithStaleness(
+  raw: string,
+  mtimeMs: number,
+  nowMs: number,
+  activityWindowMs = 30_000,
+): TranscriptLine | null {
+  if (nowMs - mtimeMs > activityWindowMs) {
+    return { type: "assistant", message: { stop_reason: "end_turn" } };
+  }
+  return currentStateLine(raw);
+}
+
+/**
  * A WaitSource that infers Claude Code's "thinking" window from its session transcript:
  * a real user prompt opens the window; an assistant `end_turn` (or an idle-timeout) closes it.
  * The window spans the whole request→response, including tool-call gaps. Fail-safe: any

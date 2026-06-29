@@ -7,7 +7,13 @@ const ad = { adId: "a1", campaignId: "c1", copy: "Hi", url: "https://x.dev", ico
 const ad2 = { ...ad, adId: "a2", campaignId: "c2", copy: "Yo" };
 const ad3 = { ...ad, adId: "a3", campaignId: "c3", copy: "Zo" };
 
-function setup(opts: { killActive?: boolean; ads?: (typeof ad)[]; holdScheduleMs?: number[] } = {}) {
+function setup(opts: {
+  killActive?: boolean;
+  ads?: (typeof ad)[];
+  holdScheduleMs?: number[];
+  loadCursor?: () => number;
+  saveCursor?: (idx: number) => void;
+} = {}) {
   let t = 0;
   const now = () => t;
   const adapter = new MockAdapter();
@@ -20,6 +26,7 @@ function setup(opts: { killActive?: boolean; ads?: (typeof ad)[]; holdScheduleMs
   const orch = new Orchestrator({
     adapter, api: api as any, tracker, killswitch: killswitch as any, installId: "inst", now,
     holdMs: 5000, rotationCount: 3, holdScheduleMs: opts.holdScheduleMs,
+    loadCursor: opts.loadCursor, saveCursor: opts.saveCursor,
   });
   orch.start();
   return { adapter, api, orch, advance: (ms: number) => { t += ms; } };
@@ -107,6 +114,37 @@ describe("Orchestrator", () => {
     expect(adapter.lastRendered?.campaignId).toBe("c2");
     advance(5000); await adapter.fireTick();
     expect(adapter.lastRendered?.campaignId).toBe("c1"); // looped back to the top
+  });
+
+  it("round-robins across wait-states: each (short) turn starts at the NEXT ad", async () => {
+    const { adapter, advance } = setup({ ads: [ad, ad2, ad3], holdScheduleMs: [45000, 30000, 15000] });
+
+    // turn 1 — too short to reach any 45s hold, so only c1 is shown
+    await adapter.fireWaitStart();
+    expect(adapter.lastRendered?.campaignId).toBe("c1");
+    advance(1000); await adapter.fireWaitEnd();
+
+    // turn 2 — resumes at the next ad
+    await adapter.fireWaitStart();
+    expect(adapter.lastRendered?.campaignId).toBe("c2");
+    advance(1000); await adapter.fireWaitEnd();
+
+    // turn 3
+    await adapter.fireWaitStart();
+    expect(adapter.lastRendered?.campaignId).toBe("c3");
+    advance(1000); await adapter.fireWaitEnd();
+
+    // turn 4 — wraps back to the top
+    await adapter.fireWaitStart();
+    expect(adapter.lastRendered?.campaignId).toBe("c1");
+  });
+
+  it("resumes from a persisted cursor (survives a reload): loadCursor=1 -> next turn starts at slot 2", async () => {
+    const saves: number[] = [];
+    const { adapter } = setup({ ads: [ad, ad2, ad3], loadCursor: () => 1, saveCursor: (i) => saves.push(i) });
+    await adapter.fireWaitStart();
+    expect(adapter.lastRendered?.campaignId).toBe("c3"); // (1 + 1) % 3 = slot 2 = c3
+    expect(saves).toContain(2); // persisted the slot it showed
   });
 
   it("honors a per-position hold schedule (10s, 5s, 3s) and then repeats", async () => {

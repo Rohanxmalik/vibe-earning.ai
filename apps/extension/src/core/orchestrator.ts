@@ -23,12 +23,20 @@ export interface OrchestratorDeps {
   /** Min visible ms an ad must accrue before we rotate to the next (default 5000). */
   holdMs?: number;
   /**
-   * Per-position visible-ms before rotating, e.g. `[10000, 5000, 3000]` holds the first
-   * (highest-bid) ad 10s, the next 5s, the next 3s. The index wraps with the rotation cycle,
+   * Per-position visible-ms before rotating, e.g. `[45000, 30000, 15000]` holds the first
+   * (highest-bid) ad 45s, the next 30s, the next 15s. The index wraps with the rotation cycle,
    * so the schedule repeats as the ads loop. Falls back to `holdMs` when absent.
    */
   holdScheduleMs?: number[];
   onEarn?: (ad: ServeResponse) => void;
+  /**
+   * Persist the last-shown rotation slot so the NEXT wait-state resumes at the following ad
+   * (round-robin) instead of always restarting at the top — every advertiser gets exposure
+   * even when turns are short. Default: in-memory (per session). Wire to durable storage
+   * (e.g. VS Code globalState) to also survive reloads.
+   */
+  loadCursor?: () => number;
+  saveCursor?: (idx: number) => void;
 }
 
 export class Orchestrator {
@@ -37,8 +45,12 @@ export class Orchestrator {
   private ads: ServeResponse[] = [];
   private idx = 0;
   private current: { ad: ServeResponse; nonce: string } | null = null;
+  /** Slot last actually shown to the user; persisted so the next wait-state starts at lastShown+1. */
+  private lastShown: number;
 
-  constructor(private readonly d: OrchestratorDeps) {}
+  constructor(private readonly d: OrchestratorDeps) {
+    this.lastShown = d.loadCursor?.() ?? -1; // -1 => the very first turn starts at slot 0
+  }
 
   start(): void {
     this.dispose = this.d.adapter.start({
@@ -64,7 +76,10 @@ export class Orchestrator {
     const ads = await this.d.api.serveMany(this.d.adapter.surface, count);
     if (ads.length === 0) return;
     this.ads = ads; // ranked highest-bid first by /serve
-    this.idx = 0;
+    // Round-robin across turns: resume at the ad AFTER the one last shown, so short turns still
+    // cycle through every advertiser instead of always re-showing the top ad. (% clamps if the
+    // served list got shorter since last time.)
+    this.idx = (this.lastShown + 1) % this.ads.length;
     this.showCurrent();
   }
 
@@ -97,6 +112,8 @@ export class Orchestrator {
     if (!ad) return;
     const nonce = makeNonce(this.d.installId, ad.campaignId, this.d.now());
     this.current = { ad, nonce };
+    this.lastShown = this.idx;        // remember the slot we're showing now…
+    this.d.saveCursor?.(this.idx);    // …and persist it so the next turn resumes after it
     this.d.adapter.render(ad);
     this.d.tracker.start();
   }

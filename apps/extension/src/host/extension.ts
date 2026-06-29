@@ -74,13 +74,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const mock = new MockAdapter();
   const adapter: SpinnerAdapter = buildInEditorAdapter(sink) ?? firstAvailable(mock);
 
+  const ROTATION_CURSOR_KEY = "kickbacks.rotationCursor";
   const orch = new Orchestrator({
     adapter, api, tracker, killswitch, installId,
     now: () => Date.now(),
-    // Loop the top 3 ads while Claude works: highest bid 10s, next 5s, next 3s, then repeat.
+    // Loop the top 3 ads while Claude works: highest bid 45s, next 30s, next 15s, then repeat.
     rotationCount: 3,
-    holdScheduleMs: [10_000, 5_000, 3_000],
+    holdScheduleMs: [45_000, 30_000, 15_000],
     onEarn: () => { void refreshEarnings(); }, // each billed impression updates the live total
+    // Resume rotation where it left off (round-robin) — persisted across turns AND reloads, so
+    // short turns still cycle every advertiser instead of always re-showing the highest-bid ad.
+    loadCursor: () => context.globalState.get<number>(ROTATION_CURSOR_KEY) ?? -1,
+    saveCursor: (idx) => { void context.globalState.update(ROTATION_CURSOR_KEY, idx); },
   });
   orch.start();
 

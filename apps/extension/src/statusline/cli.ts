@@ -25,7 +25,10 @@ import type { ServeResponse, Surface } from "@kbi/shared";
 const API = process.env.KICKBACKS_API ?? "http://localhost:3000";
 const SURFACE = resolveSurface(process.env.KICKBACKS_SURFACE); // claude-code-terminal | codex-panel | gemini-cli-terminal | ...
 const ROTATION_COUNT = 3; // request the top-N ads and rotate through them
-const TIMEOUT_MS = 800; // keep the status line snappy
+// Per-request budget. 800ms was too aggressive: at session start Claude Code fires the statusLine
+// alongside a swarm of hooks, and a cold spawn + fetch under that CPU spike could abort before the
+// API answered (heartbeat showed "(no ad served)"). 1500ms keeps it snappy but tolerant of spikes.
+const TIMEOUT_MS = 1500;
 
 interface KillswitchProbe {
   active?: boolean;
@@ -46,6 +49,8 @@ export interface StatusLineDeps {
   timeoutMs?: number;
   /** Optional kill flag from a prior /config probe; when true, serve/bill nothing. */
   killActive?: boolean;
+  /** Diagnostics: called once with why this run rendered (or didn't) — for the heartbeat file. */
+  onDiagnostic?: (reason: string) => void;
 }
 
 function authHeaders(token: string | undefined): Record<string, string> {
@@ -78,7 +83,10 @@ export function ansiBrand(hex: string | null | undefined, text: string): string 
  */
 export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
   // Killswitch: serve/bill nothing, leave the agent's own status line untouched.
-  if (deps.killActive) return "";
+  if (deps.killActive) {
+    deps.onDiagnostic?.("killswitch");
+    return "";
+  }
 
   const timeoutMs = deps.timeoutMs ?? TIMEOUT_MS;
   const rotationCount = deps.rotationCount ?? ROTATION_COUNT;
@@ -89,8 +97,12 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
       `${deps.api}/serve?surface=${deps.surface}&count=${rotationCount}`,
       { signal: controller.signal, headers: authHeaders(deps.token) },
     );
-    if (!res.ok) return "";
+    if (!res.ok) {
+      deps.onDiagnostic?.(`serve_http_${res.status}`);
+      return "";
+    }
     const ads = ((await res.json()) as { ads?: ServeResponse[]; ad?: ServeResponse | null }).ads ?? [];
+    if (ads.length === 0) deps.onDiagnostic?.("no_inventory");
 
     // Rotate through the top-N ads with conservative per-window billing. Attribution requires a
     // signed-in dev (token); anonymous impressions would forfeit to the platform, so we only post
@@ -120,9 +132,12 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
     // Tint with the brand color in the terminal (ANSI); the returned value stays plain so callers
     // and tests see the composed text unchanged.
     if (line) deps.write(ansiBrand(ad?.brandColor, line));
+    if (line) deps.onDiagnostic?.("ok");
+    else if (ads.length > 0) deps.onDiagnostic?.("empty_line");
     return line;
   } catch {
     // swallow — never break the user's status line
+    deps.onDiagnostic?.("error_or_timeout");
     return "";
   } finally {
     clearTimeout(timer);
@@ -150,12 +165,15 @@ async function probeKillswitch(api: string, fetchFn: typeof fetch, timeoutMs: nu
  * actually invoking this status-line command (a fresh timestamp = it ran). Bounded (no growth),
  * fail-safe — never affects the rendered line.
  */
-function writeHeartbeat(line: string, surface: string, token: string | undefined): void {
+function writeHeartbeat(line: string, surface: string, token: string | undefined, reason: string): void {
   try {
     const dir = join(homedir(), ".kickbacks");
     mkdirSync(dir, { recursive: true });
     const signedIn = token ? "signed-in" : "anonymous";
-    writeFileSync(join(dir, "statusline-last.txt"), `${new Date().toISOString()}  [${surface}] [${signedIn}]  ${line || "(no ad served)"}\n`);
+    writeFileSync(
+      join(dir, "statusline-last.txt"),
+      `${new Date().toISOString()}  [${surface}] [${signedIn}] [${reason}]  ${line || "(no line)"}\n`,
+    );
   } catch {
     /* diagnostics only */
   }
@@ -164,6 +182,7 @@ function writeHeartbeat(line: string, surface: string, token: string | undefined
 async function main(): Promise<void> {
   const token = loadToken();
   const killActive = await probeKillswitch(API, fetch, TIMEOUT_MS);
+  let reason = "ok";
   const line = await runStatusLine({
     api: API,
     surface: SURFACE,
@@ -174,8 +193,9 @@ async function main(): Promise<void> {
     saveState,
     write: (l) => process.stdout.write(l),
     killActive,
+    onDiagnostic: (r) => { reason = r; },
   });
-  writeHeartbeat(line, SURFACE, token);
+  writeHeartbeat(line, SURFACE, token, reason);
 }
 
 // Only auto-run when executed as a script, not when imported by a test.

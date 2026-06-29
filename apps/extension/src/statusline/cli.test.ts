@@ -66,6 +66,22 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
     expect(write.mock.calls[0][0]).toContain("\x1b[38;2;226;55;68m");
   });
 
+  it("reports a diagnostic reason: 'ok' on render, 'no_inventory' when empty", async () => {
+    const okReasons: string[] = [];
+    await runStatusLine(baseDeps({ fetchFn: vi.fn().mockResolvedValue(ok({ ads: [ad("c1")] })), onDiagnostic: (r) => okReasons.push(r) }));
+    expect(okReasons).toContain("ok");
+
+    const emptyReasons: string[] = [];
+    await runStatusLine(baseDeps({ fetchFn: vi.fn().mockResolvedValue(ok({ ads: [] })), onDiagnostic: (r) => emptyReasons.push(r) }));
+    expect(emptyReasons).toContain("no_inventory");
+  });
+
+  it("reports 'error_or_timeout' when the fetch rejects", async () => {
+    const reasons: string[] = [];
+    await runStatusLine(baseDeps({ fetchFn: vi.fn().mockRejectedValue(new Error("aborted")), onDiagnostic: (r) => reasons.push(r) }));
+    expect(reasons).toContain("error_or_timeout");
+  });
+
   it("ansiBrand is a no-op on a malformed hex", () => {
     expect(ansiBrand("nope", "x")).toBe("x");
     expect(ansiBrand(null, "x")).toBe("x");

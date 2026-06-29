@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { runStatusLine, type StatusLineDeps } from "./cli";
+import { boldText } from "./compose";
 import type { BillingState } from "./billing";
 import type { ServeResponse } from "@kbi/shared";
 
@@ -50,8 +51,8 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
       "http://api/serve?surface=claude-code-terminal&count=3",
       expect.objectContaining({ headers: { authorization: "Bearer dev-token" } }),
     );
-    expect(line).toBe("Sponsored: copy c1 · x.dev");
-    expect(write).toHaveBeenCalledWith("Sponsored: copy c1 · x.dev");
+    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
+    expect(write).toHaveBeenCalledWith(boldText("Sponsored: copy c1 · x.dev"));
   });
 
   it("serves anonymously (no auth header) when signed out but still renders", async () => {
@@ -61,7 +62,7 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
       "http://api/serve?surface=claude-code-terminal&count=3",
       expect.objectContaining({ headers: {} }),
     );
-    expect(line).toBe("Sponsored: copy c1 · x.dev");
+    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
   });
 
   // 4. impression posted exactly once per nonce, after the visible-time threshold, attributed
@@ -131,12 +132,12 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
 
     await runStatusLine({ ...deps, now: () => 1000 });       // show c1, open window
     let line = await runStatusLine({ ...deps, now: () => 6500 }); // 5.5s: still c1 (hold 8s), bill c1
-    expect(line).toBe("Sponsored: copy c1 · x.dev");
+    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ campaignId: "c1" });
 
     line = await runStatusLine({ ...deps, now: () => 9500 });  // 8.5s elapsed → rotate to c2
-    expect(line).toBe("Sponsored: copy c2 · x.dev");
+    expect(line).toBe(boldText("Sponsored: copy c2 · x.dev"));
     expect(store.current).toMatchObject({ campaignId: "c2", billed: false });
 
     // c2 reaches its own threshold → a second, distinct impression with a different nonce.
@@ -183,7 +184,7 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
 
     await runStatusLine({ ...deps, now: () => 1000 });
     const line = await runStatusLine({ ...deps, now: () => 6000 }); // bill attempt fails internally
-    expect(line).toBe("Sponsored: copy c1 · x.dev"); // ad still rendered
-    expect(write).toHaveBeenLastCalledWith("Sponsored: copy c1 · x.dev");
+    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev")); // ad still rendered
+    expect(write).toHaveBeenLastCalledWith(boldText("Sponsored: copy c1 · x.dev"));
   });
 });

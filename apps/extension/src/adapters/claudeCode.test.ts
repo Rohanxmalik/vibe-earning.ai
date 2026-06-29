@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ClaudeCodeAdapter, detectClaudeCode, type StatusSink } from "./claudeCode";
+import { boldText } from "../statusline/compose";
 import type { WaitHandlers } from "../core/adapter";
 import type { ServeResponse } from "@kbi/shared";
 
@@ -57,22 +58,22 @@ describe("ClaudeCodeAdapter", () => {
     expect(a.isAvailable()).toBe(false);
   });
 
-  it("renders a sponsored line into the status sink", () => {
+  it("renders a sponsored line into the status sink (bold)", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink }).render(paidAd);
-    expect(last()).toBe("Sponsored: TurboDB — ship faster · turbo.dev");
+    expect(last()).toBe(boldText("Sponsored: TurboDB — ship faster · turbo.dev"));
   });
 
   it("renders a house ad without the Sponsored label", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink }).render(houseAd);
-    expect(last()).toBe("Try Kickbacks · turbo.dev");
+    expect(last()).toBe(boldText("Try Kickbacks · turbo.dev"));
   });
 
-  it("respects a configured maxLen", () => {
+  it("respects a configured maxLen (visible code points)", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink, maxLen: 12 }).render(paidAd);
-    expect(last()?.length).toBeLessThanOrEqual(12);
+    expect(Array.from(last() ?? "").length).toBeLessThanOrEqual(12);
   });
 
   it("clear() restores the stock spinner", () => {
@@ -138,7 +139,7 @@ describe("ClaudeCodeAdapter", () => {
 
     await handlers!.onWaitStart();
     expect(api.serveMany).toHaveBeenCalledWith("claude-code-panel", 3);
-    expect(last()).toBe("Sponsored: TurboDB — ship faster · turbo.dev");
+    expect(last()).toBe(boldText("Sponsored: TurboDB — ship faster · turbo.dev"));
 
     t += 6000;
     await handlers!.onWaitEnd();

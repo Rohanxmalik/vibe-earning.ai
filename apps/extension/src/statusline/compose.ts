@@ -15,11 +15,11 @@ function host(url: string): string {
 }
 
 /**
- * VS Code's status bar renders plain text (no markdown/bold), so to make the brand name visually
- * bold we map ASCII letters/digits to their Unicode **Mathematical Sans-Serif Bold** glyphs, which
- * the status-bar font renders as bold. Non-ASCII (and spaces/punctuation) pass through unchanged.
+ * VS Code's status bar renders plain text (no markdown/bold), so to make the line visually bold we
+ * map ASCII letters/digits to their Unicode **Mathematical Sans-Serif Bold** glyphs, which the
+ * status-bar font renders as bold. Non-ASCII (emoji) and spaces/punctuation pass through unchanged.
  */
-export function boldBrand(text: string): string {
+export function boldText(text: string): string {
   let out = "";
   for (const ch of text) {
     const c = ch.codePointAt(0)!;
@@ -31,22 +31,20 @@ export function boldBrand(text: string): string {
   return out;
 }
 
-/** The creative body: "**Headline** — Tagline" when structured fields are set, else the legacy copy. */
+/** The creative body: "Headline — Tagline" when structured fields are set, else the legacy copy. */
 function body(ad: ServeResponse): string {
-  if (ad.headline) {
-    const headline = boldBrand(ad.headline);
-    return ad.tagline ? `${headline} — ${ad.tagline}` : headline;
-  }
+  if (ad.headline) return ad.tagline ? `${ad.headline} — ${ad.tagline}` : ad.headline;
   return ad.copy;
 }
 
 /**
  * Compose the single sponsored line shown in Claude Code's status line, e.g.
- * "🍔 Sponsored: Zomato — Delivering Happiness · zomato.com". An optional brand emoji
- * leads; paid ads carry a "Sponsored" label (disclosure), house ads don't; the URL host
- * trails. The status bar auto-widens, so the default cap is generous enough to keep a
- * brand's tagline visible. Returns "" when there's no ad so the agent's own status line
- * shows through unchanged.
+ * "🍔 Sponsored: Zomato — Delivering Happiness · zomato.com" — rendered fully **bold**.
+ * An optional brand emoji leads; paid ads carry a "Sponsored" label (disclosure), house ads
+ * don't; the URL host trails. The status bar auto-widens, so the default cap is generous enough
+ * to keep a brand's tagline visible. We truncate on the PLAIN (visible) length, then bold the
+ * whole line — bold glyphs are one visual column each, so width is preserved. Returns "" when
+ * there's no ad so the agent's own status line shows through unchanged.
  */
 export function composeStatusLine(ad: ServeResponse | null, opts: ComposeOpts = {}): string {
   if (!ad) return "";
@@ -55,7 +53,8 @@ export function composeStatusLine(ad: ServeResponse | null, opts: ComposeOpts = 
   const lead = ad.emoji ? `${ad.emoji} ` : "";
   const label = ad.isHouseAd ? "" : "Sponsored: ";
   const tail = h ? ` · ${h}` : "";
-  const line = `${lead}${label}${body(ad)}${tail}`;
-  if (line.length <= maxLen) return line;
-  return line.slice(0, Math.max(0, maxLen - 1)) + "…";
+  const plain = `${lead}${label}${body(ad)}${tail}`;
+  const visible = Array.from(plain); // count by code point, not UTF-16 unit
+  const clamped = visible.length <= maxLen ? plain : visible.slice(0, Math.max(0, maxLen - 1)).join("") + "…";
+  return boldText(clamped); // bold the entire line; emoji + punctuation pass through unchanged
 }

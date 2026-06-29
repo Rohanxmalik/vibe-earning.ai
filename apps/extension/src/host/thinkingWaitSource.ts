@@ -40,16 +40,20 @@ function isEndTurn(line: TranscriptLine): boolean {
 }
 
 /**
- * From raw transcript JSONL text, return the last STATE-DETERMINING line — a `user` or
- * `assistant` message — scanning from the end and skipping Claude Code's bookkeeping lines
- * (`attachment`, `file-history-snapshot`, `last-prompt`, `ai-title`, `queue-operation`, …)
- * and any unparseable line. The newest prompt line is quickly buried under such bookkeeping,
- * so reading only the physically-last line misses it; this finds the real signal. Returns
- * null if there is no user/assistant line.
+ * Derive the current state line from raw transcript JSONL: a turn is "in progress" when the
+ * latest user prompt occurs AFTER the latest assistant `end_turn`. We compare positions rather
+ * than reading the physically-last line because, mid-turn, the prompt is followed by assistant
+ * `tool_use` / `tool_result` lines (and Claude Code's bookkeeping lines), so the last line is
+ * rarely the prompt itself. Returns the prompt line while thinking, the `end_turn` line once the
+ * turn has finished, or null if neither is present. Unparseable lines are skipped (fail-safe).
  */
-export function lastMeaningfulLine(raw: string): TranscriptLine | null {
+export function currentStateLine(raw: string): TranscriptLine | null {
   const lines = raw.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
+  let promptLine: TranscriptLine | null = null;
+  let promptIdx = -1;
+  let endLine: TranscriptLine | null = null;
+  let endIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
     const s = lines[i].trim();
     if (!s) continue;
     let obj: TranscriptLine;
@@ -58,9 +62,17 @@ export function lastMeaningfulLine(raw: string): TranscriptLine | null {
     } catch {
       continue;
     }
-    if (obj.type === "user" || obj.type === "assistant") return obj;
+    if (isPrompt(obj)) {
+      promptLine = obj;
+      promptIdx = i;
+    } else if (isEndTurn(obj)) {
+      endLine = obj;
+      endIdx = i;
+    }
   }
-  return null;
+  if (promptLine && promptIdx > endIdx) return promptLine; // a turn is in progress
+  if (endLine) return endLine; // the last turn has finished
+  return promptLine; // a prompt with no end_turn seen yet
 }
 
 /**
@@ -103,8 +115,8 @@ export function createThinkingWaitSource(deps: ThinkingDeps): WaitSource {
       let line: TranscriptLine | null = null;
       try { line = deps.readLastLine(); } catch { line = null; }
       if (!line) return;
+      if (thinking) lastActivity = deps.now(); // observing live state keeps the turn alive
       if (isPrompt(line)) { startTurn(); return; }
-      if (thinking) lastActivity = deps.now();
       if (isEndTurn(line)) endTurn();
     };
 

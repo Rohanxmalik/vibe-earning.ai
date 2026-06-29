@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createThinkingWaitSource, lastMeaningfulLine, type TranscriptLine } from "./thinkingWaitSource";
+import { createThinkingWaitSource, currentStateLine, type TranscriptLine } from "./thinkingWaitSource";
 import type { WaitHandlers } from "../core/adapter";
 
 const prompt: TranscriptLine = { type: "user", message: { content: "do a thing" } };
@@ -117,32 +117,39 @@ describe("createThinkingWaitSource", () => {
   });
 });
 
-describe("lastMeaningfulLine", () => {
+describe("currentStateLine", () => {
   const userLine = JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "write a haiku" }] } });
   const attach = JSON.stringify({ type: "attachment", attachment: {} });
   const snapshot = JSON.stringify({ type: "file-history-snapshot" });
   const asstEnd = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text" }], stop_reason: "end_turn" } });
+  const asstToolUse = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "tool_use" }], stop_reason: "tool_use" } });
+  const toolResultLine = JSON.stringify({ type: "user", message: { content: [{ type: "tool_result" }] } });
 
   it("returns the user prompt even when bookkeeping lines were written after it", () => {
-    // The real lifecycle: a user line, then several attachment/snapshot lines on top.
     const raw = [userLine, attach, attach, snapshot].join("\n") + "\n";
-    const line = lastMeaningfulLine(raw);
-    expect(line?.type).toBe("user");
+    expect(currentStateLine(raw)?.type).toBe("user");
   });
 
-  it("returns the assistant end_turn line when it is the latest meaningful line", () => {
+  it("returns end_turn once the turn has finished", () => {
     const raw = [userLine, attach, asstEnd, snapshot].join("\n");
-    const line = lastMeaningfulLine(raw);
+    const line = currentStateLine(raw);
     expect(line?.type).toBe("assistant");
     expect(line?.message?.stop_reason).toBe("end_turn");
   });
 
-  it("skips unparseable/blank lines and returns null when no user/assistant line exists", () => {
+  it("reports THINKING for a prompt that follows a previous end_turn, even mid-tool-call (multi-turn)", () => {
+    // turn1 prompt+end, then turn2 prompt, then the assistant's tool_use line lands on top.
+    const raw = [userLine, asstEnd, userLine, asstToolUse, toolResultLine].join("\n");
+    const line = currentStateLine(raw);
+    expect(line?.type).toBe("user"); // => isPrompt => startTurn for turn 2
+  });
+
+  it("skips unparseable/blank lines and returns null when no prompt/end_turn exists", () => {
     const raw = [attach, "not json", "", snapshot].join("\n");
-    expect(lastMeaningfulLine(raw)).toBeNull();
+    expect(currentStateLine(raw)).toBeNull();
   });
 
   it("returns null for empty input", () => {
-    expect(lastMeaningfulLine("")).toBeNull();
+    expect(currentStateLine("")).toBeNull();
   });
 });

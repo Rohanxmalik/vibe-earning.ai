@@ -11,7 +11,7 @@ import { firstAvailable } from "../adapters/registry";
 import type { SpinnerAdapter } from "../core/adapter";
 import { ClaudeCodeAdapter } from "../adapters/claudeCode";
 import { StatusBarSink } from "./statusBarSink";
-import { createThinkingWaitSource, lastMeaningfulLine, type TranscriptLine } from "./thinkingWaitSource";
+import { createThinkingWaitSource, currentStateLine, type TranscriptLine } from "./thinkingWaitSource";
 import { findNewestTranscript, type LocatorFs } from "./sessionLocator";
 import { loadToken } from "../statusline/store";
 
@@ -128,9 +128,9 @@ function readLastLine(workspaceDir: string): TranscriptLine | null {
   const file = findNewestTranscript(workspaceDir, locatorFs);
   if (!file) return null;
   try {
-    // Scan for the last user/assistant line (Claude Code interleaves many bookkeeping
-    // lines, so the physically-last line is usually not the state-determining one).
-    return lastMeaningfulLine(fs.readFileSync(file, "utf8"));
+    // Derive state by position (latest prompt vs latest end_turn) — a turn stays "in progress"
+    // through the assistant's tool_use/tool_result lines, which a last-line read would miss.
+    return currentStateLine(fs.readFileSync(file, "utf8"));
   } catch {
     return null;
   }

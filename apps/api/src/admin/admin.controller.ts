@@ -1,15 +1,16 @@
 import { Body, Controller, Headers, Post, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { surfaceSchema } from "@kbi/shared";
+import { surfaceSchema, headlineSchema, taglineSchema, brandColorSchema, emojiSchema } from "@kbi/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
+// Brand fields reuse the shared validators (same single-emoji / #RRGGBB rules as the advertiser path).
 const bodySchema = z.object({
   copy: z.string().min(3).max(60),
-  headline: z.string().trim().min(1).max(20).optional(),
-  tagline: z.string().trim().max(40).optional(),
-  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-  emoji: z.string().trim().min(1).max(8).optional(),
+  headline: headlineSchema.optional(),
+  tagline: taglineSchema.optional(),
+  brandColor: brandColorSchema.optional(),
+  emoji: emojiSchema.optional(),
   url: z.string().url(),
   iconUrl: z.string().url().optional(),
   surface: surfaceSchema,

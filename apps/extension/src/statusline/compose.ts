@@ -14,9 +14,29 @@ function host(url: string): string {
   }
 }
 
-/** The creative body: "Headline — Tagline" when structured fields are set, else the legacy copy. */
+/**
+ * VS Code's status bar renders plain text (no markdown/bold), so to make the brand name visually
+ * bold we map ASCII letters/digits to their Unicode **Mathematical Sans-Serif Bold** glyphs, which
+ * the status-bar font renders as bold. Non-ASCII (and spaces/punctuation) pass through unchanged.
+ */
+export function boldBrand(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const c = ch.codePointAt(0)!;
+    if (c >= 0x41 && c <= 0x5a) out += String.fromCodePoint(0x1d5d4 + (c - 0x41)); // A-Z
+    else if (c >= 0x61 && c <= 0x7a) out += String.fromCodePoint(0x1d5ee + (c - 0x61)); // a-z
+    else if (c >= 0x30 && c <= 0x39) out += String.fromCodePoint(0x1d7ec + (c - 0x30)); // 0-9
+    else out += ch;
+  }
+  return out;
+}
+
+/** The creative body: "**Headline** — Tagline" when structured fields are set, else the legacy copy. */
 function body(ad: ServeResponse): string {
-  if (ad.headline) return ad.tagline ? `${ad.headline} — ${ad.tagline}` : ad.headline;
+  if (ad.headline) {
+    const headline = boldBrand(ad.headline);
+    return ad.tagline ? `${headline} — ${ad.tagline}` : headline;
+  }
   return ad.copy;
 }
 

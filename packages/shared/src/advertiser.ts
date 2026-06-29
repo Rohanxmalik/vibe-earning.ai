@@ -25,11 +25,12 @@ function graphemeCount(s: string): number {
   return n;
 }
 
-// Reusable brand-field validators.
-const headlineField = z.string().trim().min(1).max(HEADLINE_MAX);
-const taglineField = z.string().trim().max(TAGLINE_MAX);
-const brandColorField = z.string().regex(/^#[0-9a-fA-F]{6}$/, "brand color must be a #RRGGBB hex");
-const emojiField = z
+// Reusable brand-field validators — exported so EVERY path (advertiser create/edit AND the
+// admin house-ad endpoint) validates brand fields identically.
+export const headlineSchema = z.string().trim().min(1).max(HEADLINE_MAX);
+export const taglineSchema = z.string().trim().max(TAGLINE_MAX);
+export const brandColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "brand color must be a #RRGGBB hex");
+export const emojiSchema = z
   .string()
   .trim()
   .min(1)
@@ -55,10 +56,10 @@ export const createCampaignSchema = z
     // Optional: the portal sends the structured fields and lets the server derive `copy`.
     // Copy-only callers (and tests) still work unchanged.
     copy: z.string().min(3).max(60).optional(),
-    headline: headlineField.optional(),
-    tagline: taglineField.optional(),
-    brandColor: brandColorField.optional(),
-    emoji: emojiField.optional(),
+    headline: headlineSchema.optional(),
+    tagline: taglineSchema.optional(),
+    brandColor: brandColorSchema.optional(),
+    emoji: emojiSchema.optional(),
     url: z.string().url(),
     iconUrl: z.string().url().optional(),
     surface: surfaceSchema,
@@ -71,10 +72,10 @@ export type CreateCampaign = z.infer<typeof createCampaignSchema>;
 export const editCampaignSchema = z
   .object({
     copy: z.string().min(3).max(60).optional(),
-    headline: headlineField.nullable().optional(),
-    tagline: taglineField.nullable().optional(),
-    brandColor: brandColorField.nullable().optional(),
-    emoji: emojiField.nullable().optional(),
+    headline: headlineSchema.nullable().optional(),
+    tagline: taglineSchema.nullable().optional(),
+    brandColor: brandColorSchema.nullable().optional(),
+    emoji: emojiSchema.nullable().optional(),
     url: z.string().url().optional(),
     iconUrl: z.string().url().nullable().optional(),
     bidPerBlockPaise: z.number().int().positive().optional(),

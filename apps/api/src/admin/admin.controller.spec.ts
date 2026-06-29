@@ -34,4 +34,17 @@ describe("AdminController", () => {
     expect(prismaMock.campaign.create).toHaveBeenCalled();
     expect(rankingMock.upsertBid).toHaveBeenCalledWith("codex-panel", "c1", 0);
   });
+
+  it("accepts a real emoji house ad", async () => {
+    prismaMock.campaign.create.mockResolvedValue({ id: "c2" });
+    await ctrl.createHouseAd("test-key", { copy: "Hi there", emoji: "🍔", brandColor: "#E23744", url: "https://x.dev", surface: "codex-panel" });
+    expect(prismaMock.campaign.create).toHaveBeenCalled();
+  });
+
+  it("rejects a non-emoji 'emoji' (same strict rule as the advertiser path)", async () => {
+    await expect(
+      ctrl.createHouseAd("test-key", { copy: "Hi there", emoji: "??", url: "https://x.dev", surface: "codex-panel" }),
+    ).rejects.toBeTruthy(); // BadRequestException from zod
+    expect(prismaMock.campaign.create).not.toHaveBeenCalled();
+  });
 });

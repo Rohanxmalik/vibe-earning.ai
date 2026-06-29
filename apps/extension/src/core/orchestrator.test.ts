@@ -5,8 +5,9 @@ import { ViewTracker } from "./viewTracker";
 
 const ad = { adId: "a1", campaignId: "c1", copy: "Hi", url: "https://x.dev", iconUrl: null, isHouseAd: true };
 const ad2 = { ...ad, adId: "a2", campaignId: "c2", copy: "Yo" };
+const ad3 = { ...ad, adId: "a3", campaignId: "c3", copy: "Zo" };
 
-function setup(opts: { killActive?: boolean; ads?: (typeof ad)[] } = {}) {
+function setup(opts: { killActive?: boolean; ads?: (typeof ad)[]; holdScheduleMs?: number[] } = {}) {
   let t = 0;
   const now = () => t;
   const adapter = new MockAdapter();
@@ -18,7 +19,7 @@ function setup(opts: { killActive?: boolean; ads?: (typeof ad)[] } = {}) {
   const tracker = new ViewTracker(now);
   const orch = new Orchestrator({
     adapter, api: api as any, tracker, killswitch: killswitch as any, installId: "inst", now,
-    holdMs: 5000, rotationCount: 3,
+    holdMs: 5000, rotationCount: 3, holdScheduleMs: opts.holdScheduleMs,
   });
   orch.start();
   return { adapter, api, orch, advance: (ms: number) => { t += ms; } };
@@ -89,12 +90,43 @@ describe("Orchestrator", () => {
     expect(api.sendEvent).not.toHaveBeenCalled();
   });
 
-  it("does not rotate past the last ad on tick (single ad stays put until wait-end)", async () => {
+  it("loops a single ad: re-bills and re-shows it on each hold while thinking", async () => {
     const { adapter, api, advance } = setup({ ads: [ad] });
     await adapter.fireWaitStart();
-    advance(10000);
+    advance(5000);
     await adapter.fireTick();
+    expect(api.sendEvent).toHaveBeenCalledWith(expect.objectContaining({ campaignId: "c1", visibleMs: 5000 }));
+    expect(adapter.lastRendered?.campaignId).toBe("c1"); // re-shown (looped, new impression)
+  });
+
+  it("loops back to the first (highest-bid) ad after the last", async () => {
+    const { adapter, advance } = setup({ ads: [ad, ad2] });
+    await adapter.fireWaitStart();
     expect(adapter.lastRendered?.campaignId).toBe("c1");
-    expect(api.sendEvent).not.toHaveBeenCalled(); // only billed on wait-end
+    advance(5000); await adapter.fireTick();
+    expect(adapter.lastRendered?.campaignId).toBe("c2");
+    advance(5000); await adapter.fireTick();
+    expect(adapter.lastRendered?.campaignId).toBe("c1"); // looped back to the top
+  });
+
+  it("honors a per-position hold schedule (10s, 5s, 3s) and then repeats", async () => {
+    const { adapter, api, advance } = setup({ ads: [ad, ad2, ad3], holdScheduleMs: [10000, 5000, 3000] });
+    await adapter.fireWaitStart();
+    expect(adapter.lastRendered?.campaignId).toBe("c1");
+
+    advance(9000); await adapter.fireTick();
+    expect(adapter.lastRendered?.campaignId).toBe("c1"); // still c1 (< 10s)
+
+    advance(1000); await adapter.fireTick();             // total 10s on c1
+    expect(api.sendEvent).toHaveBeenCalledWith(expect.objectContaining({ campaignId: "c1", visibleMs: 10000 }));
+    expect(adapter.lastRendered?.campaignId).toBe("c2");
+
+    advance(5000); await adapter.fireTick();             // 5s on c2
+    expect(api.sendEvent).toHaveBeenCalledWith(expect.objectContaining({ campaignId: "c2", visibleMs: 5000 }));
+    expect(adapter.lastRendered?.campaignId).toBe("c3");
+
+    advance(3000); await adapter.fireTick();             // 3s on c3
+    expect(api.sendEvent).toHaveBeenCalledWith(expect.objectContaining({ campaignId: "c3", visibleMs: 3000 }));
+    expect(adapter.lastRendered?.campaignId).toBe("c1"); // schedule + cycle repeat
   });
 });

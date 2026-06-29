@@ -57,6 +57,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const orch = new Orchestrator({
     adapter, api, tracker, killswitch, installId,
     now: () => Date.now(),
+    // Loop the top 3 ads while Claude works: highest bid 10s, next 5s, next 3s, then repeat.
+    rotationCount: 3,
+    holdScheduleMs: [10_000, 5_000, 3_000],
     onEarn: () => { status.text = "$(rocket) Kickbacks (ad shown)"; },
   });
   orch.start();

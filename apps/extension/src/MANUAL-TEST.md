@@ -23,10 +23,13 @@ With the brand-field house ad seeded above, while the ad is shown (between Simul
 4. Advertiser side: create a campaign at `/campaigns` — set Emoji (capped to 1), Brand name (≤20), Tagline (≤40), and a Brand color; the live preview mirrors the status-bar line. The server derives the legacy `copy` from headline+tagline. A very light/dark color shows a contrast warning.
 
 ## Sign in (dev)
-The api verifies Google ID tokens; the real OAuth consent UI is a follow-up. For now:
-1. Obtain a Google ID token for your test OAuth client (e.g. via the OAuth Playground) OR run the api with the verifier mocked.
-2. Command Palette → **Kickbacks: Sign in (dev: paste Google ID token)** → paste it.
-3. Re-run the simulate/end commands; the recorded `AdEvent` should now have a non-null `accountId`.
+Email/password — the same developer account used on the web portal (no OAuth setup needed).
+1. Command Palette → **Kickbacks: Sign in** → choose **Create account** (or **Log in**) → enter an email + password (≥8 chars to register).
+2. The right-hand status item flips from **`$(sign-in) Kickbacks · Sign in to earn`** to **`$(rocket) Kickbacks ₹0.00`**.
+3. Run a thinking turn (or the simulate/end commands); the recorded `AdEvent` now has a non-null `accountId`, and a **paid** ad credits `earnings:dev:<id>` — the status item's ₹ total climbs.
+4. **Kickbacks: Sign out** clears the token (the item returns to the sign-in call-to-action).
+
+> Note: house ads pay nothing — to see earnings move you need a *paid*, funded campaign on the surface (see the live-earnings setup). The `~/.kickbacks/token` file is an alternate credential source for the standalone status-line CLI.
 
 ## Real adapters
 - **Claude Code** is implemented two ways and unit-tested end-to-end:

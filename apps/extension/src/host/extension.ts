@@ -41,17 +41,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const killswitch = new Killswitch(`${API_BASE}/config`, fetch);
   const tracker = new ViewTracker(() => Date.now());
 
+  const isSignedIn = (): boolean => Boolean(cachedToken ?? loadToken());
+
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  status.text = "$(rocket) Kickbacks ₹0.00";
-  status.tooltip = "Your Kickbacks earnings — click to open your dashboard";
   status.command = "kickbacks.openDashboard";
   status.show();
 
   // Live earnings: read the real lifetime total from the ledger (persists across reopen),
-  // and refresh it whenever an impression bills + on the periodic poll.
+  // and refresh it whenever an impression bills + on the periodic poll. When signed out, the
+  // item becomes a sign-in call-to-action instead of showing a meaningless ₹0.00.
   const refreshEarnings = async (): Promise<void> => {
+    if (!isSignedIn()) {
+      status.text = "$(sign-in) Kickbacks · Sign in to earn";
+      status.tooltip = "Sign in to attribute the sponsored line to you and start earning — click to sign in.";
+      status.command = "kickbacks.signIn";
+      return;
+    }
+    status.tooltip = "Your Kickbacks earnings — click to open your dashboard";
+    status.command = "kickbacks.openDashboard";
     const stats = await api.fetchStats();
-    if (stats) status.text = `$(rocket) Kickbacks ${formatEarnings(stats.lifetimePaise)}`;
+    status.text = `$(rocket) Kickbacks ${formatEarnings(stats?.lifetimePaise ?? 0)}`;
   };
   void refreshEarnings();
 
@@ -99,21 +108,75 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const simulate = vscode.commands.registerCommand("kickbacks.simulateWait", () => mock.fireWaitStart());
   const endWait = vscode.commands.registerCommand("kickbacks.endWait", () => mock.fireWaitEnd());
 
-  // Dev sign-in: paste a Google ID token, exchange for a KBI token, store it.
-  // Real OAuth consent UI is a follow-up (see MANUAL-TEST.md).
+  // Sign in with an email + password (the same developer account used on the web portal).
+  // No external OAuth setup needed; the token attributes the sponsored line to this dev.
   const signIn = vscode.commands.registerCommand("kickbacks.signIn", async () => {
-    const idToken = await vscode.window.showInputBox({ prompt: "Paste a Google ID token", password: true });
-    if (!idToken) return;
+    const mode = await vscode.window.showQuickPick(
+      [
+        { label: "$(sign-in) Log in", detail: "I already have a Kickbacks developer account", value: "login" as const },
+        { label: "$(person-add) Create account", detail: "New here — sign up to start earning", value: "register" as const },
+      ],
+      { placeHolder: "Kickbacks — sign in to attribute your earnings", matchOnDetail: true },
+    );
+    if (!mode) return;
+    const email = await vscode.window.showInputBox({
+      prompt: "Email",
+      ignoreFocusOut: true,
+      validateInput: (v) => (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()) ? undefined : "Enter a valid email"),
+    });
+    if (!email) return;
+    const minLen = mode.value === "register" ? 8 : 1;
+    const password = await vscode.window.showInputBox({
+      prompt: mode.value === "register" ? "Choose a password (min 8 characters)" : "Password",
+      password: true,
+      ignoreFocusOut: true,
+      validateInput: (v) => (v.length >= minLen ? undefined : `At least ${minLen} character${minLen > 1 ? "s" : ""}`),
+    });
+    if (!password) return;
     try {
-      const token = await api.loginWithGoogle(idToken);
+      const token =
+        mode.value === "register"
+          ? await api.devRegister(email.trim(), password)
+          : await api.devLogin(email.trim(), password);
       await context.secrets.store("kickbacks.authToken", token);
-      void vscode.window.showInformationMessage("Kickbacks: signed in.");
+      cachedToken = token; // update immediately (don't wait for the secrets change event)
+      void refreshEarnings();
+      void vscode.window.showInformationMessage("Kickbacks: signed in — you'll now earn while your AI works.");
     } catch (err) {
-      void vscode.window.showErrorMessage(`Kickbacks sign-in failed: ${String(err)}`);
+      void vscode.window.showErrorMessage(`Kickbacks: ${friendlyAuthError(err)}`);
     }
   });
 
-  context.subscriptions.push(status, adItem, openSponsor, openDashboard, focusSub, tokenSub, simulate, endWait, signIn, { dispose: () => { clearInterval(timer); orch.stop(); } });
+  const signOut = vscode.commands.registerCommand("kickbacks.signOut", async () => {
+    await context.secrets.delete("kickbacks.authToken");
+    cachedToken = undefined;
+    void refreshEarnings();
+    void vscode.window.showInformationMessage("Kickbacks: signed out.");
+  });
+
+  // First-run nudge: if signed out, offer a one-click way into the sign-in flow.
+  if (!isSignedIn()) {
+    void vscode.window
+      .showInformationMessage("Kickbacks: sign in to earn while your AI works.", "Sign in")
+      .then((choice) => { if (choice === "Sign in") void vscode.commands.executeCommand("kickbacks.signIn"); });
+  }
+
+  context.subscriptions.push(status, adItem, openSponsor, openDashboard, focusSub, tokenSub, simulate, endWait, signIn, signOut, { dispose: () => { clearInterval(timer); orch.stop(); } });
+}
+
+/** Map an AuthError code (or unknown error) to a friendly, actionable message. */
+function friendlyAuthError(err: unknown): string {
+  const code = err instanceof Error ? (err as { code?: string }).code ?? err.message : String(err);
+  switch (code) {
+    case "email_taken":
+      return "That email already has an account — choose “Log in” instead.";
+    case "invalid_credentials":
+      return "Wrong email or password.";
+    case "network_error":
+      return "Couldn’t reach Kickbacks — check your connection and try again.";
+    default:
+      return "Sign-in failed. Please try again.";
+  }
 }
 
 /** True if Anthropic's Claude Code extension is installed (env vars don't reach the ext host). */

@@ -9,6 +9,27 @@ export interface DevStats {
   currency: string;
 }
 
+/**
+ * A sign-in failure carrying the server's short error code (e.g. "email_taken",
+ * "invalid_credentials") or "network_error" — the UI maps it to a friendly message.
+ */
+export class AuthError extends Error {
+  constructor(public readonly code: string) {
+    super(code);
+    this.name = "AuthError";
+  }
+}
+
+/** Best-effort extraction of the server's string error code (NestJS `message`). */
+async function serverErrorCode(res: Response): Promise<string | undefined> {
+  try {
+    const body = (await res.json()) as { message?: unknown };
+    return typeof body?.message === "string" ? body.message : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class ApiClient {
   private queue: EventIngest[] = [];
 
@@ -94,6 +115,33 @@ export class ApiClient {
       body: JSON.stringify({ idToken }),
     });
     if (!res.ok) throw new Error(`login failed: ${res.status}`);
+    const body = (await res.json()) as { token: string };
+    return body.token;
+  }
+
+  /** Create a new developer account (email/password) and return the session token. */
+  devRegister(email: string, password: string): Promise<string> {
+    return this.devAuth("/dev/register", email, password);
+  }
+
+  /** Sign in an existing developer (email/password) and return the session token. */
+  devLogin(email: string, password: string): Promise<string> {
+    return this.devAuth("/dev/login", email, password);
+  }
+
+  /** Shared email/password auth call — throws AuthError(code) on any failure. */
+  private async devAuth(path: string, email: string, password: string): Promise<string> {
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${this.baseUrl}${path}`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new AuthError("network_error");
+    }
+    if (!res.ok) throw new AuthError((await serverErrorCode(res)) ?? `http_${res.status}`);
     const body = (await res.json()) as { token: string };
     return body.token;
   }

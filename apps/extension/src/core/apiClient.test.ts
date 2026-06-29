@@ -54,6 +54,16 @@ describe("ApiClient", () => {
     expect(c.queueLength).toBe(0);
   });
 
+  it("fetchStats returns the dev earnings, or null on error", async () => {
+    const stats = { todayPaise: 50, monthPaise: 75, lifetimePaise: 75, validImpressions: 5, currency: "INR" };
+    const ok = new ApiClient("http://api", vi.fn().mockResolvedValue(jsonResponse(stats)) as unknown as typeof fetch);
+    expect(await ok.fetchStats()).toEqual(stats);
+    const bad = new ApiClient("http://api", vi.fn().mockResolvedValue(jsonResponse({}, false)) as unknown as typeof fetch);
+    expect(await bad.fetchStats()).toBeNull();
+    const offline = new ApiClient("http://api", vi.fn().mockRejectedValue(new Error("offline")) as unknown as typeof fetch);
+    expect(await offline.fetchStats()).toBeNull();
+  });
+
   it("loginWithGoogle posts the idToken and returns the KBI token", async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ token: "kbi.jwt", account: { id: "a", email: null, type: "dev" } }));
     const c = new ApiClient("http://api", fetchFn as unknown as typeof fetch);

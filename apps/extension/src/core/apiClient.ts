@@ -1,5 +1,14 @@
 import type { EventIngest, ServeResponse, Surface } from "@kbi/shared";
 
+/** The developer earnings summary returned by `GET /ledger/me/stats`. */
+export interface DevStats {
+  todayPaise: number;
+  monthPaise: number;
+  lifetimePaise: number;
+  validImpressions: number;
+  currency: string;
+}
+
 export class ApiClient {
   private queue: EventIngest[] = [];
 
@@ -34,6 +43,17 @@ export class ApiClient {
     const body = (await res.json()) as { ad: ServeResponse | null; ads?: ServeResponse[] };
     if (body.ads) return body.ads;
     return body.ad ? [body.ad] : []; // back-compat with the old single-ad envelope
+  }
+
+  /** The signed-in dev's earnings, or null when unauthenticated / offline (never throws). */
+  async fetchStats(): Promise<DevStats | null> {
+    try {
+      const res = await this.fetchFn(`${this.baseUrl}/ledger/me/stats`, { headers: this.headers() });
+      if (!res.ok) return null;
+      return (await res.json()) as DevStats;
+    } catch {
+      return null;
+    }
   }
 
   /** Returns true if delivered now; false if queued for later retry. Never throws on network error. */

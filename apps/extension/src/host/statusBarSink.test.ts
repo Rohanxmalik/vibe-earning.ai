@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { StatusBarSink, type StatusItemLike } from "./statusBarSink";
+import { StatusBarSink, AD_SHOWN_BADGE, type StatusItemLike } from "./statusBarSink";
 
 function fakeItem() {
   const item: StatusItemLike & { shown: number; hidden: number } = {
@@ -20,12 +20,13 @@ describe("StatusBarSink", () => {
     expect(sink.currentUrl()).toBe("https://acme.dev");
   });
 
-  it("restore hides the item", () => {
+  it("restore leaves an 'Ad shown' badge in the same slot (does not hide)", () => {
     const item = fakeItem();
     const sink = new StatusBarSink(item);
     sink.write("x", "https://x.dev");
     sink.restore();
-    expect(item.hidden).toBe(1);
+    expect(item.text).toBe(AD_SHOWN_BADGE);
+    expect(item.hidden).toBe(0);
   });
 
   it("write swallows a throwing item (fail-safe)", () => {
@@ -41,8 +42,8 @@ describe("StatusBarSink", () => {
   it("restore swallows a throwing item (fail-safe)", () => {
     const item: StatusItemLike = {
       text: "",
-      show() {},
-      hide() { throw new Error("host down"); },
+      show() { throw new Error("host down"); },
+      hide() {},
     };
     const sink = new StatusBarSink(item);
     expect(() => sink.restore()).not.toThrow();

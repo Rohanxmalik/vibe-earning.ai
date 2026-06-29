@@ -7,6 +7,9 @@ export interface StatusItemLike {
   hide(): void;
 }
 
+/** Shown in the ad slot between turns, once at least one ad has been displayed. */
+export const AD_SHOWN_BADGE = "$(check) Ad shown";
+
 /**
  * Renders the composed sponsored line into a VS Code status bar item, and remembers the
  * current ad URL so a click command can open it. Fail-safe: never throws into the editor.
@@ -31,9 +34,14 @@ export class StatusBarSink implements StatusSink {
     }
   }
 
+  /**
+   * Called when the turn ends. Rather than hiding, leave an "Ad shown" badge in the same slot
+   * so the confirmation appears where the ad was — not on the earnings item.
+   */
   restore(): void {
     try {
-      this.item.hide();
+      this.item.text = AD_SHOWN_BADGE;
+      this.item.show();
     } catch {
       /* best-effort */
     }

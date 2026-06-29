@@ -16,7 +16,13 @@ import { findNewestTranscript, type LocatorFs } from "./sessionLocator";
 import { loadToken } from "../statusline/store";
 
 const API_BASE = process.env.KICKBACKS_API ?? "http://localhost:3000";
+const PORTAL_BASE = process.env.KICKBACKS_PORTAL ?? "http://localhost:3001";
 const INSTALL_KEY = "kickbacks.installId";
+
+/** Format paise as rupees, e.g. 12345 -> "₹123.45". */
+function formatEarnings(paise: number): string {
+  return `₹${(paise / 100).toFixed(2)}`;
+}
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // Stable per-install id.
@@ -37,7 +43,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   status.text = "$(rocket) Kickbacks ₹0.00";
+  status.tooltip = "Your Kickbacks earnings — click to open your dashboard";
+  status.command = "kickbacks.openDashboard";
   status.show();
+
+  // Live earnings: read the real lifetime total from the ledger (persists across reopen),
+  // and refresh it whenever an impression bills + on the periodic poll.
+  const refreshEarnings = async (): Promise<void> => {
+    const stats = await api.fetchStats();
+    if (stats) status.text = `$(rocket) Kickbacks ${formatEarnings(stats.lifetimePaise)}`;
+  };
+  void refreshEarnings();
+
+  const openDashboard = vscode.commands.registerCommand("kickbacks.openDashboard", () => {
+    void vscode.env.openExternal(vscode.Uri.parse(PORTAL_BASE));
+  });
 
   // The sponsored line gets its OWN status bar item, shown only while Claude is thinking.
   const adItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
@@ -60,12 +80,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Loop the top 3 ads while Claude works: highest bid 10s, next 5s, next 3s, then repeat.
     rotationCount: 3,
     holdScheduleMs: [10_000, 5_000, 3_000],
-    onEarn: () => { status.text = "$(rocket) Kickbacks (ad shown)"; },
+    onEarn: () => { void refreshEarnings(); }, // each billed impression updates the live total
   });
   orch.start();
 
-  // Poll killswitch + flush queued events periodically.
-  const timer = setInterval(() => { void killswitch.poll(); void api.flushQueue(); }, 60_000);
+  // Poll killswitch + flush queued events + refresh earnings periodically.
+  const timer = setInterval(() => { void killswitch.poll(); void api.flushQueue(); void refreshEarnings(); }, 60_000);
 
   // Pause/resume view time with window focus.
   const focusSub = vscode.window.onDidChangeWindowState((s) => orch.onFocusChange(s.focused));
@@ -88,7 +108,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
 
-  context.subscriptions.push(status, adItem, openSponsor, focusSub, tokenSub, simulate, endWait, signIn, { dispose: () => { clearInterval(timer); orch.stop(); } });
+  context.subscriptions.push(status, adItem, openSponsor, openDashboard, focusSub, tokenSub, simulate, endWait, signIn, { dispose: () => { clearInterval(timer); orch.stop(); } });
 }
 
 /** True if Anthropic's Claude Code extension is installed (env vars don't reach the ext host). */

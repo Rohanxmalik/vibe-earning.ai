@@ -6,6 +6,10 @@ import { RankingService } from "../ranking/ranking.service";
 
 const bodySchema = z.object({
   copy: z.string().min(3).max(60),
+  headline: z.string().trim().min(1).max(20).optional(),
+  tagline: z.string().trim().max(40).optional(),
+  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  emoji: z.string().trim().min(1).max(8).optional(),
   url: z.string().url(),
   iconUrl: z.string().url().optional(),
   surface: surfaceSchema,
@@ -26,7 +30,16 @@ export class AdminController {
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const b: Body = parsed.data;
     const c = await this.prisma.campaign.create({
-      data: { copy: b.copy, url: b.url, iconUrl: b.iconUrl ?? null, isHouseAd: true },
+      data: {
+        copy: b.copy,
+        headline: b.headline ?? null,
+        tagline: b.tagline ?? null,
+        brandColor: b.brandColor ?? null,
+        emoji: b.emoji ?? null,
+        url: b.url,
+        iconUrl: b.iconUrl ?? null,
+        isHouseAd: true,
+      },
     });
     await this.ranking.upsertBid(b.surface, c.id, 0);
     return { id: c.id };

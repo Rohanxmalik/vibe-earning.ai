@@ -162,3 +162,33 @@ user submits prompt in Claude panel
    the dev dashboard — same loop as the CLI path.
 3. The **terminal/CLI** path continues to work unchanged.
 4. All new units have tests; existing tests stay green; nothing can throw into the editor.
+
+---
+
+## Addendum (2026-06-29) — structured brand creative
+
+Extends the single-line creative into **brand-identity fields** so a brand's name + tagline,
+color, and emoji render together. Additive and backward-compatible — the legacy `copy` stays.
+
+**Schema (all optional/nullable):** `Campaign.headline` (≤20), `tagline` (≤40), `brandColor`
+(`#RRGGBB`), `emoji` (single emoji). Added to `serveResponse` and the create/edit campaign
+schemas in `@kbi/shared`; one Prisma migration (`20260629000000_campaign_brand_fields`).
+
+**Render** (`statusline/compose.ts`): `"{emoji} {Sponsored: }{headline} — {tagline} · {host}"`,
+falling back to `copy` when `headline` is unset. Default cap raised 60→120 so the tagline stays
+visible (the status bar auto-widens). `StatusBarSink.write()` applies `brandColor` to
+`item.color`; `restore()` clears it.
+
+**`copy` derivation:** the portal sends only the structured fields; the **server** derives the
+legacy `copy = deriveCopy(headline, tagline)` (shared util, clamped to 60). `copy` is now optional
+on create (refine: `copy || headline`), so a short brand name can't 400.
+
+**Validation/hardening:** `emoji` must be exactly one emoji grapheme (rejects plain text);
+`brandColor` is `#RRGGBB`; the portal warns (doesn't mangle) on extreme-luminance colors.
+
+**Portal:** the campaign create/edit forms collect emoji + brand name + tagline + color with a
+live preview; the campaign list and the admin moderation queue show the tinted brand preview.
+
+**Acceptance (added):** brand fields round-trip campaign→`/serve`→wire (e2e); the status-bar line
+shows emoji + headline — tagline tinted by `brandColor`, reverting to the un-tinted `✓ Ad shown`
+badge on idle.

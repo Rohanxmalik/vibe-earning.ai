@@ -48,6 +48,7 @@ this order. Each says *what it is*, *why*, and *what "done" looks like*.
 - [ ] Build **one** real "adapter" first — Claude Code is the best candidate because it has an *official* status-line feature we can use without hacking. **A working prototype + step-by-step guide already exists: `docs/extension/claude-code-statusline.md`** (the line-composing code is built and unit-tested; only live verification + billing/attribution remain).
 - [ ] **Strongly prefer official integration points** over hacking another tool's UI — far lower legal/ban risk (see legal note below).
 - [ ] Test it earns end-to-end on a real machine, then add Codex / Gemini.
+- [ ] Verify the **brand creative** renders: an advertiser sets a brand name, tagline, emoji, and color when creating a campaign; confirm the live line shows `✨ 🍔 Brand — Tagline · host` tinted in the brand color (see `apps/extension/src/MANUAL-TEST.md` → "Brand fields — visual check").
 - **Done looks like:** an ad actually shows in a real AI tool's spinner and a developer gets paid.
 
 > **Engineer-facing detail guides now live in the repo:** `docs/launch/DEPLOY.md` (Phase 3), `docs/launch/PAYMENTS_SETUP.md` (Phase 2), `docs/legal/` (Phase 6 templates), `docs/extension/claude-code-statusline.md` (Phase 4).
@@ -79,8 +80,9 @@ Everything else (the marketplace, money math, payouts, fraud controls, the **red
 portal — marketing site, FAQ, developer dashboard, advertiser & admin consoles**, CI/CD,
 **and the production hardening — rate limits, health/readiness, graceful shutdown, password
 reset & email verification, admin audit log, data export/delete, nonce-based CSP, a slimmed
-deploy image**) is already built and tested (**~295 automated unit/integration tests + a
-Playwright e2e smoke suite, all green**). New dashboard endpoints (`/ledger/me/stats`,
+deploy image**, **and brand-identity creative — advertisers set a brand name, tagline, emoji
+and color that render in the sponsored line**) is already built and tested (**389 automated
+unit/integration tests + a Playwright e2e smoke suite, all green**). New dashboard endpoints (`/ledger/me/stats`,
 `/ledger/me/activity`, `/ledger/me/events`, `/metrics/me/usage`, `/me/eligibility`) ship
 with their own Jest tests.
 

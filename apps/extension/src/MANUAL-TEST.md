@@ -4,7 +4,8 @@ The pure core is unit-tested. This verifies the VS Code wiring end-to-end agains
 
 ## Prerequisites
 - `docker compose up -d` (Postgres + Redis) and api running: `pnpm --filter @kbi/api dev`
-- Seed a house ad: `curl -X POST localhost:3000/admin/house-ads -H "x-admin-key: dev-admin-key-change-me" -H "content-type: application/json" -d '{"copy":"Hello from KBI","url":"https://kbi.example","surface":"claude-code-terminal"}'`
+- Seed a house ad with the structured brand fields:
+  `curl -X POST localhost:3000/admin/house-ads -H "x-admin-key: dev-admin-key-change-me" -H "content-type: application/json" -d '{"copy":"Zomato — Delivering Happiness","headline":"Zomato","tagline":"Delivering Happiness","brandColor":"#E23744","emoji":"🍔","url":"https://zomato.com","surface":"claude-code-terminal"}'`
 
 ## Run the extension
 1. `pnpm --filter @kbi/extension build`
@@ -13,6 +14,13 @@ The pure core is unit-tested. This verifies the VS Code wiring end-to-end agains
 4. Confirm an `AdEvent` row was recorded:
    `docker compose exec -T postgres psql -U kbi -d kbi -c 'select "campaignId","surface","visibleMs","valid" from "AdEvent" order by "createdAt" desc limit 1;'`
    Expected: a row with `valid = t` and a `visibleMs` ≈ the time between the two commands.
+
+## Brand fields — visual check (headline/tagline/emoji/color)
+With the brand-field house ad seeded above, while the ad is shown (between Simulate and End):
+1. The status-bar line reads **`✨ 🍔 Zomato — Delivering Happiness · zomato.com`** (sparkle from the sink, then the brand emoji, brand name — tagline, host). House ads omit the `Sponsored:` label; a paid campaign shows it.
+2. The line text is **tinted `#E23744`** (Zomato red). On turn end it reverts to the **`✓ Ad shown`** badge in the theme's default color (tint cleared).
+3. The full tagline stays visible (the status bar auto-widens; the render cap is 120).
+4. Advertiser side: create a campaign at `/campaigns` — set Emoji (capped to 1), Brand name (≤20), Tagline (≤40), and a Brand color; the live preview mirrors the status-bar line. The server derives the legacy `copy` from headline+tagline. A very light/dark color shows a contrast warning.
 
 ## Sign in (dev)
 The api verifies Google ID tokens; the real OAuth consent UI is a follow-up. For now:

@@ -2,7 +2,9 @@
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches, a full **portal/UX overhaul**, real **landing data**, **geo-at-signup**, and the **Claude Code ad-injection** (implemented + unit-tested; live verification pending). **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **332 automated tests green** (api 225 · extension 74 · shared 17 · portal 16) + a 4-test Playwright browser smoke. API tests need Postgres+Redis up (`docker compose up -d`).
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches, a full **portal/UX overhaul**, real **landing data**, **geo-at-signup**, the **Claude Code ad-injection** (implemented + unit-tested; live verification pending), and **structured brand creative** (headline/tagline/brand-color/emoji on the sponsored line). **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **389 automated tests green** (api 226 · extension 112 · shared 22 · portal 29) + a 4-test Playwright browser smoke. API tests need Postgres+Redis up (`docker compose up -d`).
+>
+> **Batch 8 (brand creative):** the sponsored line gained **structured brand fields** — `Campaign.headline` (≤20) + `tagline` (≤40) + `brandColor` (`#RRGGBB`) + `emoji` (one emoji), all optional/nullable, added to `serveResponse` + create/edit schemas (`@kbi/shared`) + one migration (`20260629000000_campaign_brand_fields`). `compose.ts` renders `"{emoji} {Sponsored: }{headline} — {tagline} · {host}"` (falls back to `copy`; cap raised 60→120 so the tagline stays visible); `StatusBarSink` tints `item.color` with `brandColor` and clears it on idle. The legacy `copy` is **derived server-side** from headline+tagline (`deriveCopy` in shared; `copy` now optional on create via a `copy || headline` refine, so a short brand name can't 400). Hardening: `emoji` validated to exactly one emoji grapheme; portal warns (doesn't mangle) on extreme-luminance colors. Portal create/edit forms collect the fields with a live preview; campaign list + admin queue show the tinted brand preview. **House-ad creation is still `x-admin-key`-only (no JWT-console form).**
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -100,6 +102,7 @@ Money is always stored as **paise** (integer minor units of INR). Never floats.
 4. **Prisma migrations:** there is now a **versioned baseline migration** (`apps/api/prisma/migrations/20260623000000_init`). Production/CI use **`prisma migrate deploy`** (in CI and the Docker entrypoint). For quick local schema iteration `prisma db push` still works; avoid `prisma migrate dev` — it hangs on an advisory lock in non-interactive shells (Prisma 5 WASM engine). To add a migration, generate the delta SQL with `prisma migrate diff` against a shadow DB (lock-free). **[NEW]**
 5. After editing `packages/shared`, **rebuild it** before running api tests.
 6. Git on Windows shows CRLF warnings — harmless.
+7. **[NEW8]** Pulling the brand-fields batch adds migration `20260629000000_campaign_brand_fields` — run `pnpm --filter @kbi/api exec prisma migrate deploy` (or `prisma db push` for quick local iteration) **and** `prisma generate` so the client has `headline`/`tagline`/`brandColor`/`emoji`, then rebuild `@kbi/shared`.
 
 ### First-time setup
 ```bash
@@ -181,7 +184,7 @@ pnpm --filter @kbi/shared test         # 17 tests
 | Model | Purpose | Key fields |
 |-------|---------|-----------|
 | **Account** | One row per user (dev / advertiser / admin) | `type`, `email?`, **`emailVerified` [NEW5]**, `oauthSub? @unique` (Google), `passwordHash?` (advertiser/admin/dev), `country?`, `suspended`; **`@@unique([email, type])` [NEW5]** |
-| **Campaign** | An ad | `copy` (≤60), `url`, `iconUrl?`, `isHouseAd`, `status` (**advertiser campaigns start `pending`; house ads `active`** — see moderation §7), **`pacePerMinute?`** (delivery cap, **[NEW2]**), `advertiserId?` |
+| **Campaign** | An ad | `copy` (≤60, legacy single-line — **derived server-side from headline+tagline** [NEW8]), **`headline?` (≤20) · `tagline?` (≤40) · `brandColor?` (`#RRGGBB`) · `emoji?` (one emoji) [NEW8]**, `url`, `iconUrl?`, `isHouseAd`, `status` (**advertiser campaigns start `pending`; house ads `active`** — see moderation §7), **`pacePerMinute?`** (delivery cap, **[NEW2]**), `advertiserId?` |
 | **Bid** | A campaign's price for a surface | `campaignId`, `surface`, `amount` (paise per 1000-impression block), `status` |
 | **AdEvent** | A recorded impression/click | `installId`, `campaignId`, `surface`, `type`, `nonce`, `visibleMs`, `valid`, `reason?` (incl. `ip_cluster`), **`ipHash?`** (server-derived salted hash, **[NEW]**), `accountId?`; **`@@unique([installId, nonce])`** (idempotency) |
 | **LedgerEntry** | Append-only double-entry line | `eventId` (source id), `account` (string key), `direction` (debit/credit), `amount`; **`@@unique([eventId, account, direction])`** |
@@ -267,15 +270,15 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 | `POST /advertiser/login` | — | `{email,password}` | `{token, account}` |
 | `POST /dev/register` **[NEW4]** | — | `{email,password}` | `{token, account}` — developer web onboarding (type `dev`, no extension needed) |
 | `POST /dev/login` **[NEW4]** | — | `{email,password}` | `{token, account}` |
-| `POST /advertiser/campaigns` | Bearer | `{copy,url,iconUrl?,surface,bidPerBlockPaise,pacePerMinute?}` | `Campaign` (**created `pending`, NOT ranked until approved**) |
+| `POST /advertiser/campaigns` | Bearer | `{copy?,headline?,tagline?,brandColor?,emoji?,url,iconUrl?,surface,bidPerBlockPaise,pacePerMinute?}` **[NEW8]** | `Campaign` (**created `pending`, NOT ranked until approved**; `copy` optional — server derives it from headline+tagline, refine requires `copy \|\| headline`) |
 | `GET /advertiser/campaigns` | Bearer | — | `Campaign[]` |
-| `PATCH /advertiser/campaigns/:id` **[NEW4]** | Bearer (owner) | `{copy?,url?,iconUrl?,bidPerBlockPaise?}` | `Campaign` — edit; creative change on a live campaign → back to `pending` + unranked (re-moderation); bid change re-ranks |
+| `PATCH /advertiser/campaigns/:id` **[NEW4]** | Bearer (owner) | `{copy?,headline?,tagline?,brandColor?,emoji?,url?,iconUrl?,bidPerBlockPaise?}` **[NEW8]** | `Campaign` — edit; any creative change (incl. brand fields) on a live campaign → back to `pending` + unranked (re-moderation); bid change re-ranks; `copy` re-derived from headline/tagline when those change |
 | `GET /advertiser/campaigns/:id/stats` **[NEW]** | Bearer (owner) | — | `{impressions,clicks,spendPaise,escrowRemainingPaise}` |
 | `POST /advertiser/campaigns/:id/blocks` | Bearer | `{quantity}` | `BlockPurchase` (collect → fund escrow) |
 | `POST /webhooks/razorpay` **[NEW]** | `x-razorpay-signature` (HMAC) | PSP event | `{ok}` — verifies sig vs raw body, reconciles purchase → paid + funds escrow |
 | `POST /webhooks/stripe` **[NEW]** | `stripe-signature` (HMAC) | PSP event | `{ok}` — same as above |
 | `GET /config` | — | — | `{active}` (the extension polls this) |
-| `POST /admin/house-ads` | `x-admin-key` | `{copy,url,iconUrl?,surface}` | `{id}` |
+| `POST /admin/house-ads` | `x-admin-key` | `{copy,headline?,tagline?,brandColor?,emoji?,url,iconUrl?,surface}` **[NEW8]** | `{id}` |
 | `GET /admin/campaigns/pending` **[NEW2]** | `x-admin-key` | — | `Campaign[]` (moderation queue) |
 | `POST /admin/campaigns/:id/approve` **[NEW]** | `x-admin-key` | — | `{ok}` — moderates a pending campaign live + ranks its bids |
 | `GET /admin/payout-destinations/pending` **[NEW2]** | `x-admin-key` | — | `PayoutDestination[]` (KYC queue) |
@@ -363,7 +366,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 - `dtos.ts` — `serveQuery`, `serveResponse`.
 - `events.ts` — event type + `eventIngest` / `eventResult`.
 - `auth.ts` — google login + account + token response.
-- `advertiser.ts` — register/login/createCampaign (+ `pacePerMinute`)/buyBlocks.
+- `advertiser.ts` — register/login/createCampaign (+ `pacePerMinute`, **+ brand fields `headline`/`tagline`/`brandColor`/`emoji` [NEW8]**)/editCampaign/buyBlocks; exports **`deriveCopy(headline,tagline)`** (the legacy single-line, derived identically on server + portal) and the `HEADLINE_MAX`/`TAGLINE_MAX`/`EMOJI_MAX` caps.
 - `payouts.ts` **[NEW2]** — `payoutDestinationSchema` (UPI/bank).
 - `index.ts` — re-exports all.
 
@@ -373,7 +376,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 201 · extension 47 · shared 17 · portal 16 = 281 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- **api 226 · extension 112 · shared 22 · portal 29 = 389 tests** ([NEW8] counts), plus **4 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
 - Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
@@ -485,6 +488,8 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~Portal UI is bare / admin uses static key~~ — **fixed [NEW4]:** portal now has a clean **design system** (`app/globals.css`) across all pages, and the admin page logs in via **`POST /admin/login`** (admin JWT Bearer); the static `x-admin-key` is no longer used by the web (the API still accepts it as a legacy/break-glass header).
 - **Campaign edit re-moderation is coarse** — *any* creative change on a live campaign sends the whole campaign back to `pending` (safe default). A lighter flow (e.g. auto-approve trivial URL tweaks, or a separate "pending creative" field that keeps the old copy serving until re-approval) could reduce advertiser friction later.
 - **Developer web vs Google identity** — a dev who signs up by email (`type:"dev"`) and a dev who signed in with Google are **separate accounts** even with the same email. Acceptable now; merge-on-verified-email later if needed.
+- **House-ad creation has no JWT-console UI [NEW8]** — `POST /admin/house-ads` (incl. the new brand fields) is gated by the static `x-admin-key` break-glass header, not the admin-login JWT the portal `/admin` console uses. Seed house ads via `curl`/the seed script; building a console form would mean surfacing the break-glass key in the browser (a security decision, deliberately deferred). The admin queue *does* render the brand preview for advertiser campaigns.
+- **Brand-color contrast is advisory [NEW8]** — the status-bar background is theme-dependent and unknown to us, so the portal only *warns* on extreme-luminance brand colors rather than altering them; a very light/dark brand color can still be low-contrast on one theme.
 
 ---
 

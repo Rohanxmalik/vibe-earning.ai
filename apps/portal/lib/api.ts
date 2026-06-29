@@ -1,7 +1,7 @@
 import type { CreateCampaign, EditCampaign, PayoutDestinationInput } from "@kbi/shared";
 
 export interface AuthResult { token: string; account: { id: string; email: string | null; type: string } }
-export interface Campaign { id: string; copy: string; url: string; surface?: string; status?: string; createdAt?: string }
+export interface Campaign { id: string; copy: string; headline?: string | null; tagline?: string | null; brandColor?: string | null; emoji?: string | null; url: string; surface?: string; status?: string; createdAt?: string }
 export interface DailySpend { date: string; spendPaise: number }
 export interface LedgerSummary { balancePaise: number; currency: string; validImpressions: number }
 export interface LedgerStats { todayPaise: number; monthPaise: number; lifetimePaise: number; validImpressions: number; currency: string }

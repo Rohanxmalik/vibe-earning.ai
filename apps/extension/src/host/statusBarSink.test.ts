@@ -20,6 +20,23 @@ describe("StatusBarSink", () => {
     expect(sink.currentUrl()).toBe("https://acme.dev");
   });
 
+  it("write applies the brand color, and restore clears it back to the theme default", () => {
+    const item = fakeItem();
+    const sink = new StatusBarSink(item);
+    sink.write("Sponsored: Zomato — Delivering Happiness", "https://zomato.com", "#E23744");
+    expect(item.color).toBe("#E23744");
+    sink.restore();
+    expect(item.color).toBeUndefined();
+  });
+
+  it("write with no color leaves the item un-tinted (theme default)", () => {
+    const item = fakeItem();
+    item.color = "#stale";
+    const sink = new StatusBarSink(item);
+    sink.write("x", "https://x.dev");
+    expect(item.color).toBeUndefined();
+  });
+
   it("restore leaves an 'Ad shown' badge in the same slot (does not hide)", () => {
     const item = fakeItem();
     const sink = new StatusBarSink(item);

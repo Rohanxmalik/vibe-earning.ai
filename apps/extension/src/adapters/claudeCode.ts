@@ -10,8 +10,11 @@ import { composeStatusLine } from "../statusline/compose";
  * swallows sink errors and falls back to the stock spinner.
  */
 export interface StatusSink {
-  /** Render a single status line (the composed sponsored text). `url` is the ad's click target. */
-  write(line: string, url?: string): void;
+  /**
+   * Render a single status line (the composed sponsored text). `url` is the ad's click target;
+   * `color` is the brand tint (a hex string), or undefined for the theme default.
+   */
+  write(line: string, url?: string, color?: string): void;
   /** Restore the agent's own status line (stop showing our text). */
   restore(): void;
 }
@@ -85,7 +88,7 @@ export class ClaudeCodeAdapter implements SpinnerAdapter {
   render(ad: ServeResponse): void {
     try {
       const line = composeStatusLine(ad, this.maxLen !== undefined ? { maxLen: this.maxLen } : {});
-      if (line) this.sink.write(line, ad.url);
+      if (line) this.sink.write(line, ad.url, ad.brandColor ?? undefined);
     } catch {
       // swallow — never break the host status line over a render failure
     }

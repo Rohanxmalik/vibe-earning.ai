@@ -153,4 +153,14 @@ describe("ClaudeCodeAdapter", () => {
     new ClaudeCodeAdapter({ sink }).render(paidAd);
     expect(gotUrl).toBe("https://turbo.dev");
   });
+
+  it("passes the brand color through to the sink (and undefined when unset)", () => {
+    let gotColor: string | undefined;
+    const sink: StatusSink = { write: (_l, _u, color) => { gotColor = color; }, restore: () => {} };
+    const adapter = new ClaudeCodeAdapter({ sink });
+    adapter.render({ ...paidAd, brandColor: "#E23744" });
+    expect(gotColor).toBe("#E23744");
+    adapter.render(paidAd);
+    expect(gotColor).toBeUndefined();
+  });
 });

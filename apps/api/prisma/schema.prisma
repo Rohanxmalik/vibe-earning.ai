@@ -9,7 +9,11 @@ datasource db {
 
 model Campaign {
   id        String   @id @default(cuid())
-  copy      String
+  copy      String   // legacy single-line brand+tagline (derived from headline+tagline when those are set); kept for stats/house ads
+  headline  String?  // brand name, e.g. "Zomato" (~20 chars)
+  tagline   String?  // short slogan, e.g. "Delivering Happiness" (~40 chars)
+  brandColor String? // hex like "#E23744"; tints the status-bar line
+  emoji     String?  // single brand emoji prefixed to the line
   url       String
   iconUrl   String?
   isHouseAd Boolean  @default(false)

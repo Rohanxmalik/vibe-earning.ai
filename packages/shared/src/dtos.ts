@@ -13,6 +13,12 @@ export const serveResponseSchema = z.object({
   adId: z.string(),
   campaignId: z.string(),
   copy: z.string().min(3).max(60),
+  // Structured creative. When `headline` is set the line renders "headline — tagline";
+  // otherwise it falls back to `copy`. All optional so the envelope stays backward-compatible.
+  headline: z.string().nullable().optional(),
+  tagline: z.string().nullable().optional(),
+  brandColor: z.string().nullable().optional(), // hex tint for the status-bar line
+  emoji: z.string().nullable().optional(), // single brand emoji prefixed to the line
   url: z.string().url(),
   iconUrl: z.string().url().nullable(),
   isHouseAd: z.boolean(),

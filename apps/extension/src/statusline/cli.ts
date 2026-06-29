@@ -50,6 +50,19 @@ function authHeaders(token: string | undefined): Record<string, string> {
 }
 
 /**
+ * Wrap text in a 24-bit ANSI truecolor sequence so the brand color shows in Claude Code's status
+ * line (which renders ANSI). VS Code's editor status bar can't render ANSI — it tints via
+ * `item.color` instead — so this lives only in the terminal/status-line path, not in `compose`.
+ * No-op on a malformed hex.
+ */
+export function ansiBrand(hex: string | null | undefined, text: string): string {
+  const m = hex ? /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex) : null;
+  if (!m) return text;
+  const [r, g, b] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+  return `\x1b[38;2;${r};${g};${b}m${text}\x1b[0m`;
+}
+
+/**
  * Pure-ish runner for one status-line refresh. Returns the line it wrote (or "" if nothing),
  * which makes assertions easy. Mirrors the in-editor Orchestrator loop but for the official
  * status-line surface:
@@ -101,7 +114,9 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
     deps.saveState(nextState);
 
     const line = composeStatusLine(ad);
-    if (line) deps.write(line);
+    // Tint with the brand color in the terminal (ANSI); the returned value stays plain so callers
+    // and tests see the composed text unchanged.
+    if (line) deps.write(ansiBrand(ad?.brandColor, line));
     return line;
   } catch {
     // swallow — never break the user's status line

@@ -13,9 +13,13 @@ The same approach generalizes: Codex and Gemini get their own adapters later, ea
 ```
 Claude Code (every status refresh)
   → runs our command, passes session JSON on stdin
-  → command GETs  {API}/serve?surface=claude-code-terminal&count=1
-  → prints one line:  "Sponsored: <copy> · <host>"   (house ads omit the label)
-  → Claude shows that line
+  → command GETs  {API}/serve?surface=claude-code-terminal&count=3
+  → prints one line:  "🍔 Sponsored: 𝗭𝗼𝗺𝗮𝘁𝗼 — Delivering Happiness · zomato.com"
+       • bold (Unicode math-bold glyphs), optional brand emoji prefix
+       • tinted with the campaign's brandColor via a 24-bit ANSI sequence (`ansiBrand`)
+       • house ads omit the "Sponsored:" label
+  → Claude shows that line (in the terminal AND the VS Code Claude Code panel — both read
+    ~/.claude/settings.json)
 ```
 
 - Code: `apps/extension/src/statusline/cli.ts` (glue) + `compose.ts` (pure, tested).

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { runStatusLine, type StatusLineDeps } from "./cli";
+import { runStatusLine, ansiBrand, type StatusLineDeps } from "./cli";
 import { boldText } from "./compose";
 import type { BillingState } from "./billing";
 import type { ServeResponse } from "@kbi/shared";
@@ -53,6 +53,22 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
     );
     expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
     expect(write).toHaveBeenCalledWith(boldText("Sponsored: copy c1 · x.dev"));
+  });
+
+  it("tints the written line with the brand color (ANSI truecolor) when present", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok({ ads: [ad("c1", { brandColor: "#E23744" })] }));
+    const write = vi.fn();
+    const line = await runStatusLine(baseDeps({ fetchFn, write }));
+    // returned value stays the plain composed (bold) text…
+    expect(line).toBe(boldText("Sponsored: copy c1 · x.dev"));
+    // …but what's written to the status line is wrapped in the brand-color ANSI sequence.
+    expect(write).toHaveBeenCalledWith(ansiBrand("#E23744", boldText("Sponsored: copy c1 · x.dev")));
+    expect(write.mock.calls[0][0]).toContain("\x1b[38;2;226;55;68m");
+  });
+
+  it("ansiBrand is a no-op on a malformed hex", () => {
+    expect(ansiBrand("nope", "x")).toBe("x");
+    expect(ansiBrand(null, "x")).toBe("x");
   });
 
   it("serves anonymously (no auth header) when signed out but still renders", async () => {

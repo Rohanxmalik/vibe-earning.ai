@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Kickbacks Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "${workspaceFolder}/../kbi-edh-test",
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/extension"
+      ],
+      "outFiles": ["${workspaceFolder}/apps/extension/dist/**/*.js"]
+    }
+  ]
+}

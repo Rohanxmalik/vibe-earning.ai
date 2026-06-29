@@ -89,7 +89,7 @@ export function stateLineWithStaleness(
   raw: string,
   mtimeMs: number,
   nowMs: number,
-  activityWindowMs = 30_000,
+  activityWindowMs = 12_000,
 ): TranscriptLine | null {
   if (nowMs - mtimeMs > activityWindowMs) {
     return { type: "assistant", message: { stop_reason: "end_turn" } };

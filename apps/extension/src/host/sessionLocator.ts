@@ -27,18 +27,13 @@ function newestIn(dir: string, fs: LocatorFs): { path: string; mtimeMs: number }
 }
 
 /**
- * Newest transcript for `cwd`: prefer the exact slug dir; if it has none, fall back
- * to the globally-newest transcript across all project dirs (robust to slug drift).
+ * Newest transcript for `cwd`: ONLY the exact slug dir for this workspace. We deliberately do
+ * NOT fall back to the globally-newest transcript across other projects — that bleed lets the
+ * ad track an unrelated Claude session (e.g. another window, or a CLI session in a different
+ * repo), so it would show while THIS workspace is idle. Returns null when this workspace has
+ * no transcript yet (so the ad stays hidden until the user actually prompts here).
  */
 export function findNewestTranscript(cwd: string, fs: LocatorFs): string | null {
   const projects = join(fs.homedir(), ".claude", "projects");
-  const direct = newestIn(join(projects, projectSlug(cwd)), fs);
-  if (direct) return direct.path;
-
-  let best: { path: string; mtimeMs: number } | null = null;
-  for (const sub of fs.listDirs(projects)) {
-    const cand = newestIn(join(projects, sub), fs);
-    if (cand && (!best || cand.mtimeMs > best.mtimeMs)) best = cand;
-  }
-  return best?.path ?? null;
+  return newestIn(join(projects, projectSlug(cwd)), fs)?.path ?? null;
 }

@@ -34,10 +34,11 @@ describe("findNewestTranscript", () => {
     expect(findNewestTranscript("/work/proj", fs)).toBe(join(dir, "new.jsonl"));
   });
 
-  it("falls back to the globally-newest jsonl when the slug dir is empty", () => {
+  it("does NOT bleed to another project's transcript when this slug dir is empty", () => {
+    // A different project has a (newer) transcript — we must ignore it, not track it.
     const other = join(PROJECTS, projectSlug("/some/other"));
     const fs = makeFs({ [other]: [{ name: "s.jsonl", mtimeMs: 500 }] });
-    expect(findNewestTranscript("/work/proj", fs)).toBe(join(other, "s.jsonl"));
+    expect(findNewestTranscript("/work/proj", fs)).toBeNull();
   });
 
   it("returns null when there are no transcripts anywhere", () => {

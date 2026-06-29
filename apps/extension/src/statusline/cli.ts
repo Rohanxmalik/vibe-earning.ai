@@ -13,6 +13,9 @@
  * It NEVER throws or hangs the agent: any error / slow network → prints nothing (or the line it
  * already had), so it can never break or hang the agent.
  */
+import { writeFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { composeStatusLine } from "./compose";
 import { tickRotation, type BillingState } from "./billing";
 import { loadToken, loadState, saveState } from "./store";
@@ -142,10 +145,26 @@ async function probeKillswitch(api: string, fetchFn: typeof fetch, timeoutMs: nu
   }
 }
 
+/**
+ * Diagnostics breadcrumb: overwrite a single small file each run so you can confirm Claude Code is
+ * actually invoking this status-line command (a fresh timestamp = it ran). Bounded (no growth),
+ * fail-safe — never affects the rendered line.
+ */
+function writeHeartbeat(line: string, surface: string, token: string | undefined): void {
+  try {
+    const dir = join(homedir(), ".kickbacks");
+    mkdirSync(dir, { recursive: true });
+    const signedIn = token ? "signed-in" : "anonymous";
+    writeFileSync(join(dir, "statusline-last.txt"), `${new Date().toISOString()}  [${surface}] [${signedIn}]  ${line || "(no ad served)"}\n`);
+  } catch {
+    /* diagnostics only */
+  }
+}
+
 async function main(): Promise<void> {
   const token = loadToken();
   const killActive = await probeKillswitch(API, fetch, TIMEOUT_MS);
-  await runStatusLine({
+  const line = await runStatusLine({
     api: API,
     surface: SURFACE,
     token,
@@ -153,9 +172,10 @@ async function main(): Promise<void> {
     now: () => Date.now(),
     loadState,
     saveState,
-    write: (line) => process.stdout.write(line),
+    write: (l) => process.stdout.write(l),
     killActive,
   });
+  writeHeartbeat(line, SURFACE, token);
 }
 
 // Only auto-run when executed as a script, not when imported by a test.

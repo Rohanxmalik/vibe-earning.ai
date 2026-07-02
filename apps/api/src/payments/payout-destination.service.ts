@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PayoutDestinationInput } from "@kbi/shared";
+import type { PayoutDestinationInput } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()

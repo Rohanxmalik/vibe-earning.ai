@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { ClaudeCodeAdapter, detectClaudeCode, type StatusSink } from "./claudeCode";
+import { boldText } from "../statusline/compose";
 import type { WaitHandlers } from "../core/adapter";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 const paidAd: ServeResponse = {
   adId: "a1", campaignId: "c1", copy: "TurboDB — ship faster", url: "https://turbo.dev", iconUrl: null, isHouseAd: false,
 };
-const houseAd: ServeResponse = { ...paidAd, campaignId: "house", copy: "Try Kickbacks", isHouseAd: true };
+const houseAd: ServeResponse = { ...paidAd, campaignId: "house", copy: "Try vibearning", isHouseAd: true };
 
 function fakeSink() {
   const lines: string[] = [];
@@ -31,8 +32,8 @@ describe("detectClaudeCode", () => {
 });
 
 describe("ClaudeCodeAdapter", () => {
-  it("exposes the claude-code-terminal surface", () => {
-    expect(new ClaudeCodeAdapter().surface).toBe("claude-code-terminal");
+  it("exposes the claude-code-panel surface", () => {
+    expect(new ClaudeCodeAdapter().surface).toBe("claude-code-panel");
   });
 
   it("isAvailable reflects the injected detector", () => {
@@ -57,22 +58,22 @@ describe("ClaudeCodeAdapter", () => {
     expect(a.isAvailable()).toBe(false);
   });
 
-  it("renders a sponsored line into the status sink", () => {
+  it("renders a sponsored line into the status sink (bold)", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink }).render(paidAd);
-    expect(last()).toBe("Sponsored: TurboDB — ship faster · turbo.dev");
+    expect(last()).toBe(boldText("Sponsored: TurboDB — ship faster · turbo.dev"));
   });
 
   it("renders a house ad without the Sponsored label", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink }).render(houseAd);
-    expect(last()).toBe("Try Kickbacks · turbo.dev");
+    expect(last()).toBe(boldText("Try vibearning · turbo.dev"));
   });
 
-  it("respects a configured maxLen", () => {
+  it("respects a configured maxLen (visible code points)", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink, maxLen: 12 }).render(paidAd);
-    expect(last()?.length).toBeLessThanOrEqual(12);
+    expect(Array.from(last() ?? "").length).toBeLessThanOrEqual(12);
   });
 
   it("clear() restores the stock spinner", () => {
@@ -137,13 +138,30 @@ describe("ClaudeCodeAdapter", () => {
     orch.start();
 
     await handlers!.onWaitStart();
-    expect(api.serveMany).toHaveBeenCalledWith("claude-code-terminal", 3);
-    expect(last()).toBe("Sponsored: TurboDB — ship faster · turbo.dev");
+    expect(api.serveMany).toHaveBeenCalledWith("claude-code-panel", 3);
+    expect(last()).toBe(boldText("Sponsored: TurboDB — ship faster · turbo.dev"));
 
     t += 6000;
     await handlers!.onWaitEnd();
     expect(api.sendEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ campaignId: "c1", type: "impression", visibleMs: 6000, surface: "claude-code-terminal" }),
+      expect.objectContaining({ campaignId: "c1", type: "impression", visibleMs: 6000, surface: "claude-code-panel" }),
     );
+  });
+
+  it("passes the ad url to the sink so it can be opened on click", () => {
+    let gotUrl: string | undefined;
+    const sink: StatusSink = { write: (_line, url) => { gotUrl = url; }, restore: () => {} };
+    new ClaudeCodeAdapter({ sink }).render(paidAd);
+    expect(gotUrl).toBe("https://turbo.dev");
+  });
+
+  it("passes the brand color through to the sink (and undefined when unset)", () => {
+    let gotColor: string | undefined;
+    const sink: StatusSink = { write: (_l, _u, color) => { gotColor = color; }, restore: () => {} };
+    const adapter = new ClaudeCodeAdapter({ sink });
+    adapter.render({ ...paidAd, brandColor: "#E23744" });
+    expect(gotColor).toBe("#E23744");
+    adapter.render(paidAd);
+    expect(gotColor).toBeUndefined();
   });
 });

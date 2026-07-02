@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-const TOKEN_KEY = "kickbacks.authToken";
+const TOKEN_KEY = "vibearning.authToken";
 
 export class SecretStore {
   constructor(private readonly secrets: vscode.SecretStorage) {}

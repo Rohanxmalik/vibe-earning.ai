@@ -5,13 +5,13 @@ import { randomBytes } from "node:crypto";
 import type { BillingState } from "./billing";
 
 // Local config the standalone status-line script reads (it has no VS Code SecretStorage).
-const DIR = join(homedir(), ".kickbacks");
+const DIR = join(homedir(), ".vibearning");
 const STATE_FILE = join(DIR, "statusline-state.json");
 const TOKEN_FILE = join(DIR, "token");
 
-/** The dev's session token: env wins, else `~/.kickbacks/token`, else undefined (anonymous). */
+/** The dev's session token: env wins, else `~/.vibearning/token`, else undefined (anonymous). */
 export function loadToken(): string | undefined {
-  if (process.env.KICKBACKS_TOKEN) return process.env.KICKBACKS_TOKEN;
+  if (process.env.VIBEARNING_TOKEN) return process.env.VIBEARNING_TOKEN;
   try {
     const t = readFileSync(TOKEN_FILE, "utf8").trim();
     return t || undefined;

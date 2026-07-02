@@ -5,15 +5,15 @@ const description = "Sponsor the line developers watch while their AI agent thin
 
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001"),
-  title: { default: "Kickbacks-India", template: "%s · Kickbacks-India" },
+  title: { default: "vibearning", template: "%s · vibearning" },
   description,
   openGraph: {
-    title: "Kickbacks-India",
+    title: "vibearning",
     description,
     type: "website",
-    siteName: "Kickbacks-India",
+    siteName: "vibearning",
   },
-  twitter: { card: "summary", title: "Kickbacks-India", description },
+  twitter: { card: "summary", title: "vibearning", description },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

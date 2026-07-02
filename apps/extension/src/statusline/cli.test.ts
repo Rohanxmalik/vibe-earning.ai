@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { runStatusLine, type StatusLineDeps } from "./cli";
+import { runStatusLine, ansiStyle, type StatusLineDeps } from "./cli";
 import type { BillingState } from "./billing";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 const ad = (campaignId: string, over: Partial<ServeResponse> = {}): ServeResponse => ({
   adId: `ad_${campaignId}`, campaignId, copy: `copy ${campaignId}`, url: "https://x.dev", iconUrl: null, isHouseAd: false, ...over,
@@ -50,8 +50,39 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
       "http://api/serve?surface=claude-code-terminal&count=3",
       expect.objectContaining({ headers: { authorization: "Bearer dev-token" } }),
     );
-    expect(line).toBe("Sponsored: copy c1 · x.dev");
-    expect(write).toHaveBeenCalledWith("Sponsored: copy c1 · x.dev");
+    expect(line).toBe("Sponsored: copy c1 · x.dev"); // returned value is plain (terminal bolds via ANSI)
+    expect(write).toHaveBeenCalledWith(ansiStyle("Sponsored: copy c1 · x.dev")); // bold ANSI, no color
+  });
+
+  it("writes ANSI bold + brand color (truecolor) when a brand color is present", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(ok({ ads: [ad("c1", { brandColor: "#E23744" })] }));
+    const write = vi.fn();
+    const line = await runStatusLine(baseDeps({ fetchFn, write }));
+    expect(line).toBe("Sponsored: copy c1 · x.dev"); // returned plain
+    expect(write).toHaveBeenCalledWith(ansiStyle("Sponsored: copy c1 · x.dev", "#E23744"));
+    expect(write.mock.calls[0][0]).toContain("\x1b[1;38;2;226;55;68m"); // bold + truecolor
+  });
+
+  it("reports a diagnostic reason: 'ok' on render, 'no_inventory' when empty", async () => {
+    const okReasons: string[] = [];
+    await runStatusLine(baseDeps({ fetchFn: vi.fn().mockResolvedValue(ok({ ads: [ad("c1")] })), onDiagnostic: (r) => okReasons.push(r) }));
+    expect(okReasons).toContain("ok");
+
+    const emptyReasons: string[] = [];
+    await runStatusLine(baseDeps({ fetchFn: vi.fn().mockResolvedValue(ok({ ads: [] })), onDiagnostic: (r) => emptyReasons.push(r) }));
+    expect(emptyReasons).toContain("no_inventory");
+  });
+
+  it("reports 'error_or_timeout' when the fetch rejects", async () => {
+    const reasons: string[] = [];
+    await runStatusLine(baseDeps({ fetchFn: vi.fn().mockRejectedValue(new Error("aborted")), onDiagnostic: (r) => reasons.push(r) }));
+    expect(reasons).toContain("error_or_timeout");
+  });
+
+  it("ansiStyle always bolds; adds truecolor only for a valid hex", () => {
+    expect(ansiStyle("x")).toBe("\x1b[1mx\x1b[0m"); // bold only
+    expect(ansiStyle("x", "nope")).toBe("\x1b[1mx\x1b[0m"); // invalid hex → bold only
+    expect(ansiStyle("x", "#8B2CF5")).toBe("\x1b[1;38;2;139;44;245mx\x1b[0m"); // bold + color
   });
 
   it("serves anonymously (no auth header) when signed out but still renders", async () => {
@@ -184,6 +215,6 @@ describe("runStatusLine (official Claude Code status-line integration)", () => {
     await runStatusLine({ ...deps, now: () => 1000 });
     const line = await runStatusLine({ ...deps, now: () => 6000 }); // bill attempt fails internally
     expect(line).toBe("Sponsored: copy c1 · x.dev"); // ad still rendered
-    expect(write).toHaveBeenLastCalledWith("Sponsored: copy c1 · x.dev");
+    expect(write).toHaveBeenLastCalledWith(ansiStyle("Sponsored: copy c1 · x.dev"));
   });
 });

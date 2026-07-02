@@ -20,7 +20,7 @@ export class ResendNotifier extends Notifier {
     return k;
   }
   private from(): string {
-    return process.env.EMAIL_FROM ?? "Kickbacks <noreply@kickbacks.in>";
+    return process.env.EMAIL_FROM ?? "vibearning <noreply@vibearning.in>";
   }
 
   async send(to: string, subject: string, body: string): Promise<void> {

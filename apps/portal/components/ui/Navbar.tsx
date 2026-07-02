@@ -16,7 +16,7 @@ const LINKS = [
 export function Navbar() {
   return (
     <nav className="kbi-tw relative z-50 mx-auto flex w-full max-w-[1440px] items-center justify-between px-6 py-6 md:px-10 md:py-8">
-      <Link href="/" className="flex items-center gap-1" aria-label="Kickbacks-India home">
+      <Link href="/" className="flex items-center gap-1" aria-label="vibearning home">
         <span className="relative rounded-2xl rounded-bl-sm bg-white px-3 py-1.5 text-xs font-black tracking-tight text-black shadow-sm md:text-sm">
           KICK
           <span

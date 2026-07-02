@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
-import { payoutDestinationSchema } from "@kbi/shared";
+import { payoutDestinationSchema } from "@vibearning/shared";
 import { AuthGuard } from "../auth/auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { PayoutService } from "./payout.service";

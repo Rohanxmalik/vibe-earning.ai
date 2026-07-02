@@ -1,10 +1,10 @@
-# Kickbacks-India (vibe-earning.ai)
+# vibearning (vibe-earning.ai)
 
-An India-first clone of [kickbacks.ai](https://kickbacks.ai): a two-sided **advertising marketplace** that sells the one-line "Thinking…" status shown by AI coding agents (Claude Code, Codex, Gemini CLI) while they work.
+An India-first clone of [vibearning.ai](https://vibearning.ai): a two-sided **advertising marketplace** that sells the one-line "Thinking…" status shown by AI coding agents (Claude Code, Codex, Gemini CLI) while they work.
 
 - **Supply = developers.** A VS Code extension shows a sponsored line while their AI agent is busy; they earn ~50% of the ad revenue.
 - **Demand = advertisers** (global). Self-serve: create a campaign, set a bid, fund it; the ad serves on developers' machines.
-- **The India wedge:** kickbacks.ai pays out only via Stripe Connect (India is "preview"), so Indian developers can't cash out. We pay out in **INR via Razorpay/UPI** (Stripe for the rest), behind a provider abstraction.
+- **The India wedge:** vibearning.ai pays out only via Stripe Connect (India is "preview"), so Indian developers can't cash out. We pay out in **INR via Razorpay/UPI** (Stripe for the rest), behind a provider abstraction.
 
 > **New here?** Read [`ENGINEERING_HANDOFF.md`](./ENGINEERING_HANDOFF.md) — a full, file-by-file tour of what's built, what's left, and how.
 
@@ -32,12 +32,12 @@ pnpm install
 docker compose up -d                       # Postgres :5432, Redis :6379
 cp .env.example apps/api/.env              # dev config (git-ignored)
 
-pnpm --filter @kbi/shared build            # api tests resolve @kbi/shared from dist
-pnpm --filter @kbi/api exec prisma migrate deploy
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/shared build            # api tests resolve @vibearning/shared from dist
+pnpm --filter @vibearning/api exec prisma migrate deploy
+pnpm --filter @vibearning/api exec prisma generate
 
-pnpm --filter @kbi/api dev                 # API on :3000
-pnpm --filter @kbi/portal dev              # Portal on :3001
+pnpm --filter @vibearning/api dev                 # API on :3000
+pnpm --filter @vibearning/portal dev              # Portal on :3001
 ```
 
 ## Test

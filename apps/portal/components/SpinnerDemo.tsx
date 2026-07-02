@@ -18,7 +18,7 @@ export function SpinnerDemo() {
       <div className="demo-arrow" aria-hidden="true">→</div>
 
       <div>
-        <div className="demo-label">With Kickbacks</div>
+        <div className="demo-label">With vibearning</div>
         <div className="term">
           <div className="term-row">
             <span className="term-left">

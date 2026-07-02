@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
-import { googleLoginSchema } from "@kbi/shared";
+import { googleLoginSchema } from "@vibearning/shared";
 import { AuthService } from "./auth.service";
 import { AuthGuard } from "./auth.guard";
 

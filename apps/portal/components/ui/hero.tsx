@@ -8,7 +8,7 @@ import { ui, displayFont, displayShadow } from "./kit";
 import { LiveCounter } from "../LiveCounter";
 import { CopyButton } from "../CopyButton";
 
-const INSTALL_CMD = "code --install-extension kickbacks-india.vsix";
+const INSTALL_CMD = "code --install-extension vibearning.vsix";
 
 // Inline SVG avatar — respects the strict `img-src 'self' data:` CSP.
 const Avatar = ({ className = "" }: { className?: string }) => (
@@ -127,7 +127,7 @@ export function Hero({ earnedPaise = DEFAULT_EARNED_PAISE }: { earnedPaise?: num
           </h1>
 
           <p className="mt-7 max-w-xl text-base font-medium text-white/85 md:text-lg">
-            Kickbacks-India turns the “thinking…” spinner of Claude Code, Codex, and Gemini into one tasteful
+            vibearning turns the “thinking…” spinner of Claude Code, Codex, and Gemini into one tasteful
             sponsored line — and pays India&apos;s developers for it, straight to UPI.
           </p>
 

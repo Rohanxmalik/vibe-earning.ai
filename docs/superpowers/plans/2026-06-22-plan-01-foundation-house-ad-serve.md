@@ -12,7 +12,7 @@
 
 > **This is Plan 01 of ~9** (see `docs/superpowers/plans/` index / the spec phasing). It produces a working, curl-testable API skeleton with no money and no real auth yet.
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md)
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md)
 
 ---
 
@@ -89,7 +89,7 @@ packages:
 
 ```json
 {
-  "name": "kickbacks-india",
+  "name": "vibearning",
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "scripts": {
@@ -206,7 +206,7 @@ git commit -m "chore: add postgres + redis docker-compose and env template"
 
 ```json
 {
-  "name": "@kbi/shared",
+  "name": "@vibearning/shared",
   "version": "0.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -263,7 +263,7 @@ describe("surfaces", () => {
 
 - [ ] **Step 5: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/shared test`
+Run: `pnpm --filter @vibearning/shared test`
 Expected: FAIL — cannot find module `./surfaces`.
 
 - [ ] **Step 6: Implement `src/surfaces.ts`**
@@ -315,12 +315,12 @@ export * from "./dtos";
 
 - [ ] **Step 9: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/shared test`
+Run: `pnpm --filter @vibearning/shared test`
 Expected: PASS (2 tests).
 
 - [ ] **Step 10: Build the package (needed by api)**
 
-Run: `pnpm --filter @kbi/shared build`
+Run: `pnpm --filter @vibearning/shared build`
 Expected: `dist/` emitted, no type errors.
 
 - [ ] **Step 11: Commit**
@@ -342,7 +342,7 @@ git commit -m "feat(shared): add Surface enum and serve DTOs"
 
 ```json
 {
-  "name": "@kbi/api",
+  "name": "@vibearning/api",
   "version": "0.0.0",
   "scripts": {
     "build": "nest build",
@@ -354,7 +354,7 @@ git commit -m "feat(shared): add Surface enum and serve DTOs"
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
-    "@kbi/shared": "workspace:*",
+    "@vibearning/shared": "workspace:*",
     "@nestjs/common": "^10.4.0",
     "@nestjs/core": "^10.4.0",
     "@nestjs/platform-express": "^10.4.0",
@@ -410,7 +410,7 @@ git commit -m "feat(shared): add Surface enum and serve DTOs"
 
 - [ ] **Step 5: Create `apps/api/jest.config.js`**
 
-> `setupFiles: ["dotenv/config"]` loads `apps/api/.env` into `process.env` before any test (Prisma/Redis need it). `@kbi/shared` maps to the **built** `dist` — so `packages/shared` must be built first (done in Task 2 Step 10; at the repo level `turbo` enforces `^build` before `test`).
+> `setupFiles: ["dotenv/config"]` loads `apps/api/.env` into `process.env` before any test (Prisma/Redis need it). `@vibearning/shared` maps to the **built** `dist` — so `packages/shared` must be built first (done in Task 2 Step 10; at the repo level `turbo` enforces `^build` before `test`).
 
 ```js
 module.exports = {
@@ -420,14 +420,14 @@ module.exports = {
   transform: { "^.+\\.ts$": "ts-jest" },
   testEnvironment: "node",
   setupFiles: ["dotenv/config"],
-  moduleNameMapper: { "^@kbi/shared$": "<rootDir>/../../../packages/shared/dist/index.js" },
+  moduleNameMapper: { "^@vibearning/shared$": "<rootDir>/../../../packages/shared/dist/index.js" },
 };
 ```
 
 - [ ] **Step 6: Install**
 
 Run: `pnpm install`
-Expected: api deps resolve, `@kbi/shared` linked via workspace.
+Expected: api deps resolve, `@vibearning/shared` linked via workspace.
 
 - [ ] **Step 7: Write the failing test — `src/health/health.controller.spec.ts`**
 
@@ -446,7 +446,7 @@ describe("HealthController", () => {
 
 - [ ] **Step 8: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/api test`
+Run: `pnpm --filter @vibearning/api test`
 Expected: FAIL — cannot find `./health.controller`.
 
 - [ ] **Step 9: Implement `src/health/health.controller.ts`**
@@ -492,7 +492,7 @@ bootstrap();
 
 - [ ] **Step 12: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/api test`
+Run: `pnpm --filter @vibearning/api test`
 Expected: PASS.
 
 - [ ] **Step 13: Commit**
@@ -549,10 +549,10 @@ model Bid {
 > Prisma CLI and the dotenv setup both read `apps/api/.env` (Prisma loads `.env` from its cwd; tests/runtime load it via `dotenv/config`). Create it from the root template.
 
 Run (from repo root): `cp .env.example apps/api/.env`
-Then: `pnpm --filter @kbi/api prisma:migrate -- --name init`
+Then: `pnpm --filter @vibearning/api prisma:migrate -- --name init`
 Expected: migration `init` applied; `@prisma/client` generated. (`apps/api/.env` is git-ignored by the root `.gitignore`.)
 
-> **If `migrate dev` hangs/errors on an advisory lock in a non-interactive shell** (Prisma 5 WASM engine): apply the schema with `pnpm --filter @kbi/api exec prisma db push`, then record the migration with `prisma migrate resolve --applied <name>` (or set `PRISMA_CLI_QUERY_ENGINE_TYPE=binary`). End state must be: tables exist **and** `_prisma_migrations` has the record.
+> **If `migrate dev` hangs/errors on an advisory lock in a non-interactive shell** (Prisma 5 WASM engine): apply the schema with `pnpm --filter @vibearning/api exec prisma db push`, then record the migration with `prisma migrate resolve --applied <name>` (or set `PRISMA_CLI_QUERY_ENGINE_TYPE=binary`). End state must be: tables exist **and** `_prisma_migrations` has the record.
 
 - [ ] **Step 3: Implement `src/prisma/prisma.service.ts`**
 
@@ -593,7 +593,7 @@ export class AppModule {}
 
 - [ ] **Step 6: Verify build**
 
-Run: `pnpm --filter @kbi/api build`
+Run: `pnpm --filter @vibearning/api build`
 Expected: compiles, no type errors.
 
 - [ ] **Step 7: Commit**
@@ -672,7 +672,7 @@ describe("RankingService", () => {
 
 - [ ] **Step 4: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/api test -- ranking`
+Run: `pnpm --filter @vibearning/api test -- ranking`
 Expected: FAIL — cannot find `./ranking.service`.
 
 - [ ] **Step 5: Implement `src/ranking/ranking.service.ts`**
@@ -700,7 +700,7 @@ export class RankingService {
 
 - [ ] **Step 6: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/api test -- ranking`
+Run: `pnpm --filter @vibearning/api test -- ranking`
 Expected: PASS (2 tests).
 
 - [ ] **Step 7: Create `src/ranking/ranking.module.ts`** (global → `/serve`, admin, and the e2e test all share one instance; avoids duplicate providers + makes `app.get(RankingService)` resolvable)
@@ -773,14 +773,14 @@ describe("ServeService", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/api test -- serve.service`
+Run: `pnpm --filter @vibearning/api test -- serve.service`
 Expected: FAIL — cannot find `./serve.service`.
 
 - [ ] **Step 3: Implement `src/serve/serve.service.ts`**
 
 ```ts
 import { Injectable } from "@nestjs/common";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -810,14 +810,14 @@ export class ServeService {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/api test -- serve.service`
+Run: `pnpm --filter @vibearning/api test -- serve.service`
 Expected: PASS.
 
 - [ ] **Step 5: Implement `src/serve/serve.controller.ts`**
 
 ```ts
 import { BadRequestException, Controller, Get, Query } from "@nestjs/common";
-import { serveQuerySchema } from "@kbi/shared";
+import { serveQuerySchema } from "@vibearning/shared";
 import { ServeService } from "./serve.service";
 
 @Controller("serve")
@@ -876,7 +876,7 @@ describe("/serve (e2e)", () => {
     await prisma.bid.deleteMany();
     await prisma.campaign.deleteMany();
     const house = await prisma.campaign.create({
-      data: { copy: "Powered by Kickbacks-India", url: "https://kbi.example", isHouseAd: true },
+      data: { copy: "Powered by vibearning", url: "https://kbi.example", isHouseAd: true },
     });
     await ranking.upsertBid("codex-panel", house.id, 0);
   });
@@ -885,7 +885,7 @@ describe("/serve (e2e)", () => {
 
   it("serves the house ad for a valid surface", async () => {
     const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
-    expect(res.body.ad).toMatchObject({ copy: "Powered by Kickbacks-India", isHouseAd: true });
+    expect(res.body.ad).toMatchObject({ copy: "Powered by vibearning", isHouseAd: true });
   });
 
   it("400s on an invalid surface", async () => {
@@ -896,7 +896,7 @@ describe("/serve (e2e)", () => {
 
 - [ ] **Step 8: Run e2e to verify pass**
 
-Run: `pnpm --filter @kbi/api test -- serve.e2e`
+Run: `pnpm --filter @vibearning/api test -- serve.e2e`
 Expected: PASS (2 tests). If it fails on connection, confirm `docker compose up -d` and `.env` present.
 
 - [ ] **Step 9: Commit**
@@ -958,7 +958,7 @@ describe("AdminController", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/api test -- admin`
+Run: `pnpm --filter @vibearning/api test -- admin`
 Expected: FAIL — cannot find `./admin.controller`.
 
 - [ ] **Step 3: Implement `src/admin/admin.controller.ts`**
@@ -966,7 +966,7 @@ Expected: FAIL — cannot find `./admin.controller`.
 ```ts
 import { Body, Controller, Headers, Post, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { surfaceSchema } from "@kbi/shared";
+import { surfaceSchema } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
@@ -1031,12 +1031,12 @@ export class AppModule {}
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/api test -- admin`
+Run: `pnpm --filter @vibearning/api test -- admin`
 Expected: PASS (2 tests).
 
 - [ ] **Step 6: Manual smoke test (optional but recommended)**
 
-Run (api in another terminal: `pnpm --filter @kbi/api dev`):
+Run (api in another terminal: `pnpm --filter @vibearning/api dev`):
 ```bash
 curl -X POST localhost:3000/admin/house-ads \
   -H "x-admin-key: dev-admin-key-change-me" -H "content-type: application/json" \
@@ -1047,7 +1047,7 @@ Expected: POST returns `{"id":"..."}`; GET returns that ad.
 
 - [ ] **Step 7: Run the full suite + commit**
 
-Run: `pnpm --filter @kbi/api test && pnpm --filter @kbi/shared test`
+Run: `pnpm --filter @vibearning/api test && pnpm --filter @vibearning/shared test`
 Expected: all green.
 
 ```bash
@@ -1060,7 +1060,7 @@ git commit -m "feat(api): admin endpoint to create + rank house ads"
 ## Done criteria for Plan 01
 
 - [ ] `docker compose up -d` brings up PG + Redis.
-- [ ] `pnpm install && pnpm --filter @kbi/shared build` succeeds.
+- [ ] `pnpm install && pnpm --filter @vibearning/shared build` succeeds.
 - [ ] `pnpm test` (turbo) runs shared (vitest) + api (jest) suites green.
 - [ ] Admin can POST a house ad; `GET /serve?surface=...` returns the top-ranked ad; invalid surface → 400; empty inventory → `{ "ad": null }`.
 

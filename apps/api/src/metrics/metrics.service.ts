@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { EventIngest, EventResult } from "@kbi/shared";
+import type { EventIngest, EventResult } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
 import { FraudService } from "./fraud.service";

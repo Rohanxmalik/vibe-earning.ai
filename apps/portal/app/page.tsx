@@ -172,7 +172,7 @@ export default async function Home() {
           <SectionHeading
             eyebrow="Transparency"
             title="Only the spinner. Nothing else touched."
-            sub="Kickbacks swaps a single word in the “thinking…” line for a short sponsored one — that’s the only thing it changes."
+            sub="vibearning swaps a single word in the “thinking…” line for a short sponsored one — that’s the only thing it changes."
           />
           <div className="kbi-tw mt-12 grid gap-6 md:grid-cols-2">
             <div className="rounded-[2rem] border border-black/5 bg-white p-8 shadow-[0_10px_40px_rgba(0,0,0,0.06)]">

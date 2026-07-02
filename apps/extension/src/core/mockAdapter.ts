@@ -1,4 +1,4 @@
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import type { SpinnerAdapter, WaitHandlers } from "./adapter";
 
 /** Test/dev adapter. Lets a command or test drive fake wait-states so the full pipeline

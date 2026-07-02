@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Post, Req } from "@nestjs/common";
-import { advertiserRegisterSchema, advertiserLoginSchema } from "@kbi/shared";
+import { advertiserRegisterSchema, advertiserLoginSchema } from "@vibearning/shared";
 import { countryFromRequest } from "../me/geo";
 import { AdvertiserAuthService } from "./advertiser-auth.service";
 

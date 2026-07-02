@@ -1,4 +1,4 @@
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { makeNonce } from "../core/nonce";
 
 /** The ad currently shown in the status line + when it was first shown (one window). */

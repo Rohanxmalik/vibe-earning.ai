@@ -1,6 +1,6 @@
 # Deploy runbook
 
-How to put Kickbacks-India live. The app images already build in CI (`.github/workflows/cd.yml` → GHCR) and there's a production compose file. This is the step-by-step.
+How to put vibearning live. The app images already build in CI (`.github/workflows/cd.yml` → GHCR) and there's a production compose file. This is the step-by-step.
 
 > **Audience:** the engineer doing the deploy. The founder buys the accounts (see `LAUNCH_CHECKLIST.md` Phase 3).
 
@@ -56,6 +56,29 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ---
 
+## Object storage (brand logos)
+
+Advertiser logos upload through `POST /uploads/logo`. Local disk works but is **wiped on every redeploy / scale‑out**, so switch to an S3‑compatible bucket in prod. The `S3Storage` backend is implemented (`apps/api/src/storage/blob-storage.ts`) — you only set env.
+
+1. Create a bucket (**AWS S3**, **Cloudflare R2**, or **Supabase Storage**) and make objects **publicly readable** (logos are public). Optionally put a CDN in front.
+2. Create an access key/secret scoped to `PutObject` on that bucket (or use an instance role on AWS).
+3. Set on the API:
+
+   | Var | Example | Notes |
+   |---|---|---|
+   | `VIBEARNING_STORAGE` | `s3` | switches from local disk to S3 |
+   | `VIBEARNING_S3_BUCKET` | `vibearning-logos` | bucket name (**required**) |
+   | `VIBEARNING_PUBLIC_URL` | `https://cdn.yourdomain.com` | public base the stored URL is built on — bucket public URL or CDN (**required**) |
+   | `VIBEARNING_S3_REGION` | `ap-south-1` | AWS region (India) |
+   | `VIBEARNING_S3_ACCESS_KEY_ID` / `VIBEARNING_S3_SECRET_ACCESS_KEY` | … | omit to use the default AWS credential chain (instance role) |
+   | `VIBEARNING_S3_ENDPOINT` | `https://<acct>.r2.cloudflarestorage.com` | **R2 / Supabase / MinIO only** (omit for AWS S3) |
+   | `VIBEARNING_S3_FORCE_PATH_STYLE` | `true` | **R2 / MinIO only** |
+   | `VIBEARNING_S3_PREFIX` | `logos/` | optional key prefix |
+
+4. `VIBEARNING_STORAGE=s3` without a bucket **or** public URL makes the API **fail loudly at startup** — never a silent fallback to ephemeral disk. Uploaded logos are content‑addressed (sha256) → deduped and cacheable forever. Reads go straight to the bucket/CDN (the app's `GET /uploads/:name` route is only used by the disk backend).
+
+---
+
 ## Secrets
 
 - Generate strong values: `openssl rand -hex 32` for `AUTH_JWT_SECRET`, `FRAUD_IP_SALT`, `ADMIN_API_KEY`.
@@ -83,6 +106,22 @@ docker compose -f docker-compose.prod.yml up -d --build
 - [ ] PSP webhook marks the purchase paid and funds escrow (check the ledger).
 - [ ] Developer can sign up, add a UPI, (admin verifies), and a tiny payout settles.
 - [ ] `POST /admin/killswitch {active:true}` stops serving; `false` resumes.
+- [ ] Advertiser uploads a **logo** on a campaign → the returned `iconUrl` points at your bucket/CDN (`VIBEARNING_PUBLIC_URL`), and the image loads.
+
+## Publish & wire the VS Code extension
+
+The extension is the developer client — it must point at the deployed API.
+
+1. **Set the prod URL.** Edit the defaults in `apps/extension/package.json` (`contributes.configuration` → `vibearning.apiUrl` / `vibearning.portalUrl`) to your real domains. Users can still override via the `vibearning.apiUrl` setting or the `VIBEARNING_API` env var.
+2. **Register a Marketplace publisher** (Azure DevOps org) whose id matches `"publisher"` in the manifest, and create a **Personal Access Token** (scope: Marketplace → Manage).
+3. **Package + publish:**
+   ```bash
+   cd apps/extension
+   pnpm --filter vibearning package        # → vibearning.vsix (runs the build first)
+   npx @vscode/vsce login vibearning       # paste the PAT
+   npx @vscode/vsce publish                # or: publish -p <PAT>
+   ```
+4. **Status‑line users** (Claude Code / Codex) configure `~/.claude/settings.json` to run `dist/statusline.js`; it reads `VIBEARNING_API` (prod default baked in). Document this for users who self‑host.
 
 ## Rollback
 

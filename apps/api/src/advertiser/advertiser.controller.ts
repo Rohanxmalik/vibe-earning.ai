@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
-import { createCampaignSchema, editCampaignSchema, buyBlocksSchema } from "@kbi/shared";
+import { createCampaignSchema, editCampaignSchema, buyBlocksSchema } from "@vibearning/shared";
 import { AuthGuard } from "../auth/auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "./campaign.service";

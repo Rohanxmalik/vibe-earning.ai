@@ -13,16 +13,23 @@
  * It NEVER throws or hangs the agent: any error / slow network → prints nothing (or the line it
  * already had), so it can never break or hang the agent.
  */
+import { writeFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { composeStatusLine } from "./compose";
 import { tickRotation, type BillingState } from "./billing";
 import { loadToken, loadState, saveState } from "./store";
 import { resolveSurface } from "./surface";
-import type { ServeResponse, Surface } from "@kbi/shared";
+import type { ServeResponse, Surface } from "@vibearning/shared";
 
-const API = process.env.KICKBACKS_API ?? "http://localhost:3000";
-const SURFACE = resolveSurface(process.env.KICKBACKS_SURFACE); // claude-code-terminal | codex-panel | gemini-cli-terminal | ...
+// Prod default; set VIBEARNING_API=http://localhost:3000 in the statusLine command for local dev.
+const API = process.env.VIBEARNING_API ?? "https://api.vibearning.in";
+const SURFACE = resolveSurface(process.env.VIBEARNING_SURFACE); // claude-code-terminal | codex-panel | gemini-cli-terminal | ...
 const ROTATION_COUNT = 3; // request the top-N ads and rotate through them
-const TIMEOUT_MS = 800; // keep the status line snappy
+// Per-request budget. 800ms was too aggressive: at session start Claude Code fires the statusLine
+// alongside a swarm of hooks, and a cold spawn + fetch under that CPU spike could abort before the
+// API answered (heartbeat showed "(no ad served)"). 1500ms keeps it snappy but tolerant of spikes.
+const TIMEOUT_MS = 1500;
 
 interface KillswitchProbe {
   active?: boolean;
@@ -43,10 +50,25 @@ export interface StatusLineDeps {
   timeoutMs?: number;
   /** Optional kill flag from a prior /config probe; when true, serve/bill nothing. */
   killActive?: boolean;
+  /** Diagnostics: called once with why this run rendered (or didn't) — for the heartbeat file. */
+  onDiagnostic?: (reason: string) => void;
 }
 
 function authHeaders(token: string | undefined): Record<string, string> {
   return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Style text for Claude Code's status line with real ANSI: **bold** always, plus the brand color
+ * (24-bit truecolor) when a valid hex is given. Terminals render ANSI bold using their own font —
+ * cleaner and copy-paste-safe vs. Unicode math-bold glyphs (which the VS Code editor status bar
+ * needs instead, since it can't render ANSI). So compose plain here and bold via ANSI.
+ */
+export function ansiStyle(text: string, hex?: string | null): string {
+  const codes = [1]; // SGR 1 = bold
+  const m = hex ? /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex) : null;
+  if (m) codes.push(38, 2, parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)); // truecolor fg
+  return `\x1b[${codes.join(";")}m${text}\x1b[0m`;
 }
 
 /**
@@ -62,7 +84,10 @@ function authHeaders(token: string | undefined): Record<string, string> {
  */
 export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
   // Killswitch: serve/bill nothing, leave the agent's own status line untouched.
-  if (deps.killActive) return "";
+  if (deps.killActive) {
+    deps.onDiagnostic?.("killswitch");
+    return "";
+  }
 
   const timeoutMs = deps.timeoutMs ?? TIMEOUT_MS;
   const rotationCount = deps.rotationCount ?? ROTATION_COUNT;
@@ -73,8 +98,12 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
       `${deps.api}/serve?surface=${deps.surface}&count=${rotationCount}`,
       { signal: controller.signal, headers: authHeaders(deps.token) },
     );
-    if (!res.ok) return "";
+    if (!res.ok) {
+      deps.onDiagnostic?.(`serve_http_${res.status}`);
+      return "";
+    }
     const ads = ((await res.json()) as { ads?: ServeResponse[]; ad?: ServeResponse | null }).ads ?? [];
+    if (ads.length === 0) deps.onDiagnostic?.("no_inventory");
 
     // Rotate through the top-N ads with conservative per-window billing. Attribution requires a
     // signed-in dev (token); anonymous impressions would forfeit to the platform, so we only post
@@ -100,11 +129,16 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
     }
     deps.saveState(nextState);
 
-    const line = composeStatusLine(ad);
-    if (line) deps.write(line);
+    // Compose PLAIN (no Unicode math-bold) for the terminal, then apply real ANSI bold + brand
+    // color. The returned value stays plain so callers and the heartbeat read clean text.
+    const line = composeStatusLine(ad, { bold: false });
+    if (line) deps.write(ansiStyle(line, ad?.brandColor));
+    if (line) deps.onDiagnostic?.("ok");
+    else if (ads.length > 0) deps.onDiagnostic?.("empty_line");
     return line;
   } catch {
     // swallow — never break the user's status line
+    deps.onDiagnostic?.("error_or_timeout");
     return "";
   } finally {
     clearTimeout(timer);
@@ -127,10 +161,30 @@ async function probeKillswitch(api: string, fetchFn: typeof fetch, timeoutMs: nu
   }
 }
 
+/**
+ * Diagnostics breadcrumb: overwrite a single small file each run so you can confirm Claude Code is
+ * actually invoking this status-line command (a fresh timestamp = it ran). Bounded (no growth),
+ * fail-safe — never affects the rendered line.
+ */
+function writeHeartbeat(line: string, surface: string, token: string | undefined, reason: string): void {
+  try {
+    const dir = join(homedir(), ".vibearning");
+    mkdirSync(dir, { recursive: true });
+    const signedIn = token ? "signed-in" : "anonymous";
+    writeFileSync(
+      join(dir, "statusline-last.txt"),
+      `${new Date().toISOString()}  [${surface}] [${signedIn}] [${reason}]  ${line || "(no line)"}\n`,
+    );
+  } catch {
+    /* diagnostics only */
+  }
+}
+
 async function main(): Promise<void> {
   const token = loadToken();
   const killActive = await probeKillswitch(API, fetch, TIMEOUT_MS);
-  await runStatusLine({
+  let reason = "ok";
+  const line = await runStatusLine({
     api: API,
     surface: SURFACE,
     token,
@@ -138,9 +192,11 @@ async function main(): Promise<void> {
     now: () => Date.now(),
     loadState,
     saveState,
-    write: (line) => process.stdout.write(line),
+    write: (l) => process.stdout.write(l),
     killActive,
+    onDiagnostic: (r) => { reason = r; },
   });
+  writeHeartbeat(line, SURFACE, token, reason);
 }
 
 // Only auto-run when executed as a script, not when imported by a test.

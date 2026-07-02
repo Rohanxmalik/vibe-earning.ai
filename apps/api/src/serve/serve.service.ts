@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
@@ -43,6 +43,10 @@ export class ServeService {
         adId: c.id,
         campaignId: c.id,
         copy: c.copy,
+        headline: c.headline,
+        tagline: c.tagline,
+        brandColor: c.brandColor,
+        emoji: c.emoji,
         url: c.url,
         iconUrl: c.iconUrl,
         isHouseAd: c.isHouseAd,

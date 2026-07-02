@@ -2,7 +2,7 @@ import { ResendNotifier } from "./resend.notifier";
 
 describe("ResendNotifier", () => {
   const OLD = process.env;
-  beforeEach(() => { process.env = { ...OLD, RESEND_API_KEY: "re_test", EMAIL_FROM: "Kickbacks <noreply@kickbacks.in>" }; });
+  beforeEach(() => { process.env = { ...OLD, RESEND_API_KEY: "re_test", EMAIL_FROM: "vibearning <noreply@vibearning.in>" }; });
   afterEach(() => { process.env = OLD; });
 
   it("POSTs the email to the Resend API with auth + from/to/subject/text", async () => {
@@ -15,7 +15,7 @@ describe("ResendNotifier", () => {
       headers: expect.objectContaining({ authorization: "Bearer re_test", "content-type": "application/json" }),
     }));
     const body = JSON.parse((http.mock.calls[0][1] as { body: string }).body);
-    expect(body).toMatchObject({ from: "Kickbacks <noreply@kickbacks.in>", to: "dev@x.com", subject: "Verify your email", text: "click here" });
+    expect(body).toMatchObject({ from: "vibearning <noreply@vibearning.in>", to: "dev@x.com", subject: "Verify your email", text: "click here" });
   });
 
   it("throws when the API responds non-ok", async () => {

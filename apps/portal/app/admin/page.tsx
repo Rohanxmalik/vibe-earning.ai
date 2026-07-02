@@ -4,6 +4,7 @@ import { PortalApi, type Campaign, type PayoutDestination, type AuditEntry } fro
 import { getAdminToken, setAdminToken, clearAdminToken } from "../../lib/token";
 import { Alert, Spinner, ConfirmButton } from "../../components/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { brandPreview } from "../../lib/brand";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000");
 
@@ -116,7 +117,10 @@ export default function AdminPage() {
                 {campaigns.map((c) => (
                   <li key={c.id} className="list-item">
                     <div className="item-main">
-                      <div className="item-copy">{c.copy}</div>
+                      <div className="item-copy" style={c.brandColor ? { color: c.brandColor } : undefined}>
+                        {c.brandColor && <span aria-hidden style={{ display: "inline-block", width: "0.6rem", height: "0.6rem", borderRadius: "50%", background: c.brandColor, marginRight: "0.4rem" }} />}
+                        {brandPreview({ emoji: c.emoji ?? undefined, headline: c.headline ?? undefined, tagline: c.tagline ?? undefined, copy: c.copy })}
+                      </div>
                       <div className="item-sub">{c.url}</div>
                     </div>
                     <button className="btn btn-primary btn-sm" onClick={() => approve(c.id)}>Approve</button>

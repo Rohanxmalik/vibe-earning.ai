@@ -1,4 +1,4 @@
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import type { SpinnerAdapter, WaitHandlers } from "../core/adapter";
 
 /** STUB — real impl pending (Gemini CLI terminal spinner line). See MANUAL-TEST.md. */

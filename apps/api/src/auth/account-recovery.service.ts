@@ -26,7 +26,7 @@ export class AccountRecoveryService {
     if (account) {
       const token = this.tokens.issuePurpose(account.id, "pwreset", RESET_TTL);
       const link = `${this.portalBase()}/reset?token=${token}`;
-      await this.notifier.send(email, "Reset your Kickbacks password", `Reset your password (valid 1 hour): ${link}`);
+      await this.notifier.send(email, "Reset your vibearning password", `Reset your password (valid 1 hour): ${link}`);
     }
     return { ok: true };
   }
@@ -44,7 +44,7 @@ export class AccountRecoveryService {
     if (!account?.email) throw new BadRequestException("no_email");
     const token = this.tokens.issuePurpose(accountId, "verify", VERIFY_TTL);
     const link = `${this.portalBase()}/verify?token=${token}`;
-    await this.notifier.send(account.email, "Verify your Kickbacks email", `Confirm your email (valid 24 hours): ${link}`);
+    await this.notifier.send(account.email, "Verify your vibearning email", `Confirm your email (valid 24 hours): ${link}`);
     return { ok: true };
   }
 

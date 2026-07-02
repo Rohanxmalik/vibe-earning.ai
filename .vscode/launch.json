@@ -6,10 +6,14 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "${workspaceFolder}/../kbi-edh-test",
+        "${workspaceFolder}",
         "--extensionDevelopmentPath=${workspaceFolder}/apps/extension"
       ],
-      "outFiles": ["${workspaceFolder}/apps/extension/dist/**/*.js"]
+      "outFiles": ["${workspaceFolder}/apps/extension/dist/**/*.js"],
+      "env": {
+        "VIBEARNING_API": "http://localhost:3000",
+        "VIBEARNING_PORTAL": "http://localhost:3001"
+      }
     }
   ]
 }

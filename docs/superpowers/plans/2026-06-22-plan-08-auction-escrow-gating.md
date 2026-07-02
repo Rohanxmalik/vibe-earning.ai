@@ -12,7 +12,7 @@
 
 > **Scope note:** This gates at serve time (the cheap, high-value win). Exact served-price/2nd-price accounting and a per-impression escrow reservation (to fully eliminate the serve→impression race) are deferred — the ledger already debits escrow per impression (Plan 05), so overspend is bounded to in-flight impressions.
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md) §8.
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md) §8.
 
 ---
 
@@ -35,7 +35,7 @@
   });
 ```
 
-- [ ] **Step 2: Run → FAIL** (`pnpm --filter @kbi/api test -- ranking`)
+- [ ] **Step 2: Run → FAIL** (`pnpm --filter @vibearning/api test -- ranking`)
 
 - [ ] **Step 3: Add `topCampaigns` to `ranking.service.ts`**
 
@@ -125,13 +125,13 @@ describe("ServeService", () => {
 });
 ```
 
-- [ ] **Step 2: Run → FAIL** (`pnpm --filter @kbi/api test -- serve.service`)
+- [ ] **Step 2: Run → FAIL** (`pnpm --filter @vibearning/api test -- serve.service`)
 
 - [ ] **Step 3: Rewrite `src/serve/serve.service.ts`**
 
 ```ts
 import { Injectable } from "@nestjs/common";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
@@ -242,7 +242,7 @@ describe("auction escrow-gating (e2e)", () => {
 });
 ```
 
-- [ ] **Step 2: Run the FULL api suite** — `pnpm --filter @kbi/api test` → all green.
+- [ ] **Step 2: Run the FULL api suite** — `pnpm --filter @vibearning/api test` → all green.
 
 - [ ] **Step 3: Commit**
 

@@ -1,29 +1,27 @@
-# Claude Handover — vibe-earning.ai (Kickbacks-India)
+# Claude Handover — vibe-earning.ai (vibearning)
 
 **Purpose:** Continue this work in a fresh Claude Code session on another device.
 **Branch:** `feat/cc-vscode-sponsored-line` (pushed to `origin`). Start there.
-**Last updated:** 2026-06-29.
+**Last updated:** 2026-07-02.
 
 ---
 
 ## TL;DR for the next Claude session
 
-1. **Claude Code TERMINAL/CLI ad-injection WORKS — verified live and earning.** Running `claude`
-   in a terminal shows our sponsored line in the status line, and a real impression bills
-   (escrow debit → developer credit). We watched earnings climb 25 → 100 paise on the dev
-   dashboard. This was the #1 launch blocker and it's done.
-2. **VS Code EXTENSION ad-injection is IN PROGRESS** (new feature). We wrote a spec + an
-   implementation plan and are executing it via subagent-driven TDD. **Tasks 1–2 are done and
-   reviewed; Tasks 3–7 remain.** Resume by continuing the plan from Task 3.
-3. To resume the build: read the plan at
-   `docs/superpowers/plans/2026-06-28-claude-code-vscode-sponsored-line.md` and continue with
-   the `superpowers:subagent-driven-development` skill from **Task 3: ThinkingWaitSource**.
+1. **Rebranded `Kickbacks`/`KBI` → `vibearning`** (all lowercase) across the whole codebase — npm scope `@vibearning/*`, env `VIBEARNING_*`, extension commands `vibearning.*`, token dir `~/.vibearning`. **Deliberately unchanged:** Postgres creds `kbi:kbi/kbi`, Docker containers `kickbacksaiforindia-*`, the folder path.
+2. **Claude Code TERMINAL/CLI ad-injection WORKS — verified live and earning** (status-line CLI, real impression billing).
+3. **VS Code EXTENSION is COMPLETE and packaged.** Full in-editor client, unit-tested (151 tests): transcript-driven wait detection, top-N rotation with round-robin, a rich **sidebar "vibearning" webview panel** (branded ad card + logo + live earnings + ▲ session ticker + "in rotation · up next" line-up), an always-on status-bar line, conservative billing. Packaged as **`apps/extension/vibearning.vsix`** (icon, LICENSE, README, prod-configurable `vibearning.apiUrl`/`portalUrl` settings, dev commands stripped).
+4. **Campaigns are multi-surface** — the portal targets Claude Code + Codex (one bid per surface). **Advertiser logo upload** works end-to-end (portal `LogoInput` → `POST /uploads/logo` → object storage).
+5. **Object storage is code-complete** — `BlobStorage` seam: `LocalDiskStorage` (dev) + **`S3Storage`** (prod: AWS S3 / R2 / Supabase; AWS SDK lazy-loaded). Set `VIBEARNING_STORAGE=s3` + bucket env to go live (`docs/launch/DEPLOY.md`).
+6. **What's left is EXTERNAL only** (no code blockers): deploy the backend (host + managed Postgres/Redis + a bucket), register a Marketplace publisher + PAT and `vsce publish`, and the legal/ToS/privacy read. See `LAUNCH_CHECKLIST.md` + `ENGINEERING_HANDOFF.md` §13.
+
+> ⚠️ **Dev-env footgun:** running the API jest suite (`apps/api`) **wipes the dev DB** (`jest.global-setup.js` `deleteMany`s every table). After any wipe / Redis restart, restore ad inventory with `node apps/api/scripts/seed-demo-ads.mjs`. Bring-up: Docker up → `docker start kickbacksaiforindia-postgres-1 kickbacksaiforindia-redis-1` → `npx nest start --watch` in `apps/api`.
 
 ---
 
 ## What the product is
 
-Kickbacks-India: an ad marketplace that shows a single **sponsored line while an AI coding
+vibearning: an ad marketplace that shows a single **sponsored line while an AI coding
 agent is "thinking"** (Claude Code, later Codex/Gemini). Indian developers earn (UPI payouts);
 advertisers pay per viewed impression via a conservative, fail-safe, second-price billing loop.
 
@@ -49,7 +47,7 @@ Mechanism (the official, ToS-safe path — no UI hacking):
 Wiring used (local-only, see setup below):
 - `.claude/settings.local.json` (gitignored) points `statusLine` at the built script using an
   **absolute node path** (the machine uses nvm-for-windows, so `node` isn't on Claude Code's PATH).
-- Token read from `~/.kickbacks/token`; API + surface default to localhost:3000 + claude-code-terminal,
+- Token read from `~/.vibearning/token`; API + surface default to localhost:3000 + claude-code-terminal,
   so **no env vars are needed** in the statusLine command.
 
 **Verified:** in a real `claude` terminal session the line rendered and the demo dev's earnings
@@ -65,15 +63,15 @@ house ad; only the funded one bills.
   (We changed the compose mapping to 5433; `apps/api/.env` `DATABASE_URL` must match 5433.)
 - Prisma migrations applied; Prisma client generated.
 - Seeds:
-  - `pnpm --filter @kbi/api seed` (with `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`) → admin + **house ads**
+  - `pnpm --filter @vibearning/api seed` (with `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`) → admin + **house ads**
     (one per surface, incl. `claude-code-terminal`). House ads show but never bill.
-  - `apps/api/scripts/seed-demo.mjs` (`pnpm --filter @kbi/api exec node scripts/seed-demo.mjs`) →
+  - `apps/api/scripts/seed-demo.mjs` (`pnpm --filter @vibearning/api exec node scripts/seed-demo.mjs`) →
     a **funded** dummy advertiser campaign on `claude-code-terminal` (₹50,000 escrow, 50 paise/impression),
     ranked above the house ad, so `/serve` returns a real "Sponsored" ad that bills.
 - Demo accounts created by the seeds (fresh local DB):
-  - admin: `admin@kbi.test` / `admin12345`
-  - dev (earnings demo): `demo-dev@kbi.test` / `Password123!` — its token is written to `~/.kickbacks/token`.
-  - advertiser `demo-advertiser@kbi.test` (no password; exists only to own the campaign).
+  - admin: `admin@vibearning.test` / `admin12345`
+  - dev (earnings demo): `demo-dev@vibearning.test` / `Password123!` — its token is written to `~/.vibearning/token`.
+  - advertiser `demo-advertiser@vibearning.test` (no password; exists only to own the campaign).
 
 ---
 
@@ -113,7 +111,7 @@ same way as the CLI path. Distinct ad surface: **`claude-code-panel`**.
 - ✅ Task 2 — `SessionLocator` (`projectSlug` + `findNewestTranscript`, injectable `LocatorFs`). (commits `4f20e9f`, `b5b2f5f`)
 - ✅ Task 3 — `ThinkingWaitSource` (the transcript-driven state machine). (commit `38697b3`) — review clean.
 - ✅ Task 4 — `StatusBarSink`. (commit `5086c24`) — review clean.
-- ✅ Task 5 — wired `extension.ts` (ad status item + open command, production watch/readLastLine deps, adapter selection by extension presence, token fallback to `~/.kickbacks/token`). (commit `9c1d9f5`) — lint+build clean, watcher-dispose chain verified.
+- ✅ Task 5 — wired `extension.ts` (ad status item + open command, production watch/readLastLine deps, adapter selection by extension presence, token fallback to `~/.vibearning/token`). (commit `9c1d9f5`) — lint+build clean, watcher-dispose chain verified.
 - ✅ Task 6 — seeded `claude-code-panel` inventory (`seed.mjs` house ad + `seed-demo.mjs` funded campaign on both surfaces). (commit `4fca7bb`) — **code only; the run+`curl` verify (plan steps 3-4) is DEFERRED to Task 7 because the local stack was down.**
 - ⬜ Task 7 — **manual end-to-end verification in the VS Code extension (F5 Extension Development Host). ← the only thing left, and it is the real gate.** Includes the deferred Task 6 steps: bring the stack up, run both seeders, and `curl "http://localhost:3000/serve?surface=claude-code-panel&count=3"` to confirm a funded panel ad serves; then confirm the status-bar line renders while Claude thinks, is clickable, and that `/ledger/me/stats` increments.
 - Polish commit `5c0b1c7`: added a positive `tool_use`-doesn't-end-turn test + documented the folderless-window adapter guard.
@@ -138,8 +136,8 @@ git checkout feat/cc-vscode-sponsored-line
 
 # 2. Install + build
 pnpm install
-pnpm --filter @kbi/shared build
-pnpm --filter @kbi/extension build      # produces apps/extension/dist/statusline.js
+pnpm --filter @vibearning/shared build
+pnpm --filter @vibearning/extension build      # produces apps/extension/dist/statusline.js
 
 # 3. API env (apps/api/.env is gitignored — create it)
 cp .env.example apps/api/.env           # then edit:
@@ -150,16 +148,16 @@ cp .env.example apps/api/.env           # then edit:
 
 # 4. Stack + DB
 docker compose up -d                     # Postgres :5433, Redis :6379
-pnpm --filter @kbi/api exec prisma migrate deploy
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/api exec prisma migrate deploy
+pnpm --filter @vibearning/api exec prisma generate
 
 # 5. Seed inventory (house ads + funded dummy campaign)
-SEED_ADMIN_EMAIL=admin@kbi.test SEED_ADMIN_PASSWORD=admin12345 pnpm --filter @kbi/api seed
-pnpm --filter @kbi/api exec node scripts/seed-demo.mjs
+SEED_ADMIN_EMAIL=admin@vibearning.test SEED_ADMIN_PASSWORD=admin12345 pnpm --filter @vibearning/api seed
+pnpm --filter @vibearning/api exec node scripts/seed-demo.mjs
 
 # 6. Run
-pnpm --filter @kbi/api dev               # API :3000
-pnpm --filter @kbi/portal dev            # Portal :3001
+pnpm --filter @vibearning/api dev               # API :3000
+pnpm --filter @vibearning/portal dev            # Portal :3001
 ```
 
 ### Recreate the local-only Claude wiring (NOT in git — per-machine)
@@ -169,11 +167,11 @@ These two artifacts are intentionally untracked and use absolute, machine-specif
 1. **Dev token** for earnings attribution — register a dev and save its token:
    ```bash
    curl -s -X POST http://localhost:3000/dev/register -H "content-type: application/json" \
-     -d '{"email":"demo-dev@kbi.test","password":"Password123!"}'
+     -d '{"email":"demo-dev@vibearning.test","password":"Password123!"}'
    # copy the "token" value, then:
-   mkdir -p ~/.kickbacks && printf '%s' '<TOKEN>' > ~/.kickbacks/token
+   mkdir -p ~/.vibearning && printf '%s' '<TOKEN>' > ~/.vibearning/token
    ```
-   (If `demo-dev@kbi.test` already exists, use `/dev/login` instead.)
+   (If `demo-dev@vibearning.test` already exists, use `/dev/login` instead.)
 
 2. **`.claude/settings.local.json`** (gitignored) — wire the CLI status line to the built script,
    using YOUR absolute node path and repo path:
@@ -192,7 +190,7 @@ These two artifacts are intentionally untracked and use absolute, machine-specif
      use the absolute path (e.g. `C:/nvm4w/nodejs/node.exe`) — `node` may not be on Claude Code's PATH.
    - Then **restart Claude Code** and run `claude` in a terminal. While it thinks, the sponsored line
      appears at the bottom; earnings climb on the portal dev dashboard
-     (`http://localhost:3001` → login `demo-dev@kbi.test` / `Password123!`).
+     (`http://localhost:3001` → login `demo-dev@vibearning.test` / `Password123!`).
 
 ---
 

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";

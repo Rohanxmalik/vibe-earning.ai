@@ -27,13 +27,19 @@ function newestIn(dir: string, fs: LocatorFs): { path: string; mtimeMs: number }
 }
 
 /**
- * Newest transcript for `cwd`: ONLY the exact slug dir for this workspace. We deliberately do
- * NOT fall back to the globally-newest transcript across other projects — that bleed lets the
- * ad track an unrelated Claude session (e.g. another window, or a CLI session in a different
- * repo), so it would show while THIS workspace is idle. Returns null when this workspace has
- * no transcript yet (so the ad stays hidden until the user actually prompts here).
+ * Newest transcript for `cwd`: ONLY this workspace's slug dir. We deliberately do NOT fall back to
+ * the globally-newest transcript across other projects — that bleed lets the ad track an unrelated
+ * Claude session (another window / a different repo), so it would show while THIS workspace is idle.
+ *
+ * The slug is matched **case-insensitively** against the real project dirs: VS Code's `uri.fsPath`
+ * uppercases the Windows drive letter (`C:\…`) while Claude Code stores the folder lowercased
+ * (`c--…`), so an exact match would silently miss the transcript and the ad would never show.
+ * Returns null when this workspace has no transcript yet (ad stays hidden until the user prompts).
  */
 export function findNewestTranscript(cwd: string, fs: LocatorFs): string | null {
   const projects = join(fs.homedir(), ".claude", "projects");
-  return newestIn(join(projects, projectSlug(cwd)), fs)?.path ?? null;
+  const want = projectSlug(cwd).toLowerCase();
+  const dir = fs.listDirs(projects).find((d) => d.toLowerCase() === want);
+  if (!dir) return null;
+  return newestIn(join(projects, dir), fs)?.path ?? null;
 }

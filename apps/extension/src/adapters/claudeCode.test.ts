@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { ClaudeCodeAdapter, detectClaudeCode, type StatusSink } from "./claudeCode";
 import { boldText } from "../statusline/compose";
 import type { WaitHandlers } from "../core/adapter";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 const paidAd: ServeResponse = {
   adId: "a1", campaignId: "c1", copy: "TurboDB — ship faster", url: "https://turbo.dev", iconUrl: null, isHouseAd: false,
 };
-const houseAd: ServeResponse = { ...paidAd, campaignId: "house", copy: "Try Kickbacks", isHouseAd: true };
+const houseAd: ServeResponse = { ...paidAd, campaignId: "house", copy: "Try vibearning", isHouseAd: true };
 
 function fakeSink() {
   const lines: string[] = [];
@@ -67,7 +67,7 @@ describe("ClaudeCodeAdapter", () => {
   it("renders a house ad without the Sponsored label", () => {
     const { sink, last } = fakeSink();
     new ClaudeCodeAdapter({ sink }).render(houseAd);
-    expect(last()).toBe(boldText("Try Kickbacks · turbo.dev"));
+    expect(last()).toBe(boldText("Try vibearning · turbo.dev"));
   });
 
   it("respects a configured maxLen (visible code points)", () => {

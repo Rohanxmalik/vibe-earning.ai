@@ -26,8 +26,8 @@ describe("/serve (e2e)", () => {
     await prisma.campaign.deleteMany();
     const house = await prisma.campaign.create({
       data: {
-        copy: "Powered by Kickbacks-India",
-        headline: "Kickbacks",
+        copy: "Powered by vibearning",
+        headline: "vibearning",
         tagline: "Earn while your AI thinks",
         brandColor: "#8B2CF5",
         emoji: "⚡",
@@ -42,7 +42,7 @@ describe("/serve (e2e)", () => {
 
   it("serves the house ad for a valid surface", async () => {
     const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
-    expect(res.body.ad).toMatchObject({ copy: "Powered by Kickbacks-India", isHouseAd: true });
+    expect(res.body.ad).toMatchObject({ copy: "Powered by vibearning", isHouseAd: true });
   });
 
   it("returns an ads[] rotation list (capped by count)", async () => {
@@ -55,7 +55,7 @@ describe("/serve (e2e)", () => {
   it("returns the structured brand fields (headline/tagline/brandColor/emoji) on the wire", async () => {
     const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
     expect(res.body.ad).toMatchObject({
-      headline: "Kickbacks",
+      headline: "vibearning",
       tagline: "Earn while your AI thinks",
       brandColor: "#8B2CF5",
       emoji: "⚡",

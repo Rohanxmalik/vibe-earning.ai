@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Post, Req } from "@nestjs/common";
-import { devRegisterSchema, devLoginSchema } from "@kbi/shared";
+import { devRegisterSchema, devLoginSchema } from "@vibearning/shared";
 import { countryFromRequest } from "../me/geo";
 import { DevAuthService } from "./dev-auth.service";
 

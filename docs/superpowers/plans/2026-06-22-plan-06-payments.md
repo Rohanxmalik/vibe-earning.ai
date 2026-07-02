@@ -12,7 +12,7 @@
 
 > **Known follow-ups (noted, not in scope):** real Stripe/Razorpay SDK integration + KYC/onboarding; a pending-payout lock to prevent double-withdraw under concurrency; advertiser collect flow (Plan 07).
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md) §9.
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md) §9.
 
 ---
 
@@ -66,8 +66,8 @@ model Payout {
 - [ ] **Step 3: Apply + regenerate**
 
 ```bash
-pnpm --filter @kbi/api exec prisma db push
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/api exec prisma db push
+pnpm --filter @vibearning/api exec prisma generate
 ```
 
 - [ ] **Step 4: Commit**
@@ -164,7 +164,7 @@ describe("PaymentRouter", () => {
 });
 ```
 
-- [ ] **Step 6: Run to verify fail** — `pnpm --filter @kbi/api test -- payment-router` → FAIL
+- [ ] **Step 6: Run to verify fail** — `pnpm --filter @vibearning/api test -- payment-router` → FAIL
 
 - [ ] **Step 7: Implement `src/payments/payment-router.ts`**
 
@@ -187,7 +187,7 @@ export class PaymentRouter {
 }
 ```
 
-- [ ] **Step 8: Run to verify pass** — `pnpm --filter @kbi/api test -- payment-router` → PASS (3)
+- [ ] **Step 8: Run to verify pass** — `pnpm --filter @vibearning/api test -- payment-router` → PASS (3)
 
 - [ ] **Step 9: Commit**
 
@@ -221,7 +221,7 @@ git commit -m "feat(api): PaymentProvider abstraction + country router (stripe/r
   });
 ```
 
-- [ ] **Step 2: Run to verify fail** — `pnpm --filter @kbi/api test -- ledger.service` → FAIL (recordPayout not a function)
+- [ ] **Step 2: Run to verify fail** — `pnpm --filter @vibearning/api test -- ledger.service` → FAIL (recordPayout not a function)
 
 - [ ] **Step 3: Add `recordPayout` to `src/ledger/ledger.service.ts`** (new method)
 
@@ -240,7 +240,7 @@ git commit -m "feat(api): PaymentProvider abstraction + country router (stripe/r
   }
 ```
 
-- [ ] **Step 4: Run to verify pass** — `pnpm --filter @kbi/api test -- ledger.service` → PASS (9)
+- [ ] **Step 4: Run to verify pass** — `pnpm --filter @vibearning/api test -- ledger.service` → PASS (9)
 
 - [ ] **Step 5: Commit**
 
@@ -318,7 +318,7 @@ describe("PayoutService", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify fail** — `pnpm --filter @kbi/api test -- payout.service` → FAIL
+- [ ] **Step 2: Run to verify fail** — `pnpm --filter @vibearning/api test -- payout.service` → FAIL
 
 - [ ] **Step 3: Implement `src/payments/payout.service.ts`**
 
@@ -362,7 +362,7 @@ export class PayoutService {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass** — `pnpm --filter @kbi/api test -- payout.service` → PASS (3)
+- [ ] **Step 4: Run to verify pass** — `pnpm --filter @vibearning/api test -- payout.service` → PASS (3)
 
 - [ ] **Step 5: Commit**
 
@@ -483,7 +483,7 @@ describe("/payouts (e2e)", () => {
 });
 ```
 
-- [ ] **Step 5: Run the FULL api suite** — `pnpm --filter @kbi/api test`
+- [ ] **Step 5: Run the FULL api suite** — `pnpm --filter @vibearning/api test`
 Expected: all suites green (Plans 01–05 + payment-router, payout.service, payouts.e2e, ledger recordPayout).
 
 - [ ] **Step 6: Commit**

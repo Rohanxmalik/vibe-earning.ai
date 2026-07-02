@@ -1,7 +1,7 @@
-import type { CreateCampaign, EditCampaign, PayoutDestinationInput } from "@kbi/shared";
+import type { CreateCampaign, EditCampaign, PayoutDestinationInput } from "@vibearning/shared";
 
 export interface AuthResult { token: string; account: { id: string; email: string | null; type: string } }
-export interface Campaign { id: string; copy: string; headline?: string | null; tagline?: string | null; brandColor?: string | null; emoji?: string | null; url: string; surface?: string; status?: string; createdAt?: string }
+export interface Campaign { id: string; copy: string; headline?: string | null; tagline?: string | null; brandColor?: string | null; emoji?: string | null; iconUrl?: string | null; url: string; surface?: string; status?: string; createdAt?: string }
 export interface DailySpend { date: string; spendPaise: number }
 export interface LedgerSummary { balancePaise: number; currency: string; validImpressions: number }
 export interface LedgerStats { todayPaise: number; monthPaise: number; lifetimePaise: number; validImpressions: number; currency: string }
@@ -126,6 +126,11 @@ export class PortalApi {
   }
   createCampaign(dto: CreateCampaign): Promise<{ id: string }> {
     return this.req("/advertiser/campaigns", { method: "POST", body: JSON.stringify(dto) });
+  }
+  /** Upload a logo (the file as a data URI) to object storage; returns the hosted URL. */
+  async uploadLogo(dataUrl: string): Promise<string> {
+    const { url } = await this.req<{ url: string }>("/uploads/logo", { method: "POST", body: JSON.stringify({ dataUrl }) });
+    return url;
   }
   listCampaigns(): Promise<Campaign[]> {
     return this.req("/advertiser/campaigns", { method: "GET" });

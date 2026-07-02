@@ -64,7 +64,7 @@ describe("ApiClient", () => {
     expect(await offline.fetchStats()).toBeNull();
   });
 
-  it("loginWithGoogle posts the idToken and returns the KBI token", async () => {
+  it("loginWithGoogle posts the idToken and returns the vibearning token", async () => {
     const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ token: "kbi.jwt", account: { id: "a", email: null, type: "dev" } }));
     const c = new ApiClient("http://api", fetchFn as unknown as typeof fetch);
     expect(await c.loginWithGoogle("idtok")).toBe("kbi.jwt");

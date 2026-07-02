@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-// Opt-in browser E2E for the portal. Run with: pnpm --filter @kbi/portal test:e2e
+// Opt-in browser E2E for the portal. Run with: pnpm --filter @vibearning/portal test:e2e
 // (requires `npx playwright install chromium` once). Not part of `pnpm test`/CI vitest.
 const PORT = 3101;
 

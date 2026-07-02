@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Render the Kickbacks sponsored line in VS Code's status bar while Claude Code works in the editor panel, billing one impression per ad-window — reusing the existing Orchestrator/billing loop, leaving the terminal/CLI path unchanged.
+**Goal:** Render the vibearning sponsored line in VS Code's status bar while Claude Code works in the editor panel, billing one impression per ad-window — reusing the existing Orchestrator/billing loop, leaving the terminal/CLI path unchanged.
 
 **Architecture:** Fill the two no-op seams of the existing `ClaudeCodeAdapter`: a `WaitSource` that detects "thinking" by watching the Claude session transcript (`~/.claude/projects/**/*.jsonl`), and a `StatusSink` that renders into a VS Code `StatusBarItem`. Wire them in `extension.ts`, selecting the in-editor adapter when the Claude Code extension is installed (env-var detection does NOT fire in the extension host). The in-editor adapter serves the `claude-code-panel` surface (distinct from `claude-code-terminal`).
 
@@ -10,7 +10,7 @@
 
 **Branch:** `feat/cc-vscode-sponsored-line` (already created).
 
-**Working dir for all `pnpm`/`vitest` commands:** `apps/extension` unless noted. Run tests with `pnpm --filter @kbi/extension test` (or `npx vitest run <file>` inside `apps/extension`).
+**Working dir for all `pnpm`/`vitest` commands:** `apps/extension` unless noted. Run tests with `pnpm --filter @vibearning/extension test` (or `npx vitest run <file>` inside `apps/extension`).
 
 ---
 
@@ -116,7 +116,7 @@ Expected: PASS (all).
 
 - [ ] **Step 6: Run the full extension suite to confirm nothing else regressed**
 
-Run: `pnpm --filter @kbi/extension test`
+Run: `pnpm --filter @vibearning/extension test`
 Expected: PASS. (CLI/terminal tests still assert `claude-code-terminal` — unchanged and green.)
 
 - [ ] **Step 7: Commit**
@@ -639,11 +639,11 @@ Immediately after the existing earnings `status` item block (`status.show();`), 
 ```ts
   // The sponsored line gets its OWN status bar item, shown only while Claude is thinking.
   const adItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-  adItem.tooltip = "Sponsored via Kickbacks — click to open. You earn while your AI works.";
-  adItem.command = "kickbacks.openSponsor";
+  adItem.tooltip = "Sponsored via vibearning — click to open. You earn while your AI works.";
+  adItem.command = "vibearning.openSponsor";
   const sink = new StatusBarSink(adItem);
 
-  const openSponsor = vscode.commands.registerCommand("kickbacks.openSponsor", () => {
+  const openSponsor = vscode.commands.registerCommand("vibearning.openSponsor", () => {
     const url = sink.currentUrl();
     if (url) void vscode.env.openExternal(vscode.Uri.parse(url));
   });
@@ -764,7 +764,7 @@ Add `adItem` and `openSponsor` to the final `context.subscriptions.push(...)` ca
 
 In `apps/extension/package.json`, add to `contributes.commands`:
 ```json
-      { "command": "kickbacks.openSponsor", "title": "Kickbacks: Open the current sponsor" }
+      { "command": "vibearning.openSponsor", "title": "vibearning: Open the current sponsor" }
 ```
 
 - [ ] **Step 8: Typecheck + build**
@@ -774,7 +774,7 @@ Expected: no TS errors; `dist/extension.js` rebuilt.
 
 - [ ] **Step 9: Run the full extension suite**
 
-Run: `pnpm --filter @kbi/extension test`
+Run: `pnpm --filter @vibearning/extension test`
 Expected: PASS.
 
 - [ ] **Step 10: Commit**
@@ -796,7 +796,7 @@ git commit -m "feat(ext): wire in-editor sponsored line (status bar + transcript
 
 In `apps/api/scripts/seed.mjs`, add to the `HOUSE_ADS` array (use a DISTINCT copy — the seeder dedupes by copy):
 ```js
-  { copy: "Earn while Claude works — kickbacks.in", url: "https://kickbacks.in", surface: "claude-code-panel" },
+  { copy: "Earn while Claude works — vibearning.in", url: "https://vibearning.in", surface: "claude-code-panel" },
 ```
 
 - [ ] **Step 2: Add a funded panel campaign to the demo seeder**
@@ -813,9 +813,9 @@ const ESCROW_PAISE = 5_000_000; // ₹50,000 of dummy budget per campaign
 and replace `main()` with a loop over `DEMOS`:
 ```js
 async function seedOne({ surface, copy, url }) {
-  let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@kbi.test", type: "advertiser" } });
+  let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@vibearning.test", type: "advertiser" } });
   if (!advertiser) {
-    advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@kbi.test", emailVerified: true } });
+    advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@vibearning.test", emailVerified: true } });
     console.log(`[demo] created advertiser ${advertiser.id}`);
   }
 
@@ -855,8 +855,8 @@ async function main() {
 Ensure Postgres/Redis/API are up (Task 7 covers starting them if not). Then:
 ```bash
 cd <repo root>
-SEED_ADMIN_EMAIL=admin@kbi.test SEED_ADMIN_PASSWORD=admin12345 pnpm --filter @kbi/api seed
-pnpm --filter @kbi/api exec node scripts/seed-demo.mjs
+SEED_ADMIN_EMAIL=admin@vibearning.test SEED_ADMIN_PASSWORD=admin12345 pnpm --filter @vibearning/api seed
+pnpm --filter @vibearning/api exec node scripts/seed-demo.mjs
 ```
 Expected: log lines creating a `claude-code-panel` house ad and a funded `claude-code-panel` campaign.
 
@@ -883,14 +883,14 @@ git commit -m "feat(api): seed house + funded inventory on claude-code-panel"
 ```bash
 cd <repo root>
 docker compose up -d                       # Postgres :5433, Redis :6379
-pnpm --filter @kbi/api dev                 # API :3000 (leave running)
+pnpm --filter @vibearning/api dev                 # API :3000 (leave running)
 ```
 Confirm: `curl "http://localhost:3000/serve?surface=claude-code-panel&count=1"` returns a funded ad.
 
 - [ ] **Step 2: Build the extension**
 
 ```bash
-pnpm --filter @kbi/extension build
+pnpm --filter @vibearning/extension build
 ```
 
 - [ ] **Step 3: Launch the dev extension**
@@ -910,7 +910,7 @@ Expected:
 
 After the line has been visible ≥5s during a turn:
 ```bash
-TOKEN=$(cat ~/.kickbacks/token)
+TOKEN=$(cat ~/.vibearning/token)
 curl -s "http://localhost:3000/ledger/me/stats" -H "authorization: Bearer $TOKEN"
 ```
 Expected: `validImpressions` / `lifetimePaise` increased (panel impressions now credited to the demo dev). The CLI/terminal path still works independently.

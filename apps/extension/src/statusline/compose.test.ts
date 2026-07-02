@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { composeStatusLine, boldText } from "./compose";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 const ad = (over: Partial<ServeResponse> = {}): ServeResponse => ({
   adId: "a1", campaignId: "c1", copy: "Ship faster with TurboDB", url: "https://turbodb.example.com/start", iconUrl: null, isHouseAd: false, ...over,

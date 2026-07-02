@@ -44,4 +44,10 @@ describe("findNewestTranscript", () => {
   it("returns null when there are no transcripts anywhere", () => {
     expect(findNewestTranscript("/work/proj", makeFs({}))).toBeNull();
   });
+
+  it("matches the slug case-insensitively (VS Code uppercases the drive letter; Claude lowercases it)", () => {
+    const stored = join(PROJECTS, "c--users-dev-proj"); // Claude stored it lowercased
+    const fs = makeFs({ [stored]: [{ name: "t.jsonl", mtimeMs: 10 }] });
+    expect(findNewestTranscript("C:\\users\\dev\\proj", fs)).toBe(join(stored, "t.jsonl")); // we get an uppercase drive
+  });
 });

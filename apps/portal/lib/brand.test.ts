@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { firstEmoji, deriveCopy, brandPreview, lowContrastWarning } from "./brand";
+import { firstEmoji, deriveCopy, brandPreview, lowContrastWarning, logoFileError, LOGO_MAX_BYTES } from "./brand";
+
+describe("logoFileError", () => {
+  it("accepts a small png/svg image", () => {
+    expect(logoFileError({ type: "image/png", size: 4000 })).toBeNull();
+    expect(logoFileError({ type: "image/svg+xml", size: 1200 })).toBeNull();
+  });
+  it("rejects a non-image type", () => {
+    expect(logoFileError({ type: "application/pdf", size: 100 })).toMatch(/PNG, JPG/);
+  });
+  it("rejects an image over the 32KB cap", () => {
+    expect(logoFileError({ type: "image/png", size: LOGO_MAX_BYTES + 1 })).toMatch(/too large/);
+  });
+});
 
 describe("firstEmoji", () => {
   it("keeps a single emoji", () => {

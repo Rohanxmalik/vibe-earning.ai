@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
-import { passwordResetRequestSchema, passwordResetSchema, verifyEmailSchema } from "@kbi/shared";
+import { passwordResetRequestSchema, passwordResetSchema, verifyEmailSchema } from "@vibearning/shared";
 import { AccountRecoveryService } from "./account-recovery.service";
 import { AuthGuard } from "./auth.guard";
 

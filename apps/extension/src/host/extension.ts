@@ -11,20 +11,27 @@ import { firstAvailable } from "../adapters/registry";
 import type { SpinnerAdapter } from "../core/adapter";
 import { ClaudeCodeAdapter } from "../adapters/claudeCode";
 import { StatusBarSink } from "./statusBarSink";
+import { vibearningViewProvider } from "./webviewView";
 import { createThinkingWaitSource, stateLineWithStaleness, type TranscriptLine } from "./thinkingWaitSource";
 import { findNewestTranscript, type LocatorFs } from "./sessionLocator";
 import { loadToken } from "../statusline/store";
+import { formatEarnings, formatStatusEarnings, sessionEarned } from "./earnings";
 
-const API_BASE = process.env.KICKBACKS_API ?? "http://localhost:3000";
-const PORTAL_BASE = process.env.KICKBACKS_PORTAL ?? "http://localhost:3001";
-const INSTALL_KEY = "kickbacks.installId";
+const INSTALL_KEY = "vibearning.installId";
 
-/** Format paise as rupees, e.g. 12345 -> "₹123.45". */
-function formatEarnings(paise: number): string {
-  return `₹${(paise / 100).toFixed(2)}`;
+/** Resolve a base URL: explicit env override → VS Code setting (prod default) → hardcoded fallback. */
+function resolveBase(envVar: string | undefined, settingKey: string, fallback: string): string {
+  const setting = vscode.workspace.getConfiguration("vibearning").get<string>(settingKey);
+  return (envVar ?? (setting && setting.trim()) ?? fallback).replace(/\/+$/, "");
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  // API/portal endpoints. A published build talks to the hosted prod API via the setting default;
+  // set `VIBEARNING_API`/`VIBEARNING_PORTAL` (or the `vibearning.apiUrl`/`portalUrl` settings) to
+  // point at localhost during development.
+  const API_BASE = resolveBase(process.env.VIBEARNING_API, "apiUrl", "https://api.vibearning.in");
+  const PORTAL_BASE = resolveBase(process.env.VIBEARNING_PORTAL, "portalUrl", "https://vibearning.in");
+
   // Stable per-install id.
   let installId = context.globalState.get<string>(INSTALL_KEY);
   if (!installId) {
@@ -32,9 +39,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await context.globalState.update(INSTALL_KEY, installId);
   }
 
-  let cachedToken: string | undefined = await context.secrets.get("kickbacks.authToken");
+  let cachedToken: string | undefined = await context.secrets.get("vibearning.authToken");
   const tokenSub = context.secrets.onDidChange(async (e) => {
-    if (e.key === "kickbacks.authToken") cachedToken = await context.secrets.get("kickbacks.authToken");
+    if (e.key === "vibearning.authToken") cachedToken = await context.secrets.get("vibearning.authToken");
   });
 
   const api = new ApiClient(API_BASE, fetch, () => cachedToken ?? loadToken());
@@ -43,38 +50,56 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const isSignedIn = (): boolean => Boolean(cachedToken ?? loadToken());
 
+  // Rich sidebar surface (Activity-Bar "vibearning" view): a branded ad card + live earnings,
+  // mirroring the same ad the status-bar line shows. Registered up front so it can repaint
+  // whenever the user opens the panel.
+  const viewProvider = new vibearningViewProvider(context.extensionUri);
+  const viewReg = vscode.window.registerWebviewViewProvider(
+    vibearningViewProvider.viewType,
+    viewProvider,
+    { webviewOptions: { retainContextWhenHidden: true } },
+  );
+
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  status.command = "kickbacks.openDashboard";
+  status.command = "vibearning.openDashboard";
   status.show();
 
   // Live earnings: read the real lifetime total from the ledger (persists across reopen),
   // and refresh it whenever an impression bills + on the periodic poll. When signed out, the
-  // item becomes a sign-in call-to-action instead of showing a meaningless ₹0.00.
+  // item becomes a sign-in call-to-action instead of showing a meaningless ₹0.00. The always-on
+  // item also carries a ▲ "this session" delta — earnings grown since the first reading this run —
+  // so a glance is rewarded without nagging.
+  let sessionBaseline: number | null = null; // lifetime paise at the first signed-in reading this run
   const refreshEarnings = async (): Promise<void> => {
     if (!isSignedIn()) {
-      status.text = "$(sign-in) Kickbacks · Sign in to earn";
+      status.text = "$(sign-in) vibearning · Sign in to earn";
       status.tooltip = "Sign in to attribute the sponsored line to you and start earning — click to sign in.";
-      status.command = "kickbacks.signIn";
+      status.command = "vibearning.signIn";
+      viewProvider.setEarnings("Sign in to earn", false);
       return;
     }
-    status.tooltip = "Your Kickbacks earnings — click to open your dashboard";
-    status.command = "kickbacks.openDashboard";
+    status.command = "vibearning.openDashboard";
     const stats = await api.fetchStats();
-    status.text = `$(rocket) Kickbacks ${formatEarnings(stats?.lifetimePaise ?? 0)}`;
+    const lifetime = stats?.lifetimePaise ?? 0;
+    if (stats && sessionBaseline === null) sessionBaseline = lifetime; // first real reading = baseline
+    const session = sessionEarned(lifetime, sessionBaseline);
+    status.text = formatStatusEarnings(lifetime, session);
+    status.tooltip = `Lifetime ${formatEarnings(lifetime)} · This session ${formatEarnings(session)} — click to open your dashboard`;
+    viewProvider.setEarnings(formatEarnings(lifetime), true, session > 0 ? formatEarnings(session) : undefined);
   };
   void refreshEarnings();
 
-  const openDashboard = vscode.commands.registerCommand("kickbacks.openDashboard", () => {
+  const openDashboard = vscode.commands.registerCommand("vibearning.openDashboard", () => {
     void vscode.env.openExternal(vscode.Uri.parse(PORTAL_BASE));
   });
 
   // The sponsored line gets its OWN status bar item, shown only while Claude is thinking.
   const adItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-  adItem.tooltip = "Sponsored via Kickbacks — click to open. You earn while your AI works.";
-  adItem.command = "kickbacks.openSponsor";
+  adItem.tooltip = "Sponsored via vibearning — click to open. You earn while your AI works.";
+  adItem.command = "vibearning.openSponsor";
   const sink = new StatusBarSink(adItem);
 
-  const openSponsor = vscode.commands.registerCommand("kickbacks.openSponsor", () => {
+  const openSponsor = vscode.commands.registerCommand("vibearning.openSponsor", () => {
     const url = sink.currentUrl();
     if (url) void vscode.env.openExternal(vscode.Uri.parse(url));
   });
@@ -83,7 +108,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const mock = new MockAdapter();
   const adapter: SpinnerAdapter = buildInEditorAdapter(sink) ?? firstAvailable(mock);
 
-  const ROTATION_CURSOR_KEY = "kickbacks.rotationCursor";
+  const ROTATION_CURSOR_KEY = "vibearning.rotationCursor";
   const orch = new Orchestrator({
     adapter, api, tracker, killswitch, installId,
     now: () => Date.now(),
@@ -91,6 +116,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     rotationCount: 3,
     holdScheduleMs: [45_000, 30_000, 15_000],
     onEarn: () => { void refreshEarnings(); }, // each billed impression updates the live total
+    onShow: (ad, ctx) => viewProvider.showAd(ad, ctx), // live ad + full line-up → sidebar card
+    onHide: () => viewProvider.clearAd(),       // wait ended → sidebar slot goes idle
     // Resume rotation where it left off (round-robin) — persisted across turns AND reloads, so
     // short turns still cycle every advertiser instead of always re-showing the highest-bid ad.
     loadCursor: () => context.globalState.get<number>(ROTATION_CURSOR_KEY) ?? -1,
@@ -104,19 +131,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Pause/resume view time with window focus.
   const focusSub = vscode.window.onDidChangeWindowState((s) => orch.onFocusChange(s.focused));
 
-  // Dev commands to drive the MockAdapter for manual end-to-end testing.
-  const simulate = vscode.commands.registerCommand("kickbacks.simulateWait", () => mock.fireWaitStart());
-  const endWait = vscode.commands.registerCommand("kickbacks.endWait", () => mock.fireWaitEnd());
-
   // Sign in with an email + password (the same developer account used on the web portal).
   // No external OAuth setup needed; the token attributes the sponsored line to this dev.
-  const signIn = vscode.commands.registerCommand("kickbacks.signIn", async () => {
+  const signIn = vscode.commands.registerCommand("vibearning.signIn", async () => {
     const mode = await vscode.window.showQuickPick(
       [
-        { label: "$(sign-in) Log in", detail: "I already have a Kickbacks developer account", value: "login" as const },
+        { label: "$(sign-in) Log in", detail: "I already have a vibearning developer account", value: "login" as const },
         { label: "$(person-add) Create account", detail: "New here — sign up to start earning", value: "register" as const },
       ],
-      { placeHolder: "Kickbacks — sign in to attribute your earnings", matchOnDetail: true },
+      { placeHolder: "vibearning — sign in to attribute your earnings", matchOnDetail: true },
     );
     if (!mode) return;
     const email = await vscode.window.showInputBox({
@@ -138,30 +161,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         mode.value === "register"
           ? await api.devRegister(email.trim(), password)
           : await api.devLogin(email.trim(), password);
-      await context.secrets.store("kickbacks.authToken", token);
+      await context.secrets.store("vibearning.authToken", token);
       cachedToken = token; // update immediately (don't wait for the secrets change event)
       void refreshEarnings();
-      void vscode.window.showInformationMessage("Kickbacks: signed in — you'll now earn while your AI works.");
+      void vscode.window.showInformationMessage("vibearning: signed in — you'll now earn while your AI works.");
     } catch (err) {
-      void vscode.window.showErrorMessage(`Kickbacks: ${friendlyAuthError(err)}`);
+      void vscode.window.showErrorMessage(`vibearning: ${friendlyAuthError(err)}`);
     }
   });
 
-  const signOut = vscode.commands.registerCommand("kickbacks.signOut", async () => {
-    await context.secrets.delete("kickbacks.authToken");
+  const signOut = vscode.commands.registerCommand("vibearning.signOut", async () => {
+    await context.secrets.delete("vibearning.authToken");
     cachedToken = undefined;
+    sessionBaseline = null; // re-baseline the session ticker on the next sign-in
     void refreshEarnings();
-    void vscode.window.showInformationMessage("Kickbacks: signed out.");
+    void vscode.window.showInformationMessage("vibearning: signed out.");
   });
 
   // First-run nudge: if signed out, offer a one-click way into the sign-in flow.
   if (!isSignedIn()) {
     void vscode.window
-      .showInformationMessage("Kickbacks: sign in to earn while your AI works.", "Sign in")
-      .then((choice) => { if (choice === "Sign in") void vscode.commands.executeCommand("kickbacks.signIn"); });
+      .showInformationMessage("vibearning: sign in to earn while your AI works.", "Sign in")
+      .then((choice) => { if (choice === "Sign in") void vscode.commands.executeCommand("vibearning.signIn"); });
   }
 
-  context.subscriptions.push(status, adItem, openSponsor, openDashboard, focusSub, tokenSub, simulate, endWait, signIn, signOut, { dispose: () => { clearInterval(timer); orch.stop(); } });
+  context.subscriptions.push(status, adItem, viewReg, openSponsor, openDashboard, focusSub, tokenSub, signIn, signOut, { dispose: () => { clearInterval(timer); orch.stop(); } });
 }
 
 /** Map an AuthError code (or unknown error) to a friendly, actionable message. */
@@ -173,7 +197,7 @@ function friendlyAuthError(err: unknown): string {
     case "invalid_credentials":
       return "Wrong email or password.";
     case "network_error":
-      return "Couldn’t reach Kickbacks — check your connection and try again.";
+      return "Couldn’t reach vibearning — check your connection and try again.";
     default:
       return "Sign-in failed. Please try again.";
   }
@@ -259,8 +283,9 @@ function buildInEditorAdapter(sink: StatusBarSink): SpinnerAdapter | null {
     }
     // Belt-and-suspenders: VS Code file watchers are unreliable for paths OUTSIDE the
     // workspace (the transcripts live under ~/.claude, not the open folder), so also poll.
-    // onChange is idempotent/level-triggered, so the extra calls are safe.
-    const poll = setInterval(onChange, 1500);
+    // onChange is idempotent/level-triggered, so the extra calls are safe. 700ms keeps the ad
+    // appearing soon after a turn starts without much idle CPU.
+    const poll = setInterval(onChange, 700);
     return () => {
       clearInterval(poll);
       disposeWatcher();

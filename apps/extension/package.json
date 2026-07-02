@@ -1,36 +1,61 @@
 {
-  "name": "@kbi/extension",
-  "displayName": "Kickbacks-India",
+  "name": "vibearning",
+  "displayName": "vibearning",
   "description": "Earn for the sponsored line shown while your AI coding agent thinks. Paid to Indian developers via UPI.",
-  "version": "0.0.0",
-  "private": true,
-  "publisher": "kickbacks",
-  "license": "UNLICENSED",
+  "version": "0.1.0",
+  "publisher": "vibearning",
+  "license": "SEE LICENSE IN LICENSE",
   "categories": ["Other"],
   "keywords": ["ai", "claude", "codex", "gemini", "earn", "ads"],
   "repository": { "type": "git", "url": "https://github.com/Rohanxmalik/vibe-earning.ai.git" },
   "homepage": "https://github.com/Rohanxmalik/vibe-earning.ai#readme",
   "galleryBanner": { "color": "#18181b", "theme": "dark" },
+  "icon": "media/icon.png",
   "engines": { "vscode": "^1.90.0" },
   "main": "./dist/extension.js",
   "activationEvents": ["onStartupFinished"],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "vibearning", "title": "vibearning", "icon": "media/vibearning.svg" }
+      ]
+    },
+    "views": {
+      "vibearning": [
+        { "type": "webview", "id": "vibearning.adView", "name": "Earnings & Sponsor" }
+      ]
+    },
     "commands": [
-      { "command": "kickbacks.simulateWait", "title": "Kickbacks: Simulate Wait-State (dev)" },
-      { "command": "kickbacks.endWait", "title": "Kickbacks: End Wait-State (dev)" },
-      { "command": "kickbacks.signIn", "title": "Kickbacks: Sign in" },
-      { "command": "kickbacks.signOut", "title": "Kickbacks: Sign out" },
-      { "command": "kickbacks.openSponsor", "title": "Kickbacks: Open the current sponsor" },
-      { "command": "kickbacks.openDashboard", "title": "Kickbacks: Open your earnings dashboard" }
-    ]
+      { "command": "vibearning.signIn", "title": "vibearning: Sign in" },
+      { "command": "vibearning.signOut", "title": "vibearning: Sign out" },
+      { "command": "vibearning.openSponsor", "title": "vibearning: Open the current sponsor" },
+      { "command": "vibearning.openDashboard", "title": "vibearning: Open your earnings dashboard" }
+    ],
+    "configuration": {
+      "title": "vibearning",
+      "properties": {
+        "vibearning.apiUrl": {
+          "type": "string",
+          "default": "https://api.vibearning.in",
+          "markdownDescription": "Base URL of the vibearning API. Change this only if you self-host. (Overridden by the `VIBEARNING_API` environment variable when set.)"
+        },
+        "vibearning.portalUrl": {
+          "type": "string",
+          "default": "https://vibearning.in",
+          "markdownDescription": "Base URL of the vibearning web dashboard opened by the earnings item. (Overridden by the `VIBEARNING_PORTAL` environment variable when set.)"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",
     "test": "vitest run",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "vscode:prepublish": "node esbuild.mjs",
+    "package": "vsce package --no-dependencies -o vibearning.vsix"
   },
   "devDependencies": {
-    "@kbi/shared": "workspace:*",
+    "@vibearning/shared": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "esbuild": "^0.23.0",

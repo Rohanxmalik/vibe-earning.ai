@@ -139,7 +139,7 @@ export default function EarningsPage() {
       const data = await api.exportMyData();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = "kickbacks-my-data.json"; a.click();
+      const a = document.createElement("a"); a.href = url; a.download = "vibearning-my-data.json"; a.click();
       URL.revokeObjectURL(url);
     } catch { setError("Could not export your data."); }
   }
@@ -168,7 +168,7 @@ export default function EarningsPage() {
 
             {mode === "token" ? (
           <div className="card">
-            <p className="muted small">Already signed in inside VS Code? Paste the token from “Kickbacks: Sign in”.</p>
+            <p className="muted small">Already signed in inside VS Code? Paste the token from “vibearning: Sign in”.</p>
             <div className="field">
               <label className="label" htmlFor="token">Session token</label>
               <input id="token" className="input" placeholder="paste token" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} />

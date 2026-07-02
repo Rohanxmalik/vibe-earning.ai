@@ -83,13 +83,15 @@ export function currentStateLine(raw: string): TranscriptLine | null {
  * session is idle) and return a synthetic `end_turn`, so the ad doesn't linger while idle. The
  * window must exceed the longest gap between writes during a live turn (tool calls run silently
  * for a while), so it is generous; a cleanly-finished turn still hides immediately via its real
- * `end_turn` line.
+ * `end_turn` line. 60s: a single web search / long tool call can run well over 12s with no
+ * transcript write, and the old 12s window flipped the panel to idle mid-turn (it read the gap as
+ * "ended"). 60s covers typical tool-call gaps; an abandoned turn (no `end_turn`) clears within 60s.
  */
 export function stateLineWithStaleness(
   raw: string,
   mtimeMs: number,
   nowMs: number,
-  activityWindowMs = 12_000,
+  activityWindowMs = 60_000,
 ): TranscriptLine | null {
   if (nowMs - mtimeMs > activityWindowMs) {
     return { type: "assistant", message: { stop_reason: "end_turn" } };

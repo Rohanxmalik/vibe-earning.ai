@@ -5,12 +5,21 @@ import { PortalApi, type Campaign, type DailySpend } from "../../lib/api";
 import { getToken, clearToken } from "../../lib/token";
 import { Alert, Spinner, ConfirmButton, SpendChart } from "../../components/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { HEADLINE_MAX, TAGLINE_MAX } from "@kbi/shared";
+import { HEADLINE_MAX, TAGLINE_MAX, type Surface } from "@vibearning/shared";
 import { brandPreview, firstEmoji, lowContrastWarning } from "../../lib/brand";
+import { LogoInput } from "../../components/LogoInput";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000", fetch, getToken);
 const rupees = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
 const DEFAULT_BRAND_COLOR = "#2563EB"; // portal blue; advertisers can override
+
+// The spinner surfaces a campaign can target (one bid is created per selected surface).
+const SURFACE_OPTIONS: { value: Surface; label: string }[] = [
+  { value: "claude-code-panel", label: "Claude Code" },
+  { value: "codex-panel", label: "Codex" },
+  { value: "claude-code-terminal", label: "Claude Code (terminal)" },
+  { value: "gemini-cli-terminal", label: "Gemini CLI" },
+];
 
 function statusBadge(status?: string) {
   const cls = status === "active" ? "badge-active" : status === "pending" ? "badge-pending" : "badge-paused";
@@ -26,6 +35,8 @@ export default function CampaignsPage() {
   const [tagline, setTagline] = useState("");
   const [emoji, setEmoji] = useState("");
   const [brandColor, setBrandColor] = useState(DEFAULT_BRAND_COLOR);
+  const [logo, setLogo] = useState("");
+  const [surfaces, setSurfaces] = useState<Surface[]>(["claude-code-panel", "codex-panel"]);
   const [url, setUrl] = useState("https://");
   const [bid, setBid] = useState(20000);
   const [msg, setMsg] = useState<string | null>(null);
@@ -35,6 +46,7 @@ export default function CampaignsPage() {
   const [editTagline, setEditTagline] = useState("");
   const [editEmoji, setEditEmoji] = useState("");
   const [editColor, setEditColor] = useState(DEFAULT_BRAND_COLOR);
+  const [editLogo, setEditLogo] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editBid, setEditBid] = useState(20000);
   const [statsId, setStatsId] = useState<string | null>(null);
@@ -48,8 +60,13 @@ export default function CampaignsPage() {
   }
   useEffect(() => { void refresh(); }, []);
 
+  function toggleSurface(v: Surface) {
+    setSurfaces((cur) => (cur.includes(v) ? cur.filter((s) => s !== v) : [...cur, v]));
+  }
+
   async function create() {
     setMsg(null); setErr(null);
+    if (surfaces.length === 0) { setErr("Pick at least one place for your ad to show."); return; }
     try {
       await api.createCampaign({
         // No `copy`: the server derives the legacy single-line from headline+tagline.
@@ -57,11 +74,12 @@ export default function CampaignsPage() {
         tagline: tagline.trim() || undefined,
         emoji: emoji || undefined,
         brandColor,
+        iconUrl: logo || undefined,
         url,
-        surface: "codex-panel",
+        surfaces,
         bidPerBlockPaise: Number(bid),
       });
-      setHeadline(""); setTagline(""); setEmoji(""); setBrandColor(DEFAULT_BRAND_COLOR);
+      setHeadline(""); setTagline(""); setEmoji(""); setBrandColor(DEFAULT_BRAND_COLOR); setLogo("");
       setMsg("Campaign created — it goes live once an admin approves it."); await refresh();
     } catch { setErr("Create failed — check the brand name (1–20 chars), a valid URL, and your bid."); }
   }
@@ -88,6 +106,7 @@ export default function CampaignsPage() {
     setEditTagline(c.tagline ?? "");
     setEditEmoji(c.emoji ?? "");
     setEditColor(c.brandColor ?? DEFAULT_BRAND_COLOR);
+    setEditLogo(c.iconUrl ?? "");
     setEditUrl(c.url); setEditBid(20000);
   }
   function cancelEdit() { setEditId(null); }
@@ -100,6 +119,7 @@ export default function CampaignsPage() {
         tagline: editTagline.trim() || null,
         emoji: editEmoji || null,
         brandColor: editColor,
+        iconUrl: editLogo || null,
         url: editUrl,
         bidPerBlockPaise: Number(editBid),
       });
@@ -143,7 +163,7 @@ export default function CampaignsPage() {
       <PageHeader
         eyebrow="Advertiser portal"
         title="My campaigns"
-        subtitle="Surface: codex-panel · paid per verified impression, second-price auction."
+        subtitle="Target Claude Code, Codex & more · paid per verified impression, second-price auction."
         actions={<button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={logout}>Log out</button>}
       />
       <main className="bg-[#F4F6FF]">
@@ -176,6 +196,19 @@ export default function CampaignsPage() {
           <div className="hint">Tints your sponsored line in the editor status bar</div>
           {lowContrastWarning(brandColor) && <div className="hint" style={{ color: "#B45309" }}>⚠ {lowContrastWarning(brandColor)}</div>}
         </div>
+        <LogoInput value={logo} onChange={setLogo} accent={brandColor} uploader={(d) => api.uploadLogo(d)} />
+        <div className="field">
+          <span className="label">Where it shows</span>
+          <div className="row" style={{ gap: "1rem", flexWrap: "wrap" }}>
+            {SURFACE_OPTIONS.map((o) => (
+              <label key={o.value} style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={surfaces.includes(o.value)} onChange={() => toggleSurface(o.value)} />
+                {o.label}
+              </label>
+            ))}
+          </div>
+          <div className="hint">Pick the AI coding tools where your ad can appear — one bid is placed per surface.</div>
+        </div>
         <div className="field">
           <label className="label" htmlFor="url">Landing URL</label>
           <input id="url" className="input" placeholder="https://landing.example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
@@ -188,6 +221,7 @@ export default function CampaignsPage() {
         <div className="field">
           <span className="label">Preview</span>
           <div className="input" style={{ display: "flex", alignItems: "center", color: brandColor, fontWeight: 600 }}>
+            {logo && <img src={logo} alt="" style={{ width: "1.25rem", height: "1.25rem", borderRadius: "0.25rem", objectFit: "contain", marginRight: "0.4rem" }} />}
             <span style={{ opacity: 0.6, marginRight: "0.4rem" }}>✨ Sponsored:</span>
             {brandPreview({ emoji, headline, tagline, url }) || <span style={{ opacity: 0.5, fontWeight: 400 }}>Your brand name appears here</span>}
           </div>
@@ -226,6 +260,7 @@ export default function CampaignsPage() {
                       <label className="label">Tagline</label>
                       <input className="input" maxLength={TAGLINE_MAX} value={editTagline} onChange={(e) => setEditTagline(e.target.value)} />
                     </div>
+                    <LogoInput value={editLogo} onChange={setEditLogo} accent={editColor} uploader={(d) => api.uploadLogo(d)} />
                     <div className="field" style={{ margin: 0 }}>
                       <label className="label">Landing URL</label>
                       <input className="input" value={editUrl} onChange={(e) => setEditUrl(e.target.value)} />
@@ -243,12 +278,15 @@ export default function CampaignsPage() {
                 ) : (
                   <>
                     <div className="row-between">
-                      <div className="item-main">
+                      <div className="item-main" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        {c.iconUrl && <img src={c.iconUrl} alt="" style={{ width: "1.5rem", height: "1.5rem", borderRadius: "0.3rem", objectFit: "contain", flex: "0 0 1.5rem" }} />}
+                        <div>
                         <div className="item-copy" style={c.brandColor ? { color: c.brandColor } : undefined}>
                           {c.brandColor && <span aria-hidden style={{ display: "inline-block", width: "0.6rem", height: "0.6rem", borderRadius: "50%", background: c.brandColor, marginRight: "0.4rem" }} />}
                           {brandPreview({ emoji: c.emoji ?? undefined, headline: c.headline ?? undefined, tagline: c.tagline ?? undefined, copy: c.copy })}
                         </div>
                         <div className="item-sub">{c.url}</div>
+                        </div>
                       </div>
                       <div className="row">
                         {statusBadge(c.status)}

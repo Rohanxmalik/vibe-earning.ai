@@ -12,7 +12,7 @@
 
 > **Explicitly out of scope (documented remaining hardening):** multi-account/IP-hash clustering (needs `ipHash` plumbed through events + a `dev_installs` table — not yet stored), creative moderation (campaign `pending→approved` ripples into Plan 07/08 serving and is a separate slice), pacing/delivery-speed, structured observability/metrics. These remain follow-ups; fraud defense is iterative.
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md) §10.
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md) §10.
 
 ---
 
@@ -51,8 +51,8 @@ model Killswitch {
 - [ ] **Step 3: Apply + regenerate + commit**
 
 ```bash
-pnpm --filter @kbi/api exec prisma db push
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/api exec prisma db push
+pnpm --filter @vibearning/api exec prisma generate
 git add apps/api/prisma
 git commit -m "feat(api): add Killswitch model + Account.suspended"
 ```
@@ -305,7 +305,7 @@ describe("config + fraud (e2e)", () => {
 });
 ```
 
-- [ ] **Step 2: Run the FULL api suite** — `pnpm --filter @kbi/api test` → all green.
+- [ ] **Step 2: Run the FULL api suite** — `pnpm --filter @vibearning/api test` → all green.
 
 - [ ] **Step 3: Commit**
 

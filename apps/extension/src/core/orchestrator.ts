@@ -1,4 +1,4 @@
-import type { EventIngest, ServeResponse, Surface } from "@kbi/shared";
+import type { EventIngest, ServeResponse, Surface } from "@vibearning/shared";
 import type { SpinnerAdapter } from "./adapter";
 import { ViewTracker } from "./viewTracker";
 import { makeNonce } from "./nonce";
@@ -29,6 +29,16 @@ export interface OrchestratorDeps {
    */
   holdScheduleMs?: number[];
   onEarn?: (ad: ServeResponse) => void;
+  /**
+   * Called whenever an ad becomes visible (first show AND each rotation) — drives a rich
+   * surface like the sidebar webview. `ad` is the live (billed) ad; `context.lineup` is the full
+   * served rotation set with `activeIndex` pointing at `ad`, so the surface can show the whole
+   * line-up (winner live, the rest "up next") without changing what's billed. Best-effort: the
+   * caller must never throw back into the loop.
+   */
+  onShow?: (ad: ServeResponse, context: { lineup: ServeResponse[]; activeIndex: number }) => void;
+  /** Called when the wait ends and the ad slot goes idle (clear the rich surface). */
+  onHide?: () => void;
   /**
    * Persist the last-shown rotation slot so the NEXT wait-state resumes at the following ad
    * (round-robin) instead of always restarting at the top — every advertiser gets exposure
@@ -103,6 +113,7 @@ export class Orchestrator {
     if (!this.current) return;
     await this.finalizeCurrent();
     this.d.adapter.clear();
+    this.notify(() => this.d.onHide?.());
     this.ads = [];
     this.idx = 0;
   }
@@ -115,7 +126,18 @@ export class Orchestrator {
     this.lastShown = this.idx;        // remember the slot we're showing now…
     this.d.saveCursor?.(this.idx);    // …and persist it so the next turn resumes after it
     this.d.adapter.render(ad);
+    // mirror to rich surfaces (sidebar webview): the live ad + the full line-up for "up next".
+    this.notify(() => this.d.onShow?.(ad, { lineup: this.ads, activeIndex: this.idx }));
     this.d.tracker.start();
+  }
+
+  /** Run an optional observer callback without ever letting it break the rotation loop. */
+  private notify(fn: () => void): void {
+    try {
+      fn();
+    } catch {
+      /* a rich-surface observer must never disrupt billing/rotation */
+    }
   }
 
   /** Record an impression for the currently shown ad (captures visibleMs synchronously first). */

@@ -6,7 +6,7 @@
 // Idempotent: re-running reuses the same advertiser + campaign and never double-funds
 // (ledger entries are keyed by a stable eventId). Safe to run repeatedly.
 //
-//   pnpm --filter @kbi/api exec node scripts/seed-demo.mjs
+//   pnpm --filter @vibearning/api exec node scripts/seed-demo.mjs
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import Redis from "ioredis";
@@ -22,9 +22,9 @@ const BID_AMOUNT = 50_000;     // price = floor(amount/1000) = 50 paise per impr
 const ESCROW_PAISE = 5_000_000; // ₹50,000 of dummy budget per campaign
 
 async function seedOne({ surface, copy, url }) {
-  let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@kbi.test", type: "advertiser" } });
+  let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@vibearning.test", type: "advertiser" } });
   if (!advertiser) {
-    advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@kbi.test", emailVerified: true } });
+    advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@vibearning.test", emailVerified: true } });
     console.log(`[demo] created advertiser ${advertiser.id}`);
   }
 

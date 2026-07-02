@@ -10,5 +10,5 @@ module.exports = {
   setupFiles: ["dotenv/config"],
   globalSetup: "<rootDir>/../jest.global-setup.js",
   maxWorkers: 1,
-  moduleNameMapper: { "^@kbi/shared$": "<rootDir>/../../../packages/shared/dist/index.js" },
+  moduleNameMapper: { "^@vibearning/shared$": "<rootDir>/../../../packages/shared/dist/index.js" },
 };

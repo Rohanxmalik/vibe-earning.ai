@@ -4,7 +4,7 @@
 // 3-ad rotation loop. Idempotent: re-running reuses the same campaigns and never
 // double-funds (ledger entries keyed by a stable eventId).
 //
-//   pnpm --filter @kbi/api exec node scripts/seed-test-ads.mjs
+//   pnpm --filter @vibearning/api exec node scripts/seed-test-ads.mjs
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import Redis from "ioredis";
@@ -50,9 +50,9 @@ async function seedOne({ copy, url, bid }, advertiserId) {
 }
 
 async function main() {
-  let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@kbi.test", type: "advertiser" } });
+  let advertiser = await prisma.account.findFirst({ where: { email: "demo-advertiser@vibearning.test", type: "advertiser" } });
   if (!advertiser) {
-    advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@kbi.test", emailVerified: true } });
+    advertiser = await prisma.account.create({ data: { type: "advertiser", email: "demo-advertiser@vibearning.test", emailVerified: true } });
     console.log(`[test-ads] created advertiser ${advertiser.id}`);
   }
   for (const a of ADS) await seedOne(a, advertiser.id);

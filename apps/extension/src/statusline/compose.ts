@@ -1,4 +1,4 @@
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 export interface ComposeOpts {
   /** Hard cap on the rendered line length (terminal status lines are narrow). */

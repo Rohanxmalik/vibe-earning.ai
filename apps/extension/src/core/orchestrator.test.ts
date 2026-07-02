@@ -13,6 +13,8 @@ function setup(opts: {
   holdScheduleMs?: number[];
   loadCursor?: () => number;
   saveCursor?: (idx: number) => void;
+  onShow?: (a: typeof ad, ctx: { lineup: (typeof ad)[]; activeIndex: number }) => void;
+  onHide?: () => void;
 } = {}) {
   let t = 0;
   const now = () => t;
@@ -27,6 +29,7 @@ function setup(opts: {
     adapter, api: api as any, tracker, killswitch: killswitch as any, installId: "inst", now,
     holdMs: 5000, rotationCount: 3, holdScheduleMs: opts.holdScheduleMs,
     loadCursor: opts.loadCursor, saveCursor: opts.saveCursor,
+    onShow: opts.onShow as any, onHide: opts.onHide,
   });
   orch.start();
   return { adapter, api, orch, advance: (ms: number) => { t += ms; } };
@@ -145,6 +148,32 @@ describe("Orchestrator", () => {
     await adapter.fireWaitStart();
     expect(adapter.lastRendered?.campaignId).toBe("c3"); // (1 + 1) % 3 = slot 2 = c3
     expect(saves).toContain(2); // persisted the slot it showed
+  });
+
+  it("notifies the rich surface (onShow) on first show AND each rotation, and onHide on wait-end", async () => {
+    const shown: string[] = [];
+    const lineups: string[][] = [];
+    let hidden = 0;
+    const { adapter, advance } = setup({
+      ads: [ad, ad2],
+      onShow: (a, ctx) => { shown.push(a.campaignId); lineups.push(ctx.lineup.map((x) => x.campaignId)); },
+      onHide: () => { hidden += 1; },
+    });
+    await adapter.fireWaitStart();
+    expect(shown).toEqual(["c1"]);          // first show
+    expect(lineups[0]).toEqual(["c1", "c2"]); // full line-up passed for "up next"
+    advance(5000); await adapter.fireTick();
+    expect(shown).toEqual(["c1", "c2"]);    // rotation pushes the next ad to the webview
+    advance(3000); await adapter.fireWaitEnd();
+    expect(hidden).toBe(1);                 // slot goes idle when the wait ends
+  });
+
+  it("a throwing onShow never breaks rotation/billing (fail-safe observer)", async () => {
+    const { adapter, api, advance } = setup({ ads: [ad, ad2], onShow: () => { throw new Error("webview down"); } });
+    await expect(adapter.fireWaitStart()).resolves.toBeUndefined();
+    expect(adapter.lastRendered?.campaignId).toBe("c1"); // still rendered despite the throw
+    advance(5000); await adapter.fireTick();
+    expect(api.sendEvent).toHaveBeenCalledWith(expect.objectContaining({ campaignId: "c1" }));
   });
 
   it("honors a per-position hold schedule (10s, 5s, 3s) and then repeats", async () => {

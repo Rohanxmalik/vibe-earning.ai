@@ -1,6 +1,6 @@
 import { Body, Controller, Headers, Post, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import { z } from "zod";
-import { surfaceSchema, headlineSchema, taglineSchema, brandColorSchema, emojiSchema } from "@kbi/shared";
+import { surfaceSchema, headlineSchema, taglineSchema, brandColorSchema, emojiSchema, logoUrlSchema } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
@@ -12,7 +12,7 @@ const bodySchema = z.object({
   brandColor: brandColorSchema.optional(),
   emoji: emojiSchema.optional(),
   url: z.string().url(),
-  iconUrl: z.string().url().optional(),
+  iconUrl: logoUrlSchema.optional(),
   surface: surfaceSchema,
 });
 type Body = z.infer<typeof bodySchema>;

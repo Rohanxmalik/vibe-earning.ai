@@ -1,6 +1,6 @@
 // Idempotent production seed: create the first admin account + house ads so the
 // spinner always has something to show. Run after migrations:
-//   SEED_ADMIN_EMAIL=ops@you.com SEED_ADMIN_PASSWORD=... pnpm --filter @kbi/api seed
+//   SEED_ADMIN_EMAIL=ops@you.com SEED_ADMIN_PASSWORD=... pnpm --filter @vibearning/api seed
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import Redis from "ioredis";
@@ -12,10 +12,10 @@ const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
 // House ads promote the platform itself; one per surface, ranked at score 0 (house
 // ads bypass escrow but must be in the ranking zset to be served).
 const HOUSE_ADS = [
-  { copy: "Earn while your AI thinks — kickbacks.in", url: "https://kickbacks.in", surface: "claude-code-terminal" },
-  { copy: "Get paid for your AI's idle moments", url: "https://kickbacks.in", surface: "codex-panel" },
-  { copy: "Developers: turn spinner time into ₹", url: "https://kickbacks.in", surface: "gemini-cli-terminal" },
-  { copy: "Earn while Claude works — kickbacks.in", url: "https://kickbacks.in", surface: "claude-code-panel" },
+  { copy: "Earn while your AI thinks — vibearning.in", url: "https://vibearning.in", surface: "claude-code-terminal" },
+  { copy: "Get paid for your AI's idle moments", url: "https://vibearning.in", surface: "codex-panel" },
+  { copy: "Developers: turn spinner time into ₹", url: "https://vibearning.in", surface: "gemini-cli-terminal" },
+  { copy: "Earn while Claude works — vibearning.in", url: "https://vibearning.in", surface: "claude-code-panel" },
 ];
 
 async function seedAdmin() {

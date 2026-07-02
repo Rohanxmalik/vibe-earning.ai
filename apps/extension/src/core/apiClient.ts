@@ -1,4 +1,4 @@
-import type { EventIngest, ServeResponse, Surface } from "@kbi/shared";
+import type { EventIngest, ServeResponse, Surface } from "@vibearning/shared";
 
 /** The developer earnings summary returned by `GET /ledger/me/stats`. */
 export interface DevStats {

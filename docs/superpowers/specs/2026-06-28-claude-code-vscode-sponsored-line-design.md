@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-28
 **Status:** Approved (brainstorming → ready for implementation plan)
-**Goal:** Make the Kickbacks sponsored line work in **both** Claude Code surfaces — the
+**Goal:** Make the vibearning sponsored line work in **both** Claude Code surfaces — the
 terminal/CLI (already live via `dist/statusline.js`) **and** the VS Code extension context
 (new work in this spec).
 
@@ -42,7 +42,7 @@ left as no-op defaults and documented as the production TODO
 
 ## 3. Approach
 
-Extend `apps/extension` (no new extension). Detection follows the existing Kickbacks
+Extend `apps/extension` (no new extension). Detection follows the existing vibearning
 principles — **non-invasive, official extension points, fail-safe, zero-config** (same ethos
 as the CLI path): we do **not** modify the user's global `~/.claude/settings.json` and do
 **not** scrape/patch Anthropic's UI.
@@ -87,20 +87,20 @@ Implements `StatusSink`.
   for the click command.
 - `restore()` → `.hide()`.
 - Backed by a `StatusBarItem` (right-aligned, high priority), with `tooltip` (advertiser +
-  "Why am I seeing this?") and `command = "kickbacks.openSponsor"`.
+  "Why am I seeing this?") and `command = "vibearning.openSponsor"`.
 - The VS Code item is injected so tests use a fake.
 - **Interface change:** `StatusSink.write(line: string, url?: string)` (was `write(line)`),
   and `ClaudeCodeAdapter.render(ad)` passes `ad.url` through. CLI path unaffected (it does not
   use `StatusSink`).
 
 ### 4.4 Wire-up — `src/host/extension.ts`
-- Register command `kickbacks.openSponsor` → `vscode.env.openExternal(Uri.parse(currentUrl))`.
+- Register command `vibearning.openSponsor` → `vscode.env.openExternal(Uri.parse(currentUrl))`.
 - When Claude is detected (`detectClaudeCode()` — existing), construct
   `new ClaudeCodeAdapter({ waitSource: thinkingWaitSource, sink: statusBarSink })` and pass it
   to the Orchestrator instead of the `MockAdapter` fallback. `MockAdapter` remains the dev
   fallback when Claude is not detected.
-- Keep the existing earnings status item (`$(rocket) Kickbacks ₹x`, updated via `onEarn`) and
-  the `kickbacks.signIn` dev command.
+- Keep the existing earnings status item (`$(rocket) vibearning ₹x`, updated via `onEarn`) and
+  the `vibearning.signIn` dev command.
 
 ### 4.5 Adapter surface — `src/adapters/claudeCode.ts`
 - Change `surface` from `"claude-code-terminal"` to `"claude-code-panel"` so editor
@@ -108,7 +108,7 @@ Implements `StatusSink`.
 
 ## 5. Auth / token
 - Extension reads the bearer token from `context.secrets` (existing).
-- **Add a fallback:** if no secret token, read `~/.kickbacks/token` (the CLI token store), so
+- **Add a fallback:** if no secret token, read `~/.vibearning/token` (the CLI token store), so
   a signed-in CLI dev earns in the extension too without re-login. Fail-safe if absent → ads
   still show, nothing billed (anonymous), matching the documented signed-out behavior.
 
@@ -172,7 +172,7 @@ color, and emoji render together. Additive and backward-compatible — the legac
 
 **Schema (all optional/nullable):** `Campaign.headline` (≤20), `tagline` (≤40), `brandColor`
 (`#RRGGBB`), `emoji` (single emoji). Added to `serveResponse` and the create/edit campaign
-schemas in `@kbi/shared`; one Prisma migration (`20260629000000_campaign_brand_fields`).
+schemas in `@vibearning/shared`; one Prisma migration (`20260629000000_campaign_brand_fields`).
 
 **Render** (`statusline/compose.ts`): `"{emoji} {Sponsored: }{headline} — {tagline} · {host}"`,
 falling back to `copy` when `headline` is unset. Default cap raised 60→120 so the tagline stays

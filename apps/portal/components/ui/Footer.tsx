@@ -9,7 +9,7 @@ export function Footer() {
       <div className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-12 md:px-10 md:py-16">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
-            <Link href="/" className="flex items-center gap-1" aria-label="Kickbacks-India home">
+            <Link href="/" className="flex items-center gap-1" aria-label="vibearning home">
               <span className="rounded-2xl rounded-bl-sm bg-white px-3 py-1.5 text-sm font-black tracking-tight text-black">KICK</span>
               <span className="rounded-full border-[1.5px] border-white bg-[#CCFF00] px-3 py-1.5 text-sm font-black text-black">BACKS</span>
             </Link>
@@ -41,7 +41,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-2 border-t border-white/15 pt-6 text-sm text-white/70 sm:flex-row sm:items-center sm:justify-between">
-          <span>© 2026 Kickbacks-India</span>
+          <span>© 2026 vibearning</span>
           <span className="font-medium">Built for India&apos;s developers — paid in INR.</span>
         </div>
       </div>

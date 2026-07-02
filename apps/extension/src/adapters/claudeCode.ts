@@ -1,4 +1,4 @@
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import type { SpinnerAdapter, WaitHandlers } from "../core/adapter";
 import { composeStatusLine } from "../statusline/compose";
 

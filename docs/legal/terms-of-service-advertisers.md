@@ -2,12 +2,12 @@
 
 > ⚠️ **DRAFT TEMPLATE — not legal advice.** A qualified lawyer must review before use. Fill all `[BRACKETS]`.
 
-**Last updated:** [DATE] · **Provider:** [COMPANY LEGAL NAME], [CIN], [REGISTERED ADDRESS] ("Kickbacks", "we").
+**Last updated:** [DATE] · **Provider:** [COMPANY LEGAL NAME], [CIN], [REGISTERED ADDRESS] ("vibearning", "we").
 
 By creating an advertiser account or funding a campaign you ("Advertiser") agree to these Terms.
 
 ## 1. The service
-Kickbacks operates a marketplace that displays a single sponsored line within AI coding tools while a developer's agent is working. Advertisers create campaigns, set bids, and pay for **verified, viewable impressions** (and clicks where applicable), priced by a **second-price auction**.
+vibearning operates a marketplace that displays a single sponsored line within AI coding tools while a developer's agent is working. Advertisers create campaigns, set bids, and pay for **verified, viewable impressions** (and clicks where applicable), priced by a **second-price auction**.
 
 ## 2. Eligibility & account
 You must be authorised to bind your organisation. Keep credentials secure; you are responsible for activity under your account.

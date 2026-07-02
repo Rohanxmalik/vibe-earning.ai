@@ -1,11 +1,12 @@
 import { Test } from "@nestjs/testing";
+import type { Surface } from "@vibearning/shared";
 import { CampaignService } from "./campaign.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
 const prismaMock = {
   campaign: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
-  bid: { create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+  bid: { create: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
 };
 const rankingMock = { upsertBid: jest.fn(), removeBid: jest.fn() };
 
@@ -24,17 +25,28 @@ describe("CampaignService", () => {
     svc = mod.get(CampaignService);
   });
 
-  it("creates a pending campaign + bid but does NOT rank it until approved", async () => {
-    const dto = { copy: "Hi there", url: "https://x.dev", surface: "codex-panel" as const, bidPerBlockPaise: 20000 };
+  it("creates a pending campaign + one bid per target surface but does NOT rank it until approved", async () => {
+    const surfaces: Surface[] = ["claude-code-panel", "codex-panel"];
+    const dto = { copy: "Hi there", url: "https://x.dev", surfaces, bidPerBlockPaise: 20000 };
     const c = await svc.create("adv1", dto);
     expect(prismaMock.campaign.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ advertiserId: "adv1", copy: "Hi there", isHouseAd: false, status: "pending" }) }),
     );
-    expect(prismaMock.bid.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ campaignId: "c1", surface: "codex-panel", amount: 20000 }) }),
-    );
+    expect(prismaMock.bid.createMany).toHaveBeenCalledWith({
+      data: [
+        { campaignId: "c1", surface: "claude-code-panel", amount: 20000, status: "active" },
+        { campaignId: "c1", surface: "codex-panel", amount: 20000, status: "active" },
+      ],
+    });
     expect(rankingMock.upsertBid).not.toHaveBeenCalled(); // not servable while pending
     expect(c).toMatchObject({ id: "c1" });
+  });
+
+  it("still accepts the legacy single `surface` (one bid)", async () => {
+    await svc.create("adv1", { copy: "Hi there", url: "https://x.dev", surface: "codex-panel" as const, bidPerBlockPaise: 20000 });
+    expect(prismaMock.bid.createMany).toHaveBeenCalledWith({
+      data: [{ campaignId: "c1", surface: "codex-panel", amount: 20000, status: "active" }],
+    });
   });
 
   it("approve() activates the campaign and ranks each active bid", async () => {

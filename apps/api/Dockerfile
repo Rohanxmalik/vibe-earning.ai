@@ -1,5 +1,5 @@
 # Build context MUST be the repo root: docker build -f apps/api/Dockerfile -t kbi-api .
-# (the API depends on the @kbi/shared workspace package)
+# (the API depends on the @vibearning/shared workspace package)
 
 FROM node:22-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -17,10 +17,10 @@ RUN pnpm install --frozen-lockfile
 # self-contained prod bundle (production deps only; no nest/jest/ts toolchain).
 COPY packages/shared packages/shared
 COPY apps/api apps/api
-RUN pnpm --filter @kbi/shared build \
-    && pnpm --filter @kbi/api exec prisma generate \
-    && pnpm --filter @kbi/api build \
-    && pnpm --filter @kbi/api deploy --prod /app \
+RUN pnpm --filter @vibearning/shared build \
+    && pnpm --filter @vibearning/api exec prisma generate \
+    && pnpm --filter @vibearning/api build \
+    && pnpm --filter @vibearning/api deploy --prod /app \
     && cd /app && node_modules/.bin/prisma generate
 
 FROM node:22-slim AS runtime

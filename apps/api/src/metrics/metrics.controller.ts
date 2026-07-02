@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Post, Req } from "@nestjs/common";
-import { eventIngestSchema } from "@kbi/shared";
+import { eventIngestSchema } from "@vibearning/shared";
 import { MetricsService } from "./metrics.service";
 import { AuthService } from "../auth/auth.service";
 import { bearer } from "../auth/auth.guard";

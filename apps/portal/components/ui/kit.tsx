@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared design tokens for the Kickbacks-India "blue & lime" UI.
+ * Shared design tokens for the vibearning "blue & lime" UI.
  *
  * IMPORTANT (cascade rules): the portal still ships a hand-written legacy CSS
  * design system in app/globals.css. Tailwind's reset is scoped to `.kbi-tw`

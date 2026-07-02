@@ -56,8 +56,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared package (api Jest resolves @kbi/shared from dist)
-        run: pnpm --filter @kbi/shared build
+      - name: Build shared package (api Jest resolves @vibearning/shared from dist)
+        run: pnpm --filter @vibearning/shared build
 
       - name: Generate Prisma client + apply migrations
         working-directory: apps/api

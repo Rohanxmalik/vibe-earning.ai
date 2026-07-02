@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decideBilling, type BillingState } from "./billing";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 const ad = (over: Partial<ServeResponse> = {}): ServeResponse => ({
   adId: "a1", campaignId: "c1", copy: "TurboDB", url: "https://x.dev", iconUrl: null, isHouseAd: false, ...over,

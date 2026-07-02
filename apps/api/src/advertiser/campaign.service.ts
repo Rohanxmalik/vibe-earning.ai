@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
-import { type CreateCampaign, deriveCopy } from "@kbi/shared";
+import { type CreateCampaign, deriveCopy, campaignSurfaces } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
@@ -30,8 +30,15 @@ export class CampaignService {
         pacePerMinute: dto.pacePerMinute ?? null,
       },
     });
-    await this.prisma.bid.create({
-      data: { campaignId: campaign.id, surface: dto.surface, amount: dto.bidPerBlockPaise, status: "active" },
+    // One active bid per target surface so the campaign serves on every selected spinner (Claude
+    // Code, Codex, …). Ranked only after admin approval (rankBids ranks all of a campaign's bids).
+    await this.prisma.bid.createMany({
+      data: campaignSurfaces(dto).map((surface) => ({
+        campaignId: campaign.id,
+        surface,
+        amount: dto.bidPerBlockPaise,
+        status: "active",
+      })),
     });
     return campaign;
   }

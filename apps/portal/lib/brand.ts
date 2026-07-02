@@ -2,8 +2,17 @@
 // structured line ("emoji headline — tagline · host"); we mirror that here for the preview
 // and derive the legacy single-line `copy` the API still stores.
 
-// `deriveCopy` lives in @kbi/shared so the portal and the API derive the legacy copy identically.
-export { deriveCopy } from "@kbi/shared";
+// Logo helpers/types live in @vibearning/shared so the portal and the API validate identically.
+export { deriveCopy, isSafeLogoUrl, LOGO_MAX_BYTES, ACCEPTED_LOGO_TYPES } from "@vibearning/shared";
+
+import { LOGO_MAX_BYTES as LOGO_BYTES, ACCEPTED_LOGO_TYPES as TYPES } from "@vibearning/shared";
+
+/** Validate an uploaded logo file by mime + byte size; returns an error message or null if OK. */
+export function logoFileError(file: { type: string; size: number }): string | null {
+  if (!(TYPES as readonly string[]).includes(file.type)) return "Use a PNG, JPG, GIF, WebP, or SVG image.";
+  if (file.size > LOGO_BYTES) return `Image is too large (max ${Math.round(LOGO_BYTES / 1024)}KB).`;
+  return null;
+}
 
 /** First grapheme of a string (so an emoji picker is capped to exactly one emoji). */
 export function firstEmoji(input: string): string {

@@ -20,10 +20,11 @@ import { composeStatusLine } from "./compose";
 import { tickRotation, type BillingState } from "./billing";
 import { loadToken, loadState, saveState } from "./store";
 import { resolveSurface } from "./surface";
-import type { ServeResponse, Surface } from "@kbi/shared";
+import type { ServeResponse, Surface } from "@vibearning/shared";
 
-const API = process.env.KICKBACKS_API ?? "http://localhost:3000";
-const SURFACE = resolveSurface(process.env.KICKBACKS_SURFACE); // claude-code-terminal | codex-panel | gemini-cli-terminal | ...
+// Prod default; set VIBEARNING_API=http://localhost:3000 in the statusLine command for local dev.
+const API = process.env.VIBEARNING_API ?? "https://api.vibearning.in";
+const SURFACE = resolveSurface(process.env.VIBEARNING_SURFACE); // claude-code-terminal | codex-panel | gemini-cli-terminal | ...
 const ROTATION_COUNT = 3; // request the top-N ads and rotate through them
 // Per-request budget. 800ms was too aggressive: at session start Claude Code fires the statusLine
 // alongside a swarm of hooks, and a cold spawn + fetch under that CPU spike could abort before the
@@ -167,7 +168,7 @@ async function probeKillswitch(api: string, fetchFn: typeof fetch, timeoutMs: nu
  */
 function writeHeartbeat(line: string, surface: string, token: string | undefined, reason: string): void {
   try {
-    const dir = join(homedir(), ".kickbacks");
+    const dir = join(homedir(), ".vibearning");
     mkdirSync(dir, { recursive: true });
     const signedIn = token ? "signed-in" : "anonymous";
     writeFileSync(

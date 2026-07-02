@@ -36,10 +36,11 @@ this order. Each says *what it is*, *why*, and *what "done" looks like*.
 - [ ] **A server host** for the backend (Render, Railway, Fly.io, or a cloud VM — pick an **India region** for speed + data residency).
 - [ ] **Managed PostgreSQL + Redis** (most hosts offer these as add-ons). The API applies migrations automatically on boot and exposes a `/health/ready` check for the load balancer.
 - [ ] **Portal hosting** (Vercel is easiest for the Next.js website).
+- [ ] **Object storage for brand logos** (AWS S3 / Cloudflare R2 / Supabase Storage). Advertiser logo upload works today on **local disk** (dev), but local disk is **wiped on every redeploy/scale-out**, so before relying on logos in production an engineer implements the `S3Storage` drop-in (`ENGINEERING_HANDOFF.md` §13.8) and you set `VIBEARNING_STORAGE=s3`, the bucket credentials, and `VIBEARNING_PUBLIC_URL=https://<your-cdn>`.
 - [ ] **A domain name** + SSL (the host usually handles SSL).
 - [ ] **Sentry account** (free tier) for crash alerts; paste the DSN into settings.
 - [ ] **An email provider** (Amazon SES / SendGrid / Resend) — needed so password-reset, email-verification, and payout emails actually send. The code has a ready "Notifier" slot your engineer points at it (until then, emails are only logged, not sent).
-- [ ] After first deploy, run the **seed script** (`pnpm --filter @kbi/api seed` with `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`) to create your admin login + starter house ads — no manual database work.
+- [ ] After first deploy, run the **seed script** (`pnpm --filter @vibearning/api seed` with `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`) to create your admin login + starter house ads — no manual database work.
 - **Done looks like:** the website + API are live on your domain, 24/7. (The CD pipeline already builds the app images; set a `DEPLOY_WEBHOOK` secret to auto-roll them.)
 - 📄 **Engineer guide:** `docs/launch/DEPLOY.md` — step-by-step runbook (managed-platform or single-VM), env template, smoke test, rollback.
 
@@ -48,14 +49,14 @@ this order. Each says *what it is*, *why*, and *what "done" looks like*.
 - [ ] Build **one** real "adapter" first — Claude Code is the best candidate because it has an *official* status-line feature we can use without hacking. **A working prototype + step-by-step guide already exists: `docs/extension/claude-code-statusline.md`** (the line-composing code is built and unit-tested; only live verification + billing/attribution remain).
 - [ ] **Strongly prefer official integration points** over hacking another tool's UI — far lower legal/ban risk (see legal note below).
 - [ ] Test it earns end-to-end on a real machine, then add Codex / Gemini.
-- [ ] Verify the **brand creative** renders: an advertiser sets a brand name, tagline, emoji, and color when creating a campaign; confirm the live line shows `✨ 🍔 Brand — Tagline · host` tinted in the brand color (see `apps/extension/src/MANUAL-TEST.md` → "Brand fields — visual check").
+- [x] Verify the **brand creative** renders — brand name, tagline, emoji, color, **and logo** (advertisers upload a logo, stored in object storage). The **VS Code extension is built**: status-bar line + a rich **sidebar panel** (branded ad card, live earnings, ▲ session ticker, "up next" line-up). Campaigns are **multi-surface** (Claude Code + Codex). In-editor detection works for **Claude Code today**; the Codex/Gemini in-editor adapters are still stubs (their inventory + status-line path are ready).
 - **Done looks like:** an ad actually shows in a real AI tool's spinner and a developer gets paid.
 
 > **Engineer-facing detail guides now live in the repo:** `docs/launch/DEPLOY.md` (Phase 3), `docs/launch/PAYMENTS_SETUP.md` (Phase 2), `docs/legal/` (Phase 6 templates), `docs/extension/claude-code-statusline.md` (Phase 4).
 
 ## Phase 5 — Distribution
 
-- [ ] **Publish the extension** to the VS Code Marketplace (needs a free Microsoft publisher account).
+- [ ] **Publish the extension** to the VS Code Marketplace. **The `.vsix` is publish-ready** (`apps/extension/vibearning.vsix` — icon, LICENSE, README, prod-configurable API URL, dev commands stripped). Remaining: register a **Marketplace publisher** (Azure DevOps org) matching `"publisher": "vibearning"` + a **Personal Access Token**, point `vibearning.apiUrl` at your deployed API, then `npx @vscode/vsce publish` (see `docs/launch/DEPLOY.md` → "Publish & wire the VS Code extension").
 - [x] **A landing page** explaining the deal to developers ("install, earn while your AI thinks"). **Built** — marketing home (hero, animated spinner demo, live counter, bid market, FAQ accordion), a long-form `/faq`, a full developer dashboard (geo banner, Today/Month/Lifetime + earning-limit cards, an earnings/impressions chart with 24h/7d/30d windows, activity ledger, UPI payouts), and the advertiser + admin consoles. Indigo theme, responsive, scroll-reveal animation.
 - [ ] First **advertisers** — reach out to dev-tool companies (databases, APIs, AI tools) who want to reach developers.
 

@@ -25,10 +25,23 @@ function graphemeCount(s: string): number {
   return n;
 }
 
+/**
+ * Strip C0/C1 control characters (incl. ESC `\x1b`, CR, BEL) from advertiser-supplied text.
+ * Ad copy is written raw into developers' terminals (`apps/extension/src/statusline/cli.ts`),
+ * so an unstripped escape sequence would let an advertiser rewrite the terminal title, hide
+ * output, or attempt OSC-52 clipboard writes on vulnerable terminals. Applied in the shared
+ * schema so BOTH the advertiser create/edit path AND the admin house-ad path sanitize identically.
+ */
+const CONTROL_CHARS = /[\x00-\x1f\x7f-\x9f]/g;
+export function stripControlChars(s: string): string {
+  return s.replace(CONTROL_CHARS, "");
+}
+
 // Reusable brand-field validators — exported so EVERY path (advertiser create/edit AND the
-// admin house-ad endpoint) validates brand fields identically.
-export const headlineSchema = z.string().trim().min(1).max(HEADLINE_MAX);
-export const taglineSchema = z.string().trim().max(TAGLINE_MAX);
+// admin house-ad endpoint) validates brand fields identically. Control chars are stripped
+// BEFORE the length cap so a payload can't smuggle bytes past validation.
+export const headlineSchema = z.string().trim().transform(stripControlChars).pipe(z.string().min(1).max(HEADLINE_MAX));
+export const taglineSchema = z.string().trim().transform(stripControlChars).pipe(z.string().max(TAGLINE_MAX));
 export const brandColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "brand color must be a #RRGGBB hex");
 
 // Brand logo. Advertisers can either paste an https URL or upload a small image (stored inline as a
@@ -36,7 +49,9 @@ export const brandColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "brand col
 export const LOGO_MAX_BYTES = 32 * 1024; // 32KB of image bytes
 // base64 inflates ~4/3, plus the "data:image/...;base64," prefix.
 const LOGO_MAX_CHARS = Math.ceil((LOGO_MAX_BYTES * 4) / 3) + 64;
-const LOGO_DATA_URI = /^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+=*$/i;
+// SVG deliberately excluded: an SVG can embed <script>, and a stored logo is served from the
+// API's own origin, so opening it directly would execute attacker JS (stored XSS). Raster only.
+const LOGO_DATA_URI = /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+=*$/i;
 // Object storage returns a URL on the API's own origin. In prod that's https (allowed below); in
 // local dev it's http://localhost:<port>, which we also allow — a logo URL is only ever loaded
 // client-side as an <img>, never server-fetched, so there's no SSRF surface here.
@@ -55,8 +70,8 @@ export function isSafeLogoUrl(v: string | null | undefined): boolean {
   return v ? logoUrlSchema.safeParse(v).success : false;
 }
 
-/** Image MIME types accepted for an uploaded logo (rendered via <img>, so SVG scripting can't run). */
-export const ACCEPTED_LOGO_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"] as const;
+/** Raster image MIME types accepted for an uploaded logo. SVG is excluded (stored-XSS risk). */
+export const ACCEPTED_LOGO_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
 export type LogoMimeType = (typeof ACCEPTED_LOGO_TYPES)[number];
 
 const LOGO_EXT: Record<LogoMimeType, string> = {
@@ -64,7 +79,6 @@ const LOGO_EXT: Record<LogoMimeType, string> = {
   "image/jpeg": "jpg",
   "image/gif": "gif",
   "image/webp": "webp",
-  "image/svg+xml": "svg",
 };
 /** File extension for a logo MIME type (used to name the stored object). */
 export function logoExtFor(contentType: string): string {
@@ -79,7 +93,7 @@ export function logoExtFor(contentType: string): string {
 export function parseImageDataUrl(
   dataUrl: string,
 ): { contentType: LogoMimeType; base64: string; byteLength: number } | null {
-  const m = /^data:(image\/(?:png|jpe?g|gif|webp|svg\+xml));base64,([A-Za-z0-9+/]+={0,2})$/i.exec(dataUrl.trim());
+  const m = /^data:(image\/(?:png|jpe?g|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/i.exec(dataUrl.trim());
   if (!m) return null;
   const contentType = m[1].toLowerCase().replace("image/jpg", "image/jpeg") as LogoMimeType;
   if (!ACCEPTED_LOGO_TYPES.includes(contentType)) return null;

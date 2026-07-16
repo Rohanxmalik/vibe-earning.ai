@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { TokenService } from "./token.service";
 import { Notifier } from "../notifications/notifier";
+import { hashPassword } from "./password";
 
 const RESET_TTL = "1h";
 const VERIFY_TTL = "24h";
@@ -34,7 +34,7 @@ export class AccountRecoveryService {
   async resetPassword(token: string, password: string): Promise<{ ok: true }> {
     const accountId = this.tokens.verifyPurpose(token, "pwreset");
     if (!accountId) throw new BadRequestException("invalid_or_expired_token");
-    const passwordHash = await bcrypt.hash(password, 8);
+    const passwordHash = await hashPassword(password);
     await this.prisma.account.update({ where: { id: accountId }, data: { passwordHash } });
     return { ok: true };
   }

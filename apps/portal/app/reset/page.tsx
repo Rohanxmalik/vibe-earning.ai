@@ -34,7 +34,7 @@ function ResetForm() {
         title="Set a new password"
         subtitle="Choose a new password for your account."
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-md px-6 py-12 md:py-16">
       {!token && <Alert kind="error">Missing or invalid reset link.</Alert>}
       {done ? (

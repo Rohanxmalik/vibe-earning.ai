@@ -14,6 +14,21 @@ export type ActivityWindow = "24h" | "7d" | "30d";
 export interface Payout { id: string; provider: string; amountPaise: number; status: string; createdAt?: string }
 export interface PayoutDestination { id: string; method: string; vpa: string | null; accountNumber: string | null; status: string }
 export interface AuditEntry { id: string; actor: string; action: string; target: string | null; detail: string | null; createdAt: string }
+export interface GstInvoice {
+  invoiceNo: string;
+  invoiceDate: string;
+  seller: { legalName: string; gstin: string | null; state: string | null; address: string | null };
+  buyer: { name: string; country: string | null; gstin: string | null };
+  item: { description: string; sac: string; quantity: number };
+  placeOfSupply: string | null;
+  taxableValuePaise: number;
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+  totalPaise: number;
+  currency: string;
+  note: string;
+}
 
 /**
  * Error from a portal API call. `status === 0` means the request never reached the
@@ -93,8 +108,9 @@ export class PortalApi {
   }
 
   // Developer (supply-side) email/password onboarding — no extension required.
-  devRegister(email: string, password: string): Promise<AuthResult> {
-    return this.req("/dev/register", { method: "POST", body: JSON.stringify({ email, password }) });
+  // `ref` optionally carries a referrer's code captured from a ?ref= link.
+  devRegister(email: string, password: string, ref?: string): Promise<AuthResult> {
+    return this.req("/dev/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) });
   }
   devLogin(email: string, password: string): Promise<AuthResult> {
     return this.req("/dev/login", { method: "POST", body: JSON.stringify({ email, password }) });
@@ -115,6 +131,19 @@ export class PortalApi {
   }
   verifyEmail(token: string): Promise<{ ok: boolean }> {
     return this.req("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+  }
+
+  // --- Referrals ---
+  myReferrals(): Promise<{ code: string | null; referredCount: number; link: string | null; shareBps: number }> {
+    return this.req("/me/referrals", { method: "GET" });
+  }
+
+  // --- Advertiser invoices (GST) ---
+  campaignPurchases(campaignId: string): Promise<{ id: string; quantity: number; amountPaise: number; status: string; invoiceNo: string | null; createdAt: string }[]> {
+    return this.req(`/advertiser/campaigns/${campaignId}/purchases`, { method: "GET" });
+  }
+  invoice(purchaseId: string): Promise<GstInvoice> {
+    return this.req(`/advertiser/campaigns/invoices/${purchaseId}`, { method: "GET" });
   }
 
   // --- Data subject requests (DSAR) ---

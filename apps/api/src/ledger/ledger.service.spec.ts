@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 const prismaMock = {
   bid: { findMany: jest.fn() },
   ledgerEntry: { count: jest.fn(), createMany: jest.fn(), findMany: jest.fn() },
+  account: { findUnique: jest.fn() },
   $transaction: jest.fn(),
   $executeRaw: jest.fn(),
 };
@@ -21,6 +22,7 @@ describe("LedgerService", () => {
     prismaMock.ledgerEntry.count.mockResolvedValue(0);
     prismaMock.ledgerEntry.createMany.mockResolvedValue({ count: 3 });
     prismaMock.ledgerEntry.findMany.mockResolvedValue([{ direction: "credit", amount: 10_000_000 }]); // ample escrow by default
+    prismaMock.account.findUnique.mockResolvedValue(null); // no referrer by default
     prismaMock.$executeRaw.mockResolvedValue(undefined);
     // Run the interactive transaction body against the same mock (tx === prismaMock).
     prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => unknown) => fn(prismaMock));
@@ -42,6 +44,31 @@ describe("LedgerService", () => {
       expect.objectContaining({ account: "earnings:dev:acc1", direction: "credit", amount: 10 }),
       expect.objectContaining({ account: "revenue:platform", direction: "credit", amount: 10 }),
     ]));
+  });
+
+  it("routes a referral bonus from the platform cut when the referrer is in-window", async () => {
+    prismaMock.account.findUnique.mockResolvedValue({ referredById: "ref1", referredAt: new Date() });
+    await svc.postForEvent(ev({ id: "ev_ref" }));
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; direction: string; amount: number }>;
+    const debit = arg.filter((e) => e.direction === "debit").reduce((s, e) => s + e.amount, 0);
+    const credit = arg.filter((e) => e.direction === "credit").reduce((s, e) => s + e.amount, 0);
+    expect(debit).toBe(20);
+    expect(credit).toBe(20); // still balanced
+    // price 20 → dev 10, platform 10; referral 10% of platform = 1 → platform 9, referrer 1
+    expect(arg).toEqual(expect.arrayContaining([
+      expect.objectContaining({ account: "earnings:dev:acc1", direction: "credit", amount: 10 }),
+      expect.objectContaining({ account: "revenue:platform", direction: "credit", amount: 9 }),
+      expect.objectContaining({ account: "earnings:dev:ref1", direction: "credit", amount: 1 }),
+    ]));
+  });
+
+  it("ignores an expired referral (outside the window)", async () => {
+    const longAgo = new Date(Date.now() - 400 * 86_400_000); // ~400 days ago, past the 90d window
+    prismaMock.account.findUnique.mockResolvedValue({ referredById: "ref1", referredAt: longAgo });
+    await svc.postForEvent(ev({ id: "ev_ref_old" }));
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; amount: number }>;
+    expect(arg.some((e) => e.account === "earnings:dev:ref1")).toBe(false);
+    expect(arg.find((e) => e.account === "revenue:platform")?.amount).toBe(10); // full platform cut
   });
 
   it("charges a click at 50x the impression price", async () => {

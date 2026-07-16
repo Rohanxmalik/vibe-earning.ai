@@ -10,6 +10,7 @@ import {
   Post,
   StreamableFile,
   UseGuards,
+  Res,
 } from "@nestjs/common";
 import { createReadStream, existsSync } from "node:fs";
 import { extname, join } from "node:path";
@@ -19,6 +20,11 @@ import { AuthGuard } from "../auth/auth.guard";
 import { BLOB_STORAGE, type BlobStorage, localUploadDir } from "./blob-storage";
 
 const uploadBody = z.object({ dataUrl: z.string() });
+
+/** Minimal response shape we need for setting headers, to avoid an @types/express dependency. */
+interface ResLike {
+  setHeader(name: string, value: string): void;
+}
 
 const CONTENT_TYPE_BY_EXT: Record<string, string> = {
   png: "image/png",
@@ -58,11 +64,20 @@ export class UploadController {
   @Get(":name")
   @Header("Cache-Control", "public, max-age=31536000, immutable")
   @Header("Cross-Origin-Resource-Policy", "cross-origin") // embeddable by the extension webview
-  serve(@Param("name") name: string): StreamableFile {
+  serve(@Param("name") name: string, @Res({ passthrough: true }) res: ResLike): StreamableFile {
     if (!/^[a-f0-9]{32}\.(png|jpg|gif|webp|svg)$/.test(name)) throw new NotFoundException();
     const path = join(localUploadDir(), name);
     if (!existsSync(path)) throw new NotFoundException();
-    const type = CONTENT_TYPE_BY_EXT[extname(name).slice(1)] ?? "application/octet-stream";
+    const ext = extname(name).slice(1);
+    const type = CONTENT_TYPE_BY_EXT[ext] ?? "application/octet-stream";
+    // New uploads can no longer be SVG, but legacy objects might be. Never let a stored SVG
+    // render as an active document from our origin: force download + a sandbox CSP so any
+    // embedded <script> can't execute (stored-XSS defence).
+    if (ext === "svg") {
+      res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+      res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+    }
     return new StreamableFile(createReadStream(path), { type });
   }
 }

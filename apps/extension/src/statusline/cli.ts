@@ -123,6 +123,7 @@ export async function runStatusLine(deps: StatusLineDeps): Promise<string> {
             type: bill.type,
             nonce: bill.nonce,
             visibleMs: bill.visibleMs,
+            token: bill.token,
           }),
         })
         .catch(() => undefined); // a failed impression must never break the status line

@@ -10,8 +10,12 @@ export function configureApp(app: INestApplication): void {
   app.use(helmet());
 
   const origins = process.env.CORS_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean);
+  const isProd = process.env.NODE_ENV === "production";
+  // Fail CLOSED in production: if CORS_ORIGINS is unset we deny all cross-origin requests
+  // rather than reflecting the caller's Origin with credentials (which an unset var used to do).
+  // Only local dev reflects the request origin for convenience.
   app.enableCors({
-    origin: origins && origins.length > 0 ? origins : true, // reflect request origin if unset (dev)
+    origin: origins && origins.length > 0 ? origins : isProd ? false : true,
     credentials: true,
   });
 }

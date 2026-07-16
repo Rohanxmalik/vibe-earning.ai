@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "./campaign.service";
 import { BlockPurchaseService } from "./block-purchase.service";
 import { CampaignStatsService } from "./campaign-stats.service";
+import { InvoiceService } from "./invoice.service";
 
 @Controller("advertiser/campaigns")
 @UseGuards(AuthGuard)
@@ -14,6 +15,7 @@ export class AdvertiserController {
     private readonly purchases: BlockPurchaseService,
     private readonly prisma: PrismaService,
     private readonly stats: CampaignStatsService,
+    private readonly invoices: InvoiceService,
   ) {}
 
   @Post()
@@ -40,6 +42,20 @@ export class AdvertiserController {
     const p = buyBlocksSchema.safeParse(raw);
     if (!p.success) throw new BadRequestException(p.error.flatten());
     return this.purchases.buy(req.account.id, id, p.data.quantity);
+  }
+
+  /** Paid block purchases for one of the advertiser's campaigns (for the invoices list). */
+  @Get(":id/purchases")
+  async purchaseList(@Req() req: { account: { id: string } }, @Param("id") id: string) {
+    const c = await this.prisma.campaign.findUnique({ where: { id } });
+    if (!c || c.advertiserId !== req.account.id) throw new ForbiddenException("not_your_campaign");
+    return this.prisma.blockPurchase.findMany({ where: { campaignId: id }, orderBy: { createdAt: "desc" } });
+  }
+
+  /** GST invoice (JSON) for a paid block purchase the advertiser owns. */
+  @Get("invoices/:purchaseId")
+  async invoice(@Req() req: { account: { id: string } }, @Param("purchaseId") purchaseId: string) {
+    return this.invoices.forPurchase(req.account.id, purchaseId);
   }
 
   @Get(":id/stats")

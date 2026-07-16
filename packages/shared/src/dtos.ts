@@ -22,5 +22,8 @@ export const serveResponseSchema = z.object({
   url: z.string().url(),
   iconUrl: z.string().url().nullable(),
   isHouseAd: z.boolean(),
+  // Short-lived server-issued token binding this ad to a real /serve response. The client echoes
+  // it back on the /events impression so the server can verify the event it wasn't fabricated.
+  token: z.string().optional(),
 });
 export type ServeResponse = z.infer<typeof serveResponseSchema>;

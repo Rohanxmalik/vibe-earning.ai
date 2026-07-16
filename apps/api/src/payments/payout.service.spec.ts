@@ -6,7 +6,14 @@ import { LedgerService } from "../ledger/ledger.service";
 import { PaymentRouter } from "./payment-router";
 import { PayoutDestinationService } from "./payout-destination.service";
 
-const prismaMock = { account: { findUnique: jest.fn() }, payout: { create: jest.fn() } };
+// requestPayout runs inside an interactive transaction that takes a per-account advisory lock.
+// $transaction is wired in beforeEach to run the callback against this same mock client.
+const prismaMock = {
+  account: { findUnique: jest.fn() },
+  payout: { create: jest.fn(), findMany: jest.fn() },
+  $transaction: jest.fn(),
+  $executeRaw: jest.fn(),
+};
 const ledgerMock = { earningsBalance: jest.fn(), recordPayout: jest.fn() };
 const provider = { name: "razorpay", payout: jest.fn(), collect: jest.fn() };
 const routerMock = { forCountry: jest.fn().mockReturnValue(provider) };
@@ -19,6 +26,8 @@ describe("PayoutService", () => {
     routerMock.forCountry.mockReturnValue(provider);
     prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN" });
     prismaMock.payout.create.mockImplementation(async (a: { data: Record<string, unknown> }) => ({ id: "pay1", ...a.data }));
+    prismaMock.payout.findMany.mockResolvedValue([]); // no in-flight pending payouts by default
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prismaMock));
     destinationsMock.current.mockResolvedValue({ id: "d1", method: "upi", vpa: "dev@okaxis", providerRef: "fa_dev", status: "verified" });
     process.env.PAYOUT_MIN_PAISE = "10000";
     const mod = await Test.createTestingModule({
@@ -74,6 +83,22 @@ describe("PayoutService", () => {
     destinationsMock.current.mockResolvedValue(null);
     await expect(svc.requestPayout("acc1")).rejects.toThrow("no_verified_payout_destination");
     expect(provider.payout).not.toHaveBeenCalled();
+  });
+
+  it("reserves in-flight pending payouts so a second concurrent request can't double-spend", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    // A prior payout for the same balance is still pending (not yet ledger-debited).
+    prismaMock.payout.findMany.mockResolvedValue([{ amountPaise: 15000 }]);
+    // available = 15000 - 15000 = 0 < threshold → rejected, provider never called again.
+    await expect(svc.requestPayout("acc1")).rejects.toBeInstanceOf(BadRequestException);
+    expect(provider.payout).not.toHaveBeenCalled();
+  });
+
+  it("takes a per-account advisory lock before reading the balance", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    provider.payout.mockResolvedValue({ providerRef: "rzp_1", status: "paid" });
+    await svc.requestPayout("acc1");
+    expect(prismaMock.$executeRaw).toHaveBeenCalled();
   });
 
   it("refuses payout for a suspended account", async () => {

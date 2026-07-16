@@ -4,7 +4,12 @@ export const googleLoginSchema = z.object({ idToken: z.string().min(10) });
 export type GoogleLogin = z.infer<typeof googleLoginSchema>;
 
 // Email/password onboarding for developers (web), parallel to advertiser auth.
-export const devRegisterSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
+// `ref` optionally carries a referrer's shareable code captured from a ?ref= link.
+export const devRegisterSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  ref: z.string().trim().max(32).optional(),
+});
 export type DevRegister = z.infer<typeof devRegisterSchema>;
 
 export const devLoginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });

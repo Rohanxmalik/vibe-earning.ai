@@ -12,6 +12,11 @@ export const eventIngestSchema = z.object({
   type: eventTypeSchema,
   nonce: z.string().min(8),
   visibleMs: z.number().int().min(0).default(0),
+  // Server-issued impression token from the /serve response that produced this ad. Required in
+  // production for the event to be credited — it cryptographically binds the event to an ad the
+  // server actually served, defeating fabricated impressions/clicks. Optional in the schema so the
+  // envelope stays backward-compatible; enforcement lives server-side.
+  token: z.string().optional(),
 });
 export type EventIngest = z.infer<typeof eventIngestSchema>;
 

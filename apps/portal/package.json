@@ -14,7 +14,7 @@
     "@vibearning/shared": "workspace:*",
     "clsx": "^2.1.1",
     "motion": "^11.15.0",
-    "next": "^14.2.0",
+    "next": "15.5.20",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tailwind-merge": "^2.6.0"

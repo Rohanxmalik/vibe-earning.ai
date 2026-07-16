@@ -4,6 +4,7 @@ import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { PacingService } from "./pacing.service";
+import { issueImpressionToken } from "./impression-token";
 
 const MAX_CANDIDATES = 10;
 
@@ -50,6 +51,8 @@ export class ServeService {
         url: c.url,
         iconUrl: c.iconUrl,
         isHouseAd: c.isHouseAd,
+        // Bind this served ad to the /events impression the client will post back.
+        token: issueImpressionToken(c.id, surface),
       });
     }
     return picked;

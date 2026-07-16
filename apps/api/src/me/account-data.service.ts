@@ -21,6 +21,22 @@ export class AccountDataService {
     return { account, events, payouts, payoutDestinations, earnings };
   }
 
+  /** Referral summary for the signed-in dev: their shareable code + how many devs they've brought. */
+  async referrals(accountId: string) {
+    const [account, referredCount] = await Promise.all([
+      this.prisma.account.findUnique({ where: { id: accountId }, select: { referralCode: true } }),
+      this.prisma.account.count({ where: { referredById: accountId } }),
+    ]);
+    const base = process.env.PORTAL_BASE_URL ?? "http://localhost:3001";
+    const code = account?.referralCode ?? null;
+    return {
+      code,
+      referredCount,
+      link: code ? `${base}/earnings?ref=${code}` : null,
+      shareBps: Number(process.env.LEDGER_REFERRAL_BPS ?? 1000),
+    };
+  }
+
   /**
    * Erasure: strip PII from the account but keep financial rows (ledger, payouts,
    * purchases) which we must retain for tax/audit. The account can no longer log in.

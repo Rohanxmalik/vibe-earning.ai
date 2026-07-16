@@ -3,6 +3,7 @@ import { z } from "zod";
 import { surfaceSchema, headlineSchema, taglineSchema, brandColorSchema, emojiSchema, logoUrlSchema } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
+import { secureEquals } from "../common/secure-compare";
 
 // Brand fields reuse the shared validators (same single-emoji / #RRGGBB rules as the advertiser path).
 const bodySchema = z.object({
@@ -26,7 +27,7 @@ export class AdminController {
 
   @Post()
   async createHouseAd(@Headers("x-admin-key") key: string, @Body() raw: unknown) {
-    if (!key || key !== process.env.ADMIN_API_KEY) throw new UnauthorizedException();
+    if (!secureEquals(key, process.env.ADMIN_API_KEY)) throw new UnauthorizedException();
     const parsed = bodySchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const b: Body = parsed.data;

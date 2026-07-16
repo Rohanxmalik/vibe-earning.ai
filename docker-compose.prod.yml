@@ -46,6 +46,12 @@ services:
       PORT: 3000
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?set AUTH_JWT_SECRET}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+      # Impression-token secret (anti click-fraud). Fail fast if unset so events can't fall back
+      # to an insecure dev key in production.
+      EVENTS_TOKEN_SECRET: ${EVENTS_TOKEN_SECRET:?set EVENTS_TOKEN_SECRET}
+      EVENTS_REQUIRE_TOKEN: ${EVENTS_REQUIRE_TOKEN:-true}
+      BCRYPT_COST: ${BCRYPT_COST:-12}
+      AUTH_THROTTLE_LIMIT: ${AUTH_THROTTLE_LIMIT:-10}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
@@ -54,7 +60,9 @@ services:
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       FRAUD_IP_SALT: ${FRAUD_IP_SALT:-}
-      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Required in prod: unset would make the API deny all cross-origin requests (fail closed).
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS}
+      NODE_ENV: production
       SENTRY_DSN: ${SENTRY_DSN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports: ["3000:3000"]

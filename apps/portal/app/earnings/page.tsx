@@ -52,15 +52,25 @@ export default function EarningsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Referral: code captured from a ?ref= link (applied at sign-up), and the dev's own code once in.
+  const [refCode, setRefCode] = useState<string | undefined>();
+  const [referrals, setReferrals] = useState<{ code: string | null; referredCount: number; link: string | null; shareBps: number } | null>(null);
+  useEffect(() => {
+    // NB: this component has a state variable named `window`, so use globalThis for the browser API.
+    try { setRefCode(new URLSearchParams(globalThis.location.search).get("ref") ?? undefined); } catch { /* no window */ }
+  }, []);
+
   async function refresh() {
     setError(null); setLoading(true);
     try {
-      const [s, st, u, e, p, d, acc, act] = await Promise.all([
+      const [s, st, u, e, p, d, acc, act, refs] = await Promise.all([
         api.ledgerSummary(), api.ledgerStats(), api.usage(), api.eligibility(),
         api.myPayouts(), api.myPayoutDestinations(), api.me().catch(() => null), api.ledgerActivity("7d"),
+        api.myReferrals().catch(() => null),
       ]);
       setSummary(s); setStats(st); setUsage(u); setElig(e);
       setPayouts(p); setDestinations(d); setAccount(acc); setActivity({ "7d": act }); setWindow("7d");
+      setReferrals(refs);
     } catch {
       setError("Could not load earnings — your session may have expired.");
     } finally {
@@ -86,7 +96,7 @@ export default function EarningsPage() {
   async function authSubmit() {
     setError(null); setBusy(true);
     try {
-      const res = mode === "register" ? await api.devRegister(email, password) : await api.devLogin(email, password);
+      const res = mode === "register" ? await api.devRegister(email, password, refCode) : await api.devLogin(email, password);
       setDevToken(res.token); setSignedIn(true); await refresh();
     } catch (e) {
       const err = e instanceof ApiError ? e : null;
@@ -158,8 +168,11 @@ export default function EarningsPage() {
           title="Get paid for the line you already watch."
           subtitle="Sign in to see credited events, your balance, and payout status from the extension."
         />
-        <main className="bg-[#F4F6FF]">
+        <main className="bg-[#F2F1EB]">
           <div className="mx-auto max-w-lg px-6 py-12 md:py-16">
+            {refCode && mode === "register" && (
+              <Alert kind="ok">You were invited by a developer — sign up and you both benefit.</Alert>
+            )}
             <Tabs
               tabs={[{ id: "register", label: "Sign up" }, { id: "login", label: "Log in" }, { id: "token", label: "Extension token" }]}
               active={mode}
@@ -222,9 +235,9 @@ export default function EarningsPage() {
         eyebrow="Developer earnings"
         title="Your earnings, in INR."
         subtitle="Your impressions, balance, and payouts — paid to UPI."
-        actions={<button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={signOut}>Sign out</button>}
+        actions={<button className="rounded-full border border-[#15171E]/25 px-4 py-2 text-xs font-semibold text-[#15171E] transition-colors hover:bg-[#15171E] hover:text-white" onClick={signOut}>Sign out</button>}
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-6xl px-6 py-12 md:py-16">
           {loading && <Spinner label="Loading your earnings…" />}
 
@@ -311,6 +324,17 @@ export default function EarningsPage() {
           )}
           <button className="btn btn-primary btn-block" style={{ marginTop: "0.75rem" }} onClick={cashOut} disabled={balance < minPaise}>Cash out {rupees(balance)}</button>
           <p className="hint" style={{ marginTop: "0.6rem" }}>⚠ Every payout is <strong>manually reviewed for fraud</strong>. Click-farm and bot earnings won&apos;t be paid — it keeps the revenue split honest for everyone.</p>
+          {stats && stats.lifetimePaise > 0 && (
+            <a
+              className="btn btn-ghost btn-block"
+              style={{ marginTop: "0.5rem" }}
+              href={`/share?amt=${stats.lifetimePaise}&imp=${stats.validImpressions}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Share your earnings →
+            </a>
+          )}
         </div>
       </div>
 
@@ -338,6 +362,31 @@ export default function EarningsPage() {
           </ul>
         )}
       </div>
+
+      {/* Refer & earn */}
+      {referrals?.code && (
+        <div className="card">
+          <h2>Refer &amp; earn</h2>
+          <p className="muted small">
+            Invite another developer with your link. When they earn, you earn <strong>{(referrals.shareBps / 100).toFixed(0)}%</strong> of
+            the platform&apos;s cut on their impressions for 90 days — paid from our share, so it never reduces theirs.
+          </p>
+          <div className="row" style={{ marginTop: "0.5rem" }}>
+            <input className="input mono small" readOnly value={referrals.link ?? ""} style={{ maxWidth: 420 }} />
+            <button
+              className="btn btn-ghost"
+              onClick={() => { if (referrals.link) { void navigator.clipboard.writeText(referrals.link).then(() => setMsg("Referral link copied.")).catch(() => undefined); } }}
+            >
+              Copy link
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: "0.5rem" }}>
+            {referrals.referredCount > 0
+              ? <>You&apos;ve referred <strong>{referrals.referredCount}</strong> developer{referrals.referredCount === 1 ? "" : "s"}.</>
+              : <>No referrals yet — share your link to start.</>}
+          </p>
+        </div>
+      )}
 
       {/* Account & privacy */}
       <div className="card">

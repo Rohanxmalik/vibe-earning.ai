@@ -53,8 +53,17 @@ model Account {
   campaigns Campaign[]
   payoutDestinations PayoutDestination[]
 
+  // Referral program: each dev gets a shareable code; a new dev can arrive with a referrer's code.
+  // The referrer earns a share of the platform cut on the referee's earnings for a bounded window.
+  referralCode String?  @unique
+  referredById String?
+  referredAt   DateTime?
+  referredBy   Account?  @relation("Referrals", fields: [referredById], references: [id])
+  referrals    Account[] @relation("Referrals")
+
   // One account per email per role (NULL emails — e.g. some OAuth users — stay distinct).
   @@unique([email, type])
+  @@index([referredById])
 }
 
 model PayoutDestination {
@@ -128,9 +137,18 @@ model BlockPurchase {
   currency    String   @default("INR")
   status      String   // paid | pending | failed
   providerRef String?
+  // GST invoice: a human, sequential invoice number is stamped once the purchase is paid
+  // (e.g. "VIB-2026-000042"). Null until paid. Unique so no two purchases share a number.
+  invoiceNo   String?  @unique
   createdAt   DateTime @default(now())
 
   @@index([campaignId])
+}
+
+// Monotonic counters for human-friendly sequential ids (e.g. GST invoice numbers per financial year).
+model Counter {
+  id    String @id // e.g. "invoice:2026"
+  value Int    @default(0)
 }
 
 model Killswitch {

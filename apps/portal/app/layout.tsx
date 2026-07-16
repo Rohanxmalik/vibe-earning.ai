@@ -1,5 +1,12 @@
 import "./globals.css";
+import { Bricolage_Grotesque, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Footer } from "../components/ui/Footer";
+
+// Brand type: Bricolage for display, IBM Plex Sans/Mono for body & data.
+// next/font self-hosts the files, so the strict CSP needs no font-src changes.
+const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-display" });
+const body = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-body" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-mono" });
 
 const description = "Sponsor the line developers watch while their AI agent thinks — and pay India's developers for it.";
 
@@ -18,8 +25,8 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <body style={{ fontFamily: "var(--font-body), system-ui, sans-serif" }}>
         <noscript>
           {/* Without JS, scroll-reveal can't fire — make sure content is never left hidden. */}
           <style>{`.reveal{opacity:1!important;transform:none!important}`}</style>

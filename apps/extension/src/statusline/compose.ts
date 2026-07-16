@@ -1,4 +1,5 @@
 import type { ServeResponse } from "@vibearning/shared";
+import { stripControlChars } from "@vibearning/shared";
 
 export interface ComposeOpts {
   /** Hard cap on the rendered line length (terminal status lines are narrow). */
@@ -60,7 +61,9 @@ export function composeStatusLine(ad: ServeResponse | null, opts: ComposeOpts = 
   const lead = ad.emoji ? `${ad.emoji} ` : "";
   const label = ad.isHouseAd ? "" : "Sponsored: ";
   const tail = h ? ` · ${h}` : "";
-  const plain = `${lead}${label}${body(ad)}${tail}`;
+  // Defence-in-depth: strip control/ANSI bytes again at the point they'd hit the terminal,
+  // even though the server already sanitizes advertiser copy (belt and braces).
+  const plain = stripControlChars(`${lead}${label}${body(ad)}${tail}`);
   const visible = Array.from(plain); // count by code point, not UTF-16 unit
   const clamped = visible.length <= maxLen ? plain : visible.slice(0, Math.max(0, maxLen - 1)).join("") + "…";
   // Unicode math-bold for surfaces that can't do ANSI (VS Code status bar); plain when the caller

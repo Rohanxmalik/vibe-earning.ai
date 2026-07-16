@@ -66,7 +66,7 @@ export default function AdminPage() {
           title="Operations console"
           subtitle="Approve campaigns, verify KYC, and control the global killswitch."
         />
-        <main className="bg-[#F4F6FF]">
+        <main className="bg-[#F2F1EB]">
           <div className="mx-auto max-w-md px-6 py-12 md:py-16">
             <div className="card">
               <form onSubmit={(e) => { e.preventDefault(); void signIn(); }}>
@@ -93,9 +93,9 @@ export default function AdminPage() {
       <PageHeader
         eyebrow="Operations · staff only"
         title="Operations console"
-        actions={<><button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={() => void refresh()}>Refresh</button><button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={signOut}>Sign out</button></>}
+        actions={<><button className="rounded-full border border-[#15171E]/25 px-4 py-2 text-xs font-semibold text-[#15171E] transition-colors hover:bg-[#15171E] hover:text-white" onClick={() => void refresh()}>Refresh</button><button className="rounded-full border border-[#15171E]/25 px-4 py-2 text-xs font-semibold text-[#15171E] transition-colors hover:bg-[#15171E] hover:text-white" onClick={signOut}>Sign out</button></>}
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-5xl px-6 py-12 md:py-16">
           {loading && <Spinner label="Loading console…" />}
           {msg && <Alert kind="ok">{msg}</Alert>}

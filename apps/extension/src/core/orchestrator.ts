@@ -54,7 +54,7 @@ export class Orchestrator {
   /** The served ads for the current wait, ranked highest-bid first; cycled (looped) while thinking. */
   private ads: ServeResponse[] = [];
   private idx = 0;
-  private current: { ad: ServeResponse; nonce: string } | null = null;
+  private current: { ad: ServeResponse; nonce: string; token?: string } | null = null;
   /** Slot last actually shown to the user; persisted so the next wait-state starts at lastShown+1. */
   private lastShown: number;
 
@@ -122,7 +122,7 @@ export class Orchestrator {
     const ad = this.ads[this.idx];
     if (!ad) return;
     const nonce = makeNonce(this.d.installId, ad.campaignId, this.d.now());
-    this.current = { ad, nonce };
+    this.current = { ad, nonce, token: ad.token };
     this.lastShown = this.idx;        // remember the slot we're showing now…
     this.d.saveCursor?.(this.idx);    // …and persist it so the next turn resumes after it
     this.d.adapter.render(ad);
@@ -153,6 +153,7 @@ export class Orchestrator {
       type: "impression",
       nonce: cur.nonce,
       visibleMs,
+      token: cur.token,
     };
     const delivered = await this.d.api.sendEvent(event);
     if (delivered) this.d.onEarn?.(cur.ad);

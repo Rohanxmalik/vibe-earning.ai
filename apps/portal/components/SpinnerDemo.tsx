@@ -23,7 +23,7 @@ export function SpinnerDemo() {
           <div className="term-row">
             <span className="term-left">
               <span className="term-star">✻</span>
-              <span className="term-ad">Ramp · save time and money<span className="term-dots" /></span>
+              <span className="term-ad">Place your ad here · reach devs at peak focus<span className="term-dots" /></span>
             </span>
             <span className="term-meta">Glob · 2.8s</span>
           </div>

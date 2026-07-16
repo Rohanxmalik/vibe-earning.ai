@@ -146,7 +146,7 @@ export default function CampaignsPage() {
           title="My campaigns"
           subtitle="Sign in to create and manage campaigns."
         />
-        <main className="bg-[#F4F6FF]">
+        <main className="bg-[#F2F1EB]">
           <div className="mx-auto max-w-lg px-6 py-12 md:py-16">
             <div className="card">
               <p className="muted">You need to sign in to manage campaigns.</p>
@@ -164,9 +164,9 @@ export default function CampaignsPage() {
         eyebrow="Advertiser portal"
         title="My campaigns"
         subtitle="Target Claude Code, Codex & more · paid per verified impression, second-price auction."
-        actions={<button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={logout}>Log out</button>}
+        actions={<button className="rounded-full border border-[#15171E]/25 px-4 py-2 text-xs font-semibold text-[#15171E] transition-colors hover:bg-[#15171E] hover:text-white" onClick={logout}>Log out</button>}
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-4xl px-6 py-12 md:py-16">
       <div className="card">
         <h2>New campaign</h2>

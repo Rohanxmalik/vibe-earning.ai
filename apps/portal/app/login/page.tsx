@@ -55,7 +55,7 @@ export default function LoginPage() {
         title="Reach developers at peak focus."
         subtitle="Bid on the most-watched spinner in AI coding — pay only for verified impressions, in INR."
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-md px-6 py-12 md:py-16">
       <Tabs
         tabs={[{ id: "login", label: "Log in" }, { id: "register", label: "Register" }]}

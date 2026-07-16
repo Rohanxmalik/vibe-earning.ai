@@ -44,10 +44,24 @@ describe("advertiser schemas", () => {
     expect(isSafeLogoUrl(null)).toBe(false);
     expect(isSafeLogoUrl("")).toBe(false);
   });
-  it("createCampaign accepts an uploaded data-URI logo and rejects an http one", () => {
+  it("createCampaign accepts a raster data-URI logo and rejects SVG (stored-XSS) and http", () => {
     const base = { headline: "Zomato", url: "https://zomato.com", surface: "codex-panel" as const, bidPerBlockPaise: 20000 };
-    expect(createCampaignSchema.safeParse({ ...base, iconUrl: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" }).success).toBe(true);
+    // A tiny PNG data URI is accepted.
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    expect(createCampaignSchema.safeParse({ ...base, iconUrl: png }).success).toBe(true);
+    // SVG is now rejected — an SVG can carry <script> and would be stored XSS on our origin.
+    expect(createCampaignSchema.safeParse({ ...base, iconUrl: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, iconUrl: "http://x.dev/l.png" }).success).toBe(false);
+  });
+
+  it("strips ANSI/control characters from headline and tagline (terminal-injection guard)", () => {
+    const base = { url: "https://x.dev", surface: "codex-panel" as const, bidPerBlockPaise: 20000 };
+    const parsed = createCampaignSchema.safeParse({ ...base, headline: `Zomato\x1b[31m`, tagline: `tasty\x07\r` });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.headline).toBe("Zomato[31m"); // ESC byte removed, visible text kept
+      expect(parsed.data.tagline).toBe("tasty"); // BEL + CR removed
+    }
   });
 
   it("createCampaign rejects a too-long headline and a non-hex brand color", () => {

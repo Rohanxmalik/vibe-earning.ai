@@ -1,40 +1,32 @@
 import Link from "next/link";
 import { Hero } from "@/components/ui/hero";
-import { SectionHeading, ui, displayFont, displayShadowSm } from "@/components/ui/kit";
+import { SectionHeading, ui, displayFont } from "@/components/ui/kit";
 import { Ticker, type TickerItem } from "../components/Ticker";
 import { SpinnerDemo } from "../components/SpinnerDemo";
 import { BidMarket, type BidRow } from "../components/BidMarket";
 import { Accordion, type FaqEntry } from "../components/Accordion";
 
 // --- Fallback data ---------------------------------------------------------
-// Used verbatim whenever the public stats endpoint is unreachable, errors, or
-// returns empty/zero values, so the landing page is never broken or empty.
+// Shown only when the public stats endpoint is unreachable OR there's genuinely no live data yet
+// (pre-launch / no advertisers). These are HONEST placeholders — never fabricated brands, prices,
+// or earnings. Real values from /stats/public replace them the moment there's activity.
 
+// The moving banner shows open ad slots, not brands that haven't paid.
 const TICKER: TickerItem[] = [
-  { name: "Ramp", copy: "save time and money" },
-  { name: "Sentry", copy: "quit buggin' — get Sentry" },
-  { name: "Razorpay", copy: "payments built for India" },
-  { name: "Zoho", copy: "the operating system for business" },
-  { name: "Fluidstack", copy: "GPU compute, on tap" },
-  { name: "Linear", copy: "issue tracking built for speed" },
-  { name: "Postman", copy: "build APIs together" },
-  { name: "Hasura", copy: "instant GraphQL on your data" },
+  { name: "Place your ad here", copy: "reach developers at peak focus" },
+  { name: "Your brand", copy: "one tasteful line while their AI thinks" },
+  { name: "Place your ad here", copy: "pay only for verified, viewable impressions" },
+  { name: "Sponsor the spinner", copy: "advertise@vibearning.in" },
+  { name: "Your brand", copy: "India-first · priced in INR" },
+  { name: "Place your ad here", copy: "second-price auction — you only pay what you must" },
 ];
 
-const MARKET: BidRow[] = [
-  { name: "Ramp · save time and money", url: "https://ramp.com", cpmPaise: 21000 },
-  { name: "Razorpay · payments for India", url: "https://razorpay.com", cpmPaise: 20400 },
-  { name: "Sentry · quit buggin'", url: "https://sentry.io", cpmPaise: 19600 },
-  { name: "Linear · issue tracking, fast", url: "https://linear.app", cpmPaise: 18800 },
-  { name: "Hasura · instant GraphQL", url: "https://hasura.io", cpmPaise: 17400 },
-  { name: "Postman · build APIs together", url: "https://postman.com", cpmPaise: 16600 },
-  { name: "Zoho · the OS for business", url: "https://zoho.com", cpmPaise: 16200 },
-  { name: "Fluidstack · GPU compute", url: "https://fluidstack.io", cpmPaise: 15900 },
-];
+// No advertisers have bid yet, so the live market starts empty (the section shows a "be first" CTA).
+const MARKET: BidRow[] = [];
 
-const FALLBACK_EARNED_PAISE = 742156000;
-const FALLBACK_MARKET_PRICE_PAISE = 14800;
-const FALLBACK_IMPRESSIONS_PER_HOUR = 118000;
+const FALLBACK_EARNED_PAISE = 0;
+const FALLBACK_MARKET_PRICE_PAISE = 0;
+const FALLBACK_IMPRESSIONS_PER_HOUR = 0;
 
 /** Shape of the public, unauthenticated landing-page stats endpoint. */
 interface PublicStats {
@@ -125,11 +117,12 @@ const NEVER = [
 
 export default async function Home() {
   const data = await getLandingData();
+  const hasLiveMarket = data.market.length > 0;
   return (
     <>
-      <Hero earnedPaise={data.earnedPaise} />
+      <Hero />
 
-      {/* Sponsor ticker */}
+      {/* Sponsor ticker — open ad slots until real advertisers are live */}
       <Ticker items={data.ticker} />
 
       {/* See it in action */}
@@ -147,7 +140,7 @@ export default async function Home() {
       </section>
 
       {/* How it works */}
-      <section id="how" className="scroll-mt-24 bg-[#F4F6FF] py-16 md:py-24">
+      <section id="how" className="scroll-mt-24 bg-[#F2F1EB] py-16 md:py-24">
         <div className="mx-auto max-w-6xl px-6">
           <SectionHeading
             eyebrow="How it works"
@@ -156,9 +149,9 @@ export default async function Home() {
           />
           <div className="kbi-tw mt-12 grid gap-6 md:grid-cols-3">
             {STEPS.map((s) => (
-              <div key={s.n} className="rounded-[2rem] border border-black/5 bg-white p-8 shadow-[0_10px_40px_rgba(0,0,0,0.06)]">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#CCFF00] text-lg font-black text-black">{s.n}</div>
-                <h3 className="mt-5 text-xl font-black uppercase tracking-tight text-black">{s.t}</h3>
+              <div key={s.n} className="rounded-2xl border border-[#DBD9CF] bg-white p-8">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#FFB300] font-mono text-lg font-semibold text-[#15171E]">{s.n}</div>
+                <h3 className="mt-5 text-xl font-bold tracking-tight text-[#15171E]" style={{ fontFamily: displayFont }}>{s.t}</h3>
                 <p className="mt-2 text-sm font-medium text-black/60">{s.d}</p>
               </div>
             ))}
@@ -175,23 +168,23 @@ export default async function Home() {
             sub="vibearning swaps a single word in the “thinking…” line for a short sponsored one — that’s the only thing it changes."
           />
           <div className="kbi-tw mt-12 grid gap-6 md:grid-cols-2">
-            <div className="rounded-[2rem] border border-black/5 bg-white p-8 shadow-[0_10px_40px_rgba(0,0,0,0.06)]">
-              <h3 className="text-xl font-black uppercase tracking-tight text-black">What it changes</h3>
+            <div className="rounded-2xl border border-[#DBD9CF] bg-white p-8">
+              <h3 className="text-xl font-bold tracking-tight text-[#15171E]" style={{ fontFamily: displayFont }}>What it changes</h3>
               <ul className="mt-5 space-y-3">
                 {CHANGES.map((c) => (
                   <li key={c} className="flex gap-3 text-sm font-medium text-black/70">
-                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#CCFF00] text-xs font-black text-black">✓</span>
+                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#FFB300] text-xs font-bold text-[#15171E]">✓</span>
                     <span>{c}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="rounded-[2rem] border border-black/5 bg-[#F4F6FF] p-8">
-              <h3 className="text-xl font-black uppercase tracking-tight text-black">What it never touches</h3>
+            <div className="rounded-2xl border border-[#DBD9CF] bg-[#F2F1EB] p-8">
+              <h3 className="text-xl font-bold tracking-tight text-[#15171E]" style={{ fontFamily: displayFont }}>What it never touches</h3>
               <ul className="mt-5 space-y-3">
                 {NEVER.map((c) => (
                   <li key={c} className="flex gap-3 text-sm font-medium text-black/70">
-                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black/10 text-xs font-black text-black/60">✕</span>
+                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-black/10 text-xs font-bold text-black/60">✕</span>
                     <span>{c}</span>
                   </li>
                 ))}
@@ -201,16 +194,38 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Bid market */}
-      <section className="bg-[#F4F6FF] py-16 md:py-24">
+      {/* Bid market — real auction when there's demand, honest "be first" state before */}
+      <section className="bg-[#F2F1EB] py-16 md:py-24">
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeading
             eyebrow="Who's advertising"
-            title="The money's already moving."
-            sub="A live auction — advertisers bidding for spinner time right now. When your spinner shows one of their ads, you keep half."
+            title={hasLiveMarket ? "The money's already moving." : "The auction opens with your bid."}
+            sub={
+              hasLiveMarket
+                ? "A live second-price auction — advertisers bidding for spinner time right now. When your spinner shows one of their ads, you keep half."
+                : "No advertisers are live yet — so this is honest: be the first brand in the spinner. Set a bid, fund a campaign, pay only for verified impressions."
+            }
           />
           <div className="mt-10">
-            <BidMarket rows={data.market} marketPricePaise={data.marketPricePaise} impressionsPerHour={data.impressionsPerHour} />
+            {hasLiveMarket ? (
+              <BidMarket rows={data.market} marketPricePaise={data.marketPricePaise} impressionsPerHour={data.impressionsPerHour} />
+            ) : (
+              <div className="kbi-tw rounded-2xl border border-[#DBD9CF] bg-white p-10 text-center">
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-[#15171E]/50">
+                  Live bids: 0 · be the first
+                </p>
+                <h3 className="mt-3 text-2xl font-bold tracking-tight text-[#15171E]" style={{ fontFamily: displayFont }}>
+                  Your ad, in the spinner developers watch.
+                </h3>
+                <p className="mx-auto mt-3 max-w-lg text-sm font-medium text-black/60">
+                  Priced in INR. Second-price auction, so you never pay more than you must. Creative is
+                  moderated before it ever serves.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <Link href="/campaigns" className={ui.btnBlue}>Advertise with us →</Link>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -233,12 +248,14 @@ export default async function Home() {
       </section>
 
       {/* CTA band */}
-      <section className="kbi-tw relative overflow-hidden bg-[#0038FF] text-white">
-        <div className={`pointer-events-none absolute inset-0 ${ui.gridBg}`} />
+      <section className="kbi-tw relative overflow-hidden bg-[#15171E] text-white">
         <div className="relative z-10 mx-auto max-w-3xl px-6 py-20 text-center md:py-28">
+          <p className="mb-5 font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-[#FFB300]">
+            ✳ thinking… pays
+          </p>
           <h2
-            className="text-3xl font-black uppercase leading-[0.95] tracking-tight md:text-5xl"
-            style={{ fontFamily: displayFont, textShadow: displayShadowSm }}
+            className="text-3xl font-extrabold leading-[1.05] tracking-tight md:text-5xl"
+            style={{ fontFamily: displayFont }}
           >
             You&apos;re already waiting. Get paid for it.
           </h2>

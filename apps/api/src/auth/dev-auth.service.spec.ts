@@ -4,7 +4,7 @@ import { DevAuthService } from "./dev-auth.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { TokenService } from "./token.service";
 
-const prismaMock = { account: { findFirst: jest.fn(), create: jest.fn() } };
+const prismaMock = { account: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() } };
 const tokenMock = { issue: jest.fn().mockReturnValue("kbi.jwt") };
 
 describe("DevAuthService", () => {
@@ -12,6 +12,7 @@ describe("DevAuthService", () => {
   beforeEach(async () => {
     jest.resetAllMocks();
     tokenMock.issue.mockReturnValue("kbi.jwt");
+    prismaMock.account.findUnique.mockResolvedValue(null); // referral code is unique on first try
     const mod = await Test.createTestingModule({
       providers: [
         DevAuthService,

@@ -8,9 +8,9 @@ describe("LocalDiskStorage", () => {
   const storage = new LocalDiskStorage(dir, "http://localhost:3000");
 
   it("writes a content-addressed object and returns its public URL", async () => {
-    const bytes = Buffer.from("<svg/>", "utf8");
-    const { url, key } = await storage.put({ bytes, contentType: "image/svg+xml" });
-    expect(key).toMatch(/^[a-f0-9]{32}\.svg$/);
+    const bytes = Buffer.from("PNGDATA", "utf8");
+    const { url, key } = await storage.put({ bytes, contentType: "image/png" });
+    expect(key).toMatch(/^[a-f0-9]{32}\.png$/);
     expect(url).toBe(`http://localhost:3000/uploads/${key}`);
     expect(existsSync(join(dir, key))).toBe(true);
     expect(readFileSync(join(dir, key))).toEqual(bytes);
@@ -41,10 +41,10 @@ describe("S3Storage", () => {
   it("writes a content-addressed object under the prefix and returns its public (CDN) URL", async () => {
     const { putter, puts } = fakePutter();
     const storage = new S3Storage(putter, "https://cdn.vibearning.in", "logos/");
-    const { url, key } = await storage.put({ bytes: Buffer.from("<svg/>"), contentType: "image/svg+xml" });
-    expect(key).toMatch(/^logos\/[a-f0-9]{32}\.svg$/);
+    const { url, key } = await storage.put({ bytes: Buffer.from("<svg/>"), contentType: "image/png" });
+    expect(key).toMatch(/^logos\/[a-f0-9]{32}\.png$/);
     expect(url).toBe(`https://cdn.vibearning.in/${key}`);
-    expect(puts).toEqual([{ key, contentType: "image/svg+xml", len: 6 }]);
+    expect(puts).toEqual([{ key, contentType: "image/png", len: 6 }]);
   });
 
   it("is content-addressed: identical bytes dedupe to the same key", async () => {

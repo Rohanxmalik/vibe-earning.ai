@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as os from "node:os";
 import * as fs from "node:fs";
 import { join } from "node:path";
+import type { EventIngest, Surface } from "@vibearning/shared";
 import { ApiClient } from "../core/apiClient";
 import { Killswitch } from "../core/killswitch";
 import { ViewTracker } from "../core/viewTracker";
@@ -18,6 +19,35 @@ import { loadToken } from "../statusline/store";
 import { formatEarnings, formatStatusEarnings, sessionEarned } from "./earnings";
 
 const INSTALL_KEY = "vibearning.installId";
+
+/**
+ * Panel diagnostics breadcrumb (~/.vibearning/panel-diag.json) — the in-editor counterpart of the
+ * statusline's `statusline-last.txt`: records which adapter was selected, the last transcript
+ * detection state, and the last /serve outcome, so a live install can be debugged from the file
+ * alone. Overwritten in place (bounded), fail-safe — never affects the editor.
+ */
+const diag: Record<string, unknown> = {};
+function writeDiag(patch: Record<string, unknown>): void {
+  try {
+    Object.assign(diag, patch);
+    const dir = join(os.homedir(), ".vibearning");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(join(dir, "panel-diag.json"), JSON.stringify({ ...diag, ts: new Date().toISOString() }, null, 2));
+  } catch {
+    /* diagnostics only */
+  }
+}
+let lastDiagState: string | null = null;
+function diagDetectionState(line: TranscriptLine | null): void {
+  const s =
+    line === null ? "none"
+    : line.type === "user" ? "prompt"
+    : line.message?.stop_reason === "end_turn" ? "end_turn"
+    : "other";
+  if (s === lastDiagState) return;
+  lastDiagState = s;
+  writeDiag({ detection: s });
+}
 
 /** Resolve a base URL: explicit env override → VS Code setting (prod default) → hardcoded fallback. */
 function resolveBase(envVar: string | undefined, settingKey: string, fallback: string): string {
@@ -106,17 +136,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Dev: MockAdapter is the fallback so the pipeline is exercisable without a live agent.
   const mock = new MockAdapter();
-  const adapter: SpinnerAdapter = buildInEditorAdapter(sink) ?? firstAvailable(mock);
+  const inEditor = buildInEditorAdapter(sink);
+  const adapter: SpinnerAdapter = inEditor ?? firstAvailable(mock);
+
+  const wsDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+  writeDiag({
+    apiBase: API_BASE,
+    workspace: wsDir,
+    claudeExt: claudeCodePresent(),
+    adapter: inEditor ? "in-editor:claude-code-panel" : `fallback:${adapter.surface}`,
+    transcript: wsDir ? findNewestTranscript(wsDir, locatorFs) : null,
+    signedIn: isSignedIn(),
+  });
+
+  // Route the orchestrator's API calls through a thin shim that records the last /serve outcome
+  // in the diag file (serveMany rejections would otherwise vanish into an unhandled promise).
+  const apiForOrch = {
+    serveMany: async (surface: Surface, count: number) => {
+      try {
+        const ads = await api.serveMany(surface, count);
+        writeDiag({ lastServe: `${ads.length} ads` });
+        return ads;
+      } catch (err) {
+        writeDiag({ lastServe: `error: ${err instanceof Error ? err.message : String(err)}` });
+        return [];
+      }
+    },
+    sendEvent: (e: EventIngest) => api.sendEvent(e),
+  };
 
   const ROTATION_CURSOR_KEY = "vibearning.rotationCursor";
   const orch = new Orchestrator({
-    adapter, api, tracker, killswitch, installId,
+    adapter, api: apiForOrch, tracker, killswitch, installId,
     now: () => Date.now(),
     // Loop the top 3 ads while Claude works: highest bid 45s, next 30s, next 15s, then repeat.
     rotationCount: 3,
     holdScheduleMs: [45_000, 30_000, 15_000],
     onEarn: () => { void refreshEarnings(); }, // each billed impression updates the live total
-    onShow: (ad, ctx) => viewProvider.showAd(ad, ctx), // live ad + full line-up → sidebar card
+    onShow: (ad, ctx) => { writeDiag({ lastShown: ad.campaignId }); viewProvider.showAd(ad, ctx); }, // live ad + full line-up → sidebar card
     onHide: () => viewProvider.clearAd(),       // wait ended → sidebar slot goes idle
     // Resume rotation where it left off (round-robin) — persisted across turns AND reloads, so
     // short turns still cycle every advertiser instead of always re-showing the highest-bid ad.
@@ -294,7 +351,11 @@ function buildInEditorAdapter(sink: StatusBarSink): SpinnerAdapter | null {
 
   const waitSource = createThinkingWaitSource({
     watch,
-    readLastLine: () => readLastLine(workspaceDir),
+    readLastLine: () => {
+      const line = readLastLine(workspaceDir);
+      diagDetectionState(line);
+      return line;
+    },
     now: () => Date.now(),
   });
   // We already gated on claudeCodePresent(); force detect=true so the adapter is selected.

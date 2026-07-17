@@ -1,0 +1,6 @@
+{
+  // Local dev: point the vibearning extension at the local stack even when the dev host
+  // is launched without the F5 launch-config env (VIBEARNING_API/VIBEARNING_PORTAL).
+  "vibearning.apiUrl": "http://localhost:3000",
+  "vibearning.portalUrl": "http://localhost:3001"
+}

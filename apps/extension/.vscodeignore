@@ -4,3 +4,9 @@ node_modules/**
 esbuild.mjs
 tsconfig.json
 vitest.config.ts
+**/*.map
+**/*.vsix
+.vscode/**
+.turbo/**
+.gitignore
+MANUAL-TEST.md

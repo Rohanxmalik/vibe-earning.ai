@@ -1,7 +1,7 @@
-import type { CreateCampaign, EditCampaign, PayoutDestinationInput } from "@kbi/shared";
+import type { CreateCampaign, EditCampaign, PayoutDestinationInput } from "@vibearning/shared";
 
 export interface AuthResult { token: string; account: { id: string; email: string | null; type: string } }
-export interface Campaign { id: string; copy: string; url: string; surface?: string; status?: string; createdAt?: string }
+export interface Campaign { id: string; copy: string; headline?: string | null; tagline?: string | null; brandColor?: string | null; emoji?: string | null; iconUrl?: string | null; url: string; surface?: string; status?: string; createdAt?: string }
 export interface DailySpend { date: string; spendPaise: number }
 export interface LedgerSummary { balancePaise: number; currency: string; validImpressions: number }
 export interface LedgerStats { todayPaise: number; monthPaise: number; lifetimePaise: number; validImpressions: number; currency: string }
@@ -14,6 +14,21 @@ export type ActivityWindow = "24h" | "7d" | "30d";
 export interface Payout { id: string; provider: string; amountPaise: number; status: string; createdAt?: string }
 export interface PayoutDestination { id: string; method: string; vpa: string | null; accountNumber: string | null; status: string }
 export interface AuditEntry { id: string; actor: string; action: string; target: string | null; detail: string | null; createdAt: string }
+export interface GstInvoice {
+  invoiceNo: string;
+  invoiceDate: string;
+  seller: { legalName: string; gstin: string | null; state: string | null; address: string | null };
+  buyer: { name: string; country: string | null; gstin: string | null };
+  item: { description: string; sac: string; quantity: number };
+  placeOfSupply: string | null;
+  taxableValuePaise: number;
+  cgstPaise: number;
+  sgstPaise: number;
+  igstPaise: number;
+  totalPaise: number;
+  currency: string;
+  note: string;
+}
 
 /**
  * Error from a portal API call. `status === 0` means the request never reached the
@@ -93,8 +108,9 @@ export class PortalApi {
   }
 
   // Developer (supply-side) email/password onboarding — no extension required.
-  devRegister(email: string, password: string): Promise<AuthResult> {
-    return this.req("/dev/register", { method: "POST", body: JSON.stringify({ email, password }) });
+  // `ref` optionally carries a referrer's code captured from a ?ref= link.
+  devRegister(email: string, password: string, ref?: string): Promise<AuthResult> {
+    return this.req("/dev/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) });
   }
   devLogin(email: string, password: string): Promise<AuthResult> {
     return this.req("/dev/login", { method: "POST", body: JSON.stringify({ email, password }) });
@@ -117,6 +133,19 @@ export class PortalApi {
     return this.req("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
   }
 
+  // --- Referrals ---
+  myReferrals(): Promise<{ code: string | null; referredCount: number; link: string | null; shareBps: number }> {
+    return this.req("/me/referrals", { method: "GET" });
+  }
+
+  // --- Advertiser invoices (GST) ---
+  campaignPurchases(campaignId: string): Promise<{ id: string; quantity: number; amountPaise: number; status: string; invoiceNo: string | null; createdAt: string }[]> {
+    return this.req(`/advertiser/campaigns/${campaignId}/purchases`, { method: "GET" });
+  }
+  invoice(purchaseId: string): Promise<GstInvoice> {
+    return this.req(`/advertiser/campaigns/invoices/${purchaseId}`, { method: "GET" });
+  }
+
   // --- Data subject requests (DSAR) ---
   exportMyData(): Promise<unknown> {
     return this.req("/me/export", { method: "GET" });
@@ -126,6 +155,11 @@ export class PortalApi {
   }
   createCampaign(dto: CreateCampaign): Promise<{ id: string }> {
     return this.req("/advertiser/campaigns", { method: "POST", body: JSON.stringify(dto) });
+  }
+  /** Upload a logo (the file as a data URI) to object storage; returns the hosted URL. */
+  async uploadLogo(dataUrl: string): Promise<string> {
+    const { url } = await this.req<{ url: string }>("/uploads/logo", { method: "POST", body: JSON.stringify({ dataUrl }) });
+    return url;
   }
   listCampaigns(): Promise<Campaign[]> {
     return this.req("/advertiser/campaigns", { method: "GET" });

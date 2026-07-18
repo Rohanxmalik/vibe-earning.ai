@@ -35,7 +35,7 @@ export function GeoBanner({ eligibility }: { eligibility: Eligibility | null }) 
       <div>
         <p className="geo-title">UPI payouts are India-only for now{eligibility.country ? ` — we detected ${eligibility.country}` : ""}.</p>
         <p className="geo-body">
-          <strong>Your credit is safe and keeps accruing.</strong> Kickbacks-India pays out over UPI, so we can settle balances to Indian developers today. If your region looks wrong, it&apos;s inferred from your sign-in location — <Link href="/faq#payouts">read the payout FAQ</Link> or contact support.
+          <strong>Your credit is safe and keeps accruing.</strong> vibearning pays out over UPI, so we can settle balances to Indian developers today. If your region looks wrong, it&apos;s inferred from your sign-in location — <Link href="/faq#payouts">read the payout FAQ</Link> or contact support.
         </p>
         <div className="geo-flags">
           <span className="geo-flag">IN India ✓</span>

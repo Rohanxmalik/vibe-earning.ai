@@ -14,6 +14,6 @@ import { WebhookController } from "./webhook.controller";
   imports: [AuthModule, LedgerModule],
   controllers: [PayoutsController, WebhookController],
   providers: [StripeProvider, RazorpayProvider, PaymentRouter, PayoutService, PayoutDestinationService, WebhookService],
-  exports: [PaymentRouter, PayoutDestinationService],
+  exports: [PaymentRouter, PayoutDestinationService, PayoutService],
 })
 export class PaymentsModule {}

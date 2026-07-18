@@ -4,6 +4,7 @@ import { PortalApi, type Campaign, type PayoutDestination, type AuditEntry } fro
 import { getAdminToken, setAdminToken, clearAdminToken } from "../../lib/token";
 import { Alert, Spinner, ConfirmButton } from "../../components/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { brandPreview } from "../../lib/brand";
 
 const api = new PortalApi(process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3000");
 
@@ -65,7 +66,7 @@ export default function AdminPage() {
           title="Operations console"
           subtitle="Approve campaigns, verify KYC, and control the global killswitch."
         />
-        <main className="bg-[#F4F6FF]">
+        <main className="bg-[#F2F1EB]">
           <div className="mx-auto max-w-md px-6 py-12 md:py-16">
             <div className="card">
               <form onSubmit={(e) => { e.preventDefault(); void signIn(); }}>
@@ -92,9 +93,9 @@ export default function AdminPage() {
       <PageHeader
         eyebrow="Operations · staff only"
         title="Operations console"
-        actions={<><button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={() => void refresh()}>Refresh</button><button className="rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10" onClick={signOut}>Sign out</button></>}
+        actions={<><button className="rounded-full border border-[#15171E]/25 px-4 py-2 text-xs font-semibold text-[#15171E] transition-colors hover:bg-[#15171E] hover:text-white" onClick={() => void refresh()}>Refresh</button><button className="rounded-full border border-[#15171E]/25 px-4 py-2 text-xs font-semibold text-[#15171E] transition-colors hover:bg-[#15171E] hover:text-white" onClick={signOut}>Sign out</button></>}
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-5xl px-6 py-12 md:py-16">
           {loading && <Spinner label="Loading console…" />}
           {msg && <Alert kind="ok">{msg}</Alert>}
@@ -116,7 +117,10 @@ export default function AdminPage() {
                 {campaigns.map((c) => (
                   <li key={c.id} className="list-item">
                     <div className="item-main">
-                      <div className="item-copy">{c.copy}</div>
+                      <div className="item-copy" style={c.brandColor ? { color: c.brandColor } : undefined}>
+                        {c.brandColor && <span aria-hidden style={{ display: "inline-block", width: "0.6rem", height: "0.6rem", borderRadius: "50%", background: c.brandColor, marginRight: "0.4rem" }} />}
+                        {brandPreview({ emoji: c.emoji ?? undefined, headline: c.headline ?? undefined, tagline: c.tagline ?? undefined, copy: c.copy })}
+                      </div>
                       <div className="item-sub">{c.url}</div>
                     </div>
                     <button className="btn btn-primary btn-sm" onClick={() => approve(c.id)}>Approve</button>

@@ -1,39 +1,69 @@
-# Kickbacks-India
+# vibearning — earn while your AI thinks
 
-Earn for the single sponsored line shown while your AI coding agent (Claude Code, Codex, Gemini) is thinking. Paid to Indian developers via UPI.
+**vibearning** pays you for the single, tasteful **Sponsored** line shown while your AI coding agent (Claude Code today; Codex & Gemini next) is thinking. Developers earn a share of the ad revenue for every verified, viewable impression — cashed out to **UPI** for developers in India.
+
+No ads while you type. One line, only during the agent's wait. A global killswitch can turn serving off instantly.
+
+---
 
 ## How it works
 
-1. Install the extension and sign in.
-2. While your AI agent works, one tasteful **Sponsored** line appears in its spinner/status line.
-3. You earn a share of the ad revenue for each verified, viewable impression — withdraw to UPI once you pass the minimum.
+1. **Install** the extension and **sign in** (email + password — the same account as the web dashboard).
+2. While your AI agent works, one **Sponsored** line appears in its status/spinner area — e.g.
+   `⚡ 🍔 Sponsored: Zomato — Delivering Happiness · zomato.com`
+3. You **earn** a share of the revenue for each impression that was actually on‑screen long enough to count. Withdraw to UPI once you pass the minimum.
 
-No ads while you type. One line, only during the agent's wait. A global killswitch can disable serving instantly.
+## What you'll see
 
-## Status-line integration (Claude Code / Codex / Gemini)
+- **Sidebar panel** (⚡ vibearning in the Activity Bar): a branded ad card — logo, headline, tagline, brand‑color accent — plus your **live earnings** and a ▲ "this session" ticker. When several ads are in rotation, the winner shows big with the rest listed under **"In rotation · up next"**.
+- **Status‑bar line**: the same sponsored line, always‑on at the bottom while the agent works.
+- **Live earnings**: your lifetime total updates as impressions bill; click it to open your dashboard.
 
-The extension ships a standalone status-line script (`dist/statusline.js`) that plugs into each agent's **official** status-line hook — no UI hacking. See [`docs/extension/claude-code-statusline.md`](../../docs/extension/claude-code-statusline.md) for setup. Set `KICKBACKS_SURFACE` to target Codex/Gemini with the same script.
+## Supported agents
 
-## Build
+| Agent | In‑editor ad | Official status‑line |
+|---|---|---|
+| **Claude Code** | ✅ | ✅ |
+| **Codex** | 🔜 (ad inventory is ready) | ✅ via `VIBEARNING_SURFACE=codex-panel` |
+| **Gemini CLI** | 🔜 | ✅ |
+
+The extension ships a standalone status‑line script (`dist/statusline.js`) that plugs into each agent's **official** status‑line hook — no UI hacking. See `docs/extension/claude-code-statusline.md` for setup.
+
+## Privacy
+
+vibearning is built to be minimal and honest about data:
+
+- It reads your local AI‑agent session transcript files **only to detect when the agent is thinking** (so the ad shows at the right moment). **Your prompts, code, and transcript contents never leave your machine.**
+- When you're **signed in**, it sends impression events — *which* ad was shown and for *how long*, tied to your account — so you get paid. Signed out, nothing is attributed and nothing is billed.
+- A per‑install anonymous id is used for basic anti‑fraud. See the full Privacy Policy and Terms of Service before use.
+
+## Configuration
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `vibearning.apiUrl` | `https://api.vibearning.in` | vibearning API base (change only if self‑hosting). |
+| `vibearning.portalUrl` | `https://vibearning.in` | Web dashboard opened by the earnings item. |
+
+Environment variables `VIBEARNING_API` / `VIBEARNING_PORTAL` override the settings (handy for local development).
+
+## Commands
+
+- **vibearning: Sign in** / **Sign out**
+- **vibearning: Open the current sponsor**
+- **vibearning: Open your earnings dashboard**
+
+---
+
+## For contributors
 
 ```bash
-pnpm --filter @kbi/extension build   # → dist/extension.js + dist/statusline.js
-pnpm --filter @kbi/extension test    # unit tests (core is fully tested)
+pnpm --filter vibearning build   # → dist/extension.js + dist/statusline.js
+pnpm --filter vibearning test    # unit tests
+pnpm --filter vibearning package # → vibearning.vsix
 ```
 
-## Publishing to the VS Code Marketplace
+`.vscodeignore` excludes sources/tests, so only `dist/` + `media/` ship in the `.vsix`.
 
-The package is publish-ready except for three steps that need your accounts/assets:
+## License
 
-1. **Create a Microsoft/Azure DevOps publisher** and set `"publisher"` in `package.json` (currently `"kickbacks"` placeholder).
-2. **Rename for the marketplace:** the workspace name is scoped (`@kbi/extension`); vsce needs an unscoped `"name"` (e.g. `"kickbacks-india"`). Change it at publish time (and drop `"private": true`).
-3. **Add a 128×128 PNG icon** at `media/icon.png` and set `"icon": "media/icon.png"` (a brand SVG is at `apps/portal/app/icon.svg` to export from).
-
-Then:
-
-```bash
-npx @vscode/vsce package    # produces a .vsix
-npx @vscode/vsce publish    # needs the publisher PAT
-```
-
-`.vscodeignore` already excludes sources/tests so only `dist/` ships.
+Proprietary — see [LICENSE](LICENSE). © 2026 vibearning. All rights reserved.

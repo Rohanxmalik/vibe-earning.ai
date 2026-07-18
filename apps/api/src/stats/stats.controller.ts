@@ -10,4 +10,10 @@ export class StatsController {
   publicStats() {
     return this.stats.publicStats();
   }
+
+  /** Public transparency figures: real earned/paid totals + a masked payout-proof feed. */
+  @Get("transparency")
+  transparency() {
+    return this.stats.transparency();
+  }
 }

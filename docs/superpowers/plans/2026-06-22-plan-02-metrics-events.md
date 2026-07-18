@@ -8,9 +8,9 @@
 
 **Tech Stack:** Same as Plan 01 — TypeScript, NestJS, Prisma+Postgres, ioredis+Redis, zod, Jest (api), vitest (`packages/shared`).
 
-> **Prerequisites:** Plan 01 merged to `main`; `docker compose up -d` running; `packages/shared` built (`pnpm --filter @kbi/shared build`).
+> **Prerequisites:** Plan 01 merged to `main`; `docker compose up -d` running; `packages/shared` built (`pnpm --filter @vibearning/shared build`).
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md) §8, §10.
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md) §8, §10.
 
 ---
 
@@ -77,7 +77,7 @@ describe("eventIngestSchema", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/shared test`
+Run: `pnpm --filter @vibearning/shared test`
 Expected: FAIL — cannot find `./events`.
 
 - [ ] **Step 3: Implement `src/events.ts`**
@@ -118,12 +118,12 @@ export * from "./events";
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/shared test`
+Run: `pnpm --filter @vibearning/shared test`
 Expected: PASS (existing + 4 new).
 
-- [ ] **Step 6: Rebuild shared (api's jest resolves `@kbi/shared` from `dist`)**
+- [ ] **Step 6: Rebuild shared (api's jest resolves `@vibearning/shared` from `dist`)**
 
-Run: `pnpm --filter @kbi/shared build`
+Run: `pnpm --filter @vibearning/shared build`
 Expected: `dist/` updated.
 
 - [ ] **Step 7: Commit**
@@ -166,8 +166,8 @@ model AdEvent {
 
 Run:
 ```bash
-pnpm --filter @kbi/api exec prisma db push
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/api exec prisma db push
+pnpm --filter @vibearning/api exec prisma generate
 ```
 Expected: `AdEvent` table created in Postgres; client regenerated with `prisma.adEvent`.
 
@@ -239,7 +239,7 @@ describe("RateLimitService", () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/api test -- rate-limit`
+Run: `pnpm --filter @vibearning/api test -- rate-limit`
 Expected: FAIL — cannot find `./rate-limit.service`.
 
 - [ ] **Step 4: Implement `src/metrics/rate-limit.service.ts`**
@@ -274,7 +274,7 @@ export class RateLimitService {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/api test -- rate-limit`
+Run: `pnpm --filter @vibearning/api test -- rate-limit`
 Expected: PASS (2 tests).
 
 - [ ] **Step 6: Commit**
@@ -369,14 +369,14 @@ describe("MetricsService", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @kbi/api test -- metrics.service`
+Run: `pnpm --filter @vibearning/api test -- metrics.service`
 Expected: FAIL — cannot find `./metrics.service`.
 
 - [ ] **Step 3: Implement `src/metrics/metrics.service.ts`**
 
 ```ts
 import { Injectable } from "@nestjs/common";
-import type { EventIngest, EventResult } from "@kbi/shared";
+import type { EventIngest, EventResult } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
 import { minViewMs } from "./constants";
@@ -434,7 +434,7 @@ export class MetricsService {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @kbi/api test -- metrics.service`
+Run: `pnpm --filter @vibearning/api test -- metrics.service`
 Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
@@ -456,7 +456,7 @@ git commit -m "feat(api): metrics service (dedupe + view/spacing/cap validation)
 
 ```ts
 import { BadRequestException, Body, Controller, Post } from "@nestjs/common";
-import { eventIngestSchema } from "@kbi/shared";
+import { eventIngestSchema } from "@vibearning/shared";
 import { MetricsService } from "./metrics.service";
 
 @Controller("events")
@@ -558,12 +558,12 @@ describe("/events (e2e)", () => {
 
 - [ ] **Step 5: Run the e2e + full suite to verify**
 
-Run: `pnpm --filter @kbi/api test`
+Run: `pnpm --filter @vibearning/api test`
 Expected: all suites PASS (Plan 01 suites + rate-limit + metrics.service + metrics.e2e).
 
 - [ ] **Step 6: Manual smoke (optional)**
 
-With api running (`pnpm --filter @kbi/api dev`):
+With api running (`pnpm --filter @vibearning/api dev`):
 ```bash
 curl -s -X POST localhost:3000/events -H "content-type: application/json" \
   -d '{"installId":"dev1","campaignId":"c1","surface":"claude-code-terminal","type":"impression","nonce":"smoke12345","visibleMs":6000}'

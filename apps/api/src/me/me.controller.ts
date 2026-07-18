@@ -15,6 +15,12 @@ export class MeController {
     return this.data.export(req.account.id);
   }
 
+  /** The signed-in dev's referral code, share link, and how many devs they've referred. */
+  @Get("referrals")
+  referrals(@Req() req: { account: { id: string } }) {
+    return this.data.referrals(req.account.id);
+  }
+
   /**
    * Payout eligibility + geo. India is our home market (paid in INR over UPI);
    * other regions accrue credit but can't be paid out yet.

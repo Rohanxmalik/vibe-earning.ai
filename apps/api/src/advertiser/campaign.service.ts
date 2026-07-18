@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
-import type { CreateCampaign } from "@kbi/shared";
+import { type CreateCampaign, deriveCopy, campaignSurfaces } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
@@ -14,10 +14,31 @@ export class CampaignService {
     // New advertiser campaigns land in moderation. They are NOT ranked (and so
     // never serve) until an admin approves them. House ads bypass this.
     const campaign = await this.prisma.campaign.create({
-      data: { advertiserId, copy: dto.copy, url: dto.url, iconUrl: dto.iconUrl ?? null, isHouseAd: false, status: "pending", pacePerMinute: dto.pacePerMinute ?? null },
+      data: {
+        advertiserId,
+        // Derive the legacy single-line copy from the structured fields when the caller
+        // didn't send one (the portal sends headline+tagline only).
+        copy: dto.copy ?? deriveCopy(dto.headline, dto.tagline),
+        headline: dto.headline ?? null,
+        tagline: dto.tagline ?? null,
+        brandColor: dto.brandColor ?? null,
+        emoji: dto.emoji ?? null,
+        url: dto.url,
+        iconUrl: dto.iconUrl ?? null,
+        isHouseAd: false,
+        status: "pending",
+        pacePerMinute: dto.pacePerMinute ?? null,
+      },
     });
-    await this.prisma.bid.create({
-      data: { campaignId: campaign.id, surface: dto.surface, amount: dto.bidPerBlockPaise, status: "active" },
+    // One active bid per target surface so the campaign serves on every selected spinner (Claude
+    // Code, Codex, …). Ranked only after admin approval (rankBids ranks all of a campaign's bids).
+    await this.prisma.bid.createMany({
+      data: campaignSurfaces(dto).map((surface) => ({
+        campaignId: campaign.id,
+        surface,
+        amount: dto.bidPerBlockPaise,
+        status: "active",
+      })),
     });
     return campaign;
   }
@@ -58,7 +79,16 @@ export class CampaignService {
   async edit(
     advertiserId: string,
     campaignId: string,
-    dto: { copy?: string; url?: string; iconUrl?: string | null; bidPerBlockPaise?: number },
+    dto: {
+      copy?: string;
+      headline?: string | null;
+      tagline?: string | null;
+      brandColor?: string | null;
+      emoji?: string | null;
+      url?: string;
+      iconUrl?: string | null;
+      bidPerBlockPaise?: number;
+    },
   ) {
     const c = await this.ownedCampaign(advertiserId, campaignId);
 
@@ -68,13 +98,36 @@ export class CampaignService {
 
     const creativeChanged =
       (dto.copy !== undefined && dto.copy !== c.copy) ||
+      (dto.headline !== undefined && dto.headline !== c.headline) ||
+      (dto.tagline !== undefined && dto.tagline !== c.tagline) ||
+      (dto.brandColor !== undefined && dto.brandColor !== c.brandColor) ||
+      (dto.emoji !== undefined && dto.emoji !== c.emoji) ||
       (dto.url !== undefined && dto.url !== c.url) ||
       (dto.iconUrl !== undefined && dto.iconUrl !== c.iconUrl);
 
-    const data: { copy?: string; url?: string; iconUrl?: string | null; status?: string } = {};
+    const data: {
+      copy?: string;
+      headline?: string | null;
+      tagline?: string | null;
+      brandColor?: string | null;
+      emoji?: string | null;
+      url?: string;
+      iconUrl?: string | null;
+      status?: string;
+    } = {};
     if (dto.copy !== undefined) data.copy = dto.copy;
+    if (dto.headline !== undefined) data.headline = dto.headline;
+    if (dto.tagline !== undefined) data.tagline = dto.tagline;
+    if (dto.brandColor !== undefined) data.brandColor = dto.brandColor;
+    if (dto.emoji !== undefined) data.emoji = dto.emoji;
     if (dto.url !== undefined) data.url = dto.url;
     if (dto.iconUrl !== undefined) data.iconUrl = dto.iconUrl;
+
+    // Keep the legacy `copy` in sync when the structured fields change but no explicit copy
+    // was sent (the portal edits headline/tagline, not copy).
+    if (dto.copy === undefined && (dto.headline !== undefined || dto.tagline !== undefined)) {
+      data.copy = deriveCopy(dto.headline ?? c.headline, dto.tagline ?? c.tagline);
+    }
 
     if (creativeChanged && c.status === "active") {
       data.status = "pending"; // re-moderation

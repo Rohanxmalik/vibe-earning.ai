@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from "@nestjs/common";
-import { serveQuerySchema } from "@kbi/shared";
+import { serveQuerySchema } from "@vibearning/shared";
 import { ServeService } from "./serve.service";
 
 @Controller("serve")

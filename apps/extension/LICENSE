@@ -1,0 +1,27 @@
+vibearning — Proprietary Software License
+Copyright (c) 2026 vibearning. All rights reserved.
+
+This software, including the compiled extension, its source code, and all
+associated files (collectively, the "Software"), is the proprietary and
+confidential property of vibearning.
+
+Permission is granted to install and use the Software solely as a distributed
+Visual Studio Code extension for its intended purpose (earning a share of ad
+revenue for sponsored lines shown while an AI coding agent is working).
+
+You may NOT, without prior written permission from vibearning:
+  1. copy, redistribute, sublicense, sell, or otherwise transfer the Software;
+  2. modify, adapt, translate, reverse engineer, decompile, or disassemble the
+     Software, except to the extent this restriction is prohibited by law;
+  3. remove or alter any proprietary notices or attribution;
+  4. use the Software to build a competing product or service.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL VIBEARNING BE
+LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Use of the Software is also subject to the vibearning Terms of Service and
+Privacy Policy. For licensing inquiries, contact the vibearning team.

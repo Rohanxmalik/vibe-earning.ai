@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run vibearning Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "${workspaceFolder}",
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/extension"
+      ],
+      "outFiles": ["${workspaceFolder}/apps/extension/dist/**/*.js"],
+      "env": {
+        "VIBEARNING_API": "http://localhost:3000",
+        "VIBEARNING_PORTAL": "http://localhost:3001"
+      }
+    }
+  ]
+}

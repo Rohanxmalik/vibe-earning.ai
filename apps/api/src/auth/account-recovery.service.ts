@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
 import { TokenService } from "./token.service";
 import { Notifier } from "../notifications/notifier";
+import { hashPassword } from "./password";
 
 const RESET_TTL = "1h";
 const VERIFY_TTL = "24h";
@@ -26,7 +26,7 @@ export class AccountRecoveryService {
     if (account) {
       const token = this.tokens.issuePurpose(account.id, "pwreset", RESET_TTL);
       const link = `${this.portalBase()}/reset?token=${token}`;
-      await this.notifier.send(email, "Reset your Kickbacks password", `Reset your password (valid 1 hour): ${link}`);
+      await this.notifier.send(email, "Reset your vibearning password", `Reset your password (valid 1 hour): ${link}`);
     }
     return { ok: true };
   }
@@ -34,7 +34,7 @@ export class AccountRecoveryService {
   async resetPassword(token: string, password: string): Promise<{ ok: true }> {
     const accountId = this.tokens.verifyPurpose(token, "pwreset");
     if (!accountId) throw new BadRequestException("invalid_or_expired_token");
-    const passwordHash = await bcrypt.hash(password, 8);
+    const passwordHash = await hashPassword(password);
     await this.prisma.account.update({ where: { id: accountId }, data: { passwordHash } });
     return { ok: true };
   }
@@ -44,7 +44,7 @@ export class AccountRecoveryService {
     if (!account?.email) throw new BadRequestException("no_email");
     const token = this.tokens.issuePurpose(accountId, "verify", VERIFY_TTL);
     const link = `${this.portalBase()}/verify?token=${token}`;
-    await this.notifier.send(account.email, "Verify your Kickbacks email", `Confirm your email (valid 24 hours): ${link}`);
+    await this.notifier.send(account.email, "Verify your vibearning email", `Confirm your email (valid 24 hours): ${link}`);
     return { ok: true };
   }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tickRotation } from "./billing";
 import type { BillingState } from "./billing";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 
 const ad = (campaignId: string): ServeResponse => ({
   adId: `ad_${campaignId}`, campaignId, copy: `copy ${campaignId}`, url: "https://x.dev", iconUrl: null, isHouseAd: false,

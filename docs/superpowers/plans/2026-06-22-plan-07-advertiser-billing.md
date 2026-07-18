@@ -4,7 +4,7 @@
 
 **Goal:** Let advertisers self-serve via API: register/login (email+password), create a campaign (which ranks a bid so real ads serve), and buy blocks (which `collect`s payment and funds the campaign's escrow in the ledger).
 
-**Architecture:** Advertiser accounts reuse the `Account` table (`type="advertiser"`, `passwordHash`). `AdvertiserAuthService` (bcryptjs) issues the same KBI JWT (`TokenService`) — `AuthGuard` works unchanged. `CampaignService.create` writes `Campaign(advertiserId)` + `Bid` and calls `RankingService.upsertBid` (so `/serve` can pick it). `BlockPurchaseService.buy` prices `quantity × bidPerBlock`, calls the routed `PaymentProvider.collect`, records a `BlockPurchase`, and credits escrow via `LedgerService.fundEscrow` (debit `cash:platform`, credit `escrow:campaign:<id>`).
+**Architecture:** Advertiser accounts reuse the `Account` table (`type="advertiser"`, `passwordHash`). `AdvertiserAuthService` (bcryptjs) issues the same vibearning JWT (`TokenService`) — `AuthGuard` works unchanged. `CampaignService.create` writes `Campaign(advertiserId)` + `Bid` and calls `RankingService.upsertBid` (so `/serve` can pick it). `BlockPurchaseService.buy` prices `quantity × bidPerBlock`, calls the routed `PaymentProvider.collect`, records a `BlockPurchase`, and credits escrow via `LedgerService.fundEscrow` (debit `cash:platform`, credit `escrow:campaign:<id>`).
 
 **Tech Stack:** Same api stack + `bcryptjs`. **Next.js dashboard UI = Plan 07b (deferred).**
 
@@ -12,7 +12,7 @@
 
 > **Follow-ups (noted):** `/serve` should eventually gate on `escrow balance > 0` (out-of-budget campaigns stop serving) — deferred to Plan 08/09. Collect is treated as synchronous `paid` here; redirect/webhook confirmation is a real-PSP follow-up.
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md) §6, §8, §9.
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md) §6, §8, §9.
 
 ---
 
@@ -77,8 +77,8 @@ model BlockPurchase {
 - [ ] **Step 4: Apply + regenerate + commit**
 
 ```bash
-pnpm --filter @kbi/api exec prisma db push
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/api exec prisma db push
+pnpm --filter @vibearning/api exec prisma generate
 git add apps/api/prisma
 git commit -m "feat(api): advertiser/campaign/BlockPurchase schema relations"
 ```
@@ -111,7 +111,7 @@ describe("advertiser schemas", () => {
 });
 ```
 
-- [ ] **Step 2: Run → FAIL** (`pnpm --filter @kbi/shared test`)
+- [ ] **Step 2: Run → FAIL** (`pnpm --filter @vibearning/shared test`)
 
 - [ ] **Step 3: Implement `src/advertiser.ts`**
 
@@ -143,8 +143,8 @@ export type BuyBlocks = z.infer<typeof buyBlocksSchema>;
 - [ ] **Step 5: Run → PASS, then rebuild + commit**
 
 ```bash
-pnpm --filter @kbi/shared test
-pnpm --filter @kbi/shared build
+pnpm --filter @vibearning/shared test
+pnpm --filter @vibearning/shared build
 git add packages/shared
 git commit -m "feat(shared): advertiser register/login/campaign/blocks DTOs"
 ```
@@ -168,7 +168,7 @@ git commit -m "feat(shared): advertiser register/login/campaign/blocks DTOs"
   });
 ```
 
-- [ ] **Step 2: Run → FAIL** (`pnpm --filter @kbi/api test -- ledger.service`)
+- [ ] **Step 2: Run → FAIL** (`pnpm --filter @vibearning/api test -- ledger.service`)
 
 - [ ] **Step 3: Add `fundEscrow` + `escrowBalance` to `ledger.service.ts`**
 
@@ -208,7 +208,7 @@ git commit -m "feat(api): LedgerService.fundEscrow + export PaymentRouter"
 
 **Files:** add dep; Create `advertiser-auth.service.ts`, `.spec.ts`, `advertiser-auth.controller.ts`
 
-- [ ] **Step 1: Install bcryptjs** — `pnpm --filter @kbi/api add bcryptjs && pnpm --filter @kbi/api add -D @types/bcryptjs`
+- [ ] **Step 1: Install bcryptjs** — `pnpm --filter @vibearning/api add bcryptjs && pnpm --filter @vibearning/api add -D @types/bcryptjs`
 
 - [ ] **Step 2: Failing test — `src/advertiser/advertiser-auth.service.spec.ts`**
 
@@ -305,7 +305,7 @@ export class AdvertiserAuthService {
 
 ```ts
 import { BadRequestException, Body, Controller, Post } from "@nestjs/common";
-import { advertiserRegisterSchema, advertiserLoginSchema } from "@kbi/shared";
+import { advertiserRegisterSchema, advertiserLoginSchema } from "@vibearning/shared";
 import { AdvertiserAuthService } from "./advertiser-auth.service";
 
 @Controller("advertiser")
@@ -386,7 +386,7 @@ describe("CampaignService", () => {
 
 ```ts
 import { Injectable } from "@nestjs/common";
-import type { CreateCampaign } from "@kbi/shared";
+import type { CreateCampaign } from "@vibearning/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RankingService } from "../ranking/ranking.service";
 
@@ -531,7 +531,7 @@ git commit -m "feat(api): campaign creation (ranked) + block purchase (collect->
 
 ```ts
 import { BadRequestException, Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
-import { createCampaignSchema, buyBlocksSchema } from "@kbi/shared";
+import { createCampaignSchema, buyBlocksSchema } from "@vibearning/shared";
 import { AuthGuard } from "../auth/auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "./campaign.service";
@@ -649,7 +649,7 @@ describe("/advertiser (e2e)", () => {
 });
 ```
 
-- [ ] **Step 5: Run FULL api suite** — `pnpm --filter @kbi/api test` → all green.
+- [ ] **Step 5: Run FULL api suite** — `pnpm --filter @vibearning/api test` → all green.
 
 - [ ] **Step 6: Commit**
 
@@ -662,7 +662,7 @@ git commit -m "feat(api): advertiser campaigns + block-purchase endpoints + e2e"
 
 ## Done criteria for Plan 07
 
-- [ ] Advertiser can register/login (email+password) and gets a KBI token; wrong password → 401; duplicate email → 400.
+- [ ] Advertiser can register/login (email+password) and gets a vibearning token; wrong password → 401; duplicate email → 400.
 - [ ] Creating a campaign writes Campaign+Bid and ranks the bid (so `/serve` can pick it).
 - [ ] Buying blocks collects `quantity×bid`, records a `BlockPurchase`, and credits `escrow:campaign:<id>`; not-owner → 403; failed collect → no escrow.
 - [ ] Full api suite green.

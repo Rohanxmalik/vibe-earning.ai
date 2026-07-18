@@ -13,9 +13,13 @@ The same approach generalizes: Codex and Gemini get their own adapters later, ea
 ```
 Claude Code (every status refresh)
   → runs our command, passes session JSON on stdin
-  → command GETs  {API}/serve?surface=claude-code-terminal&count=1
-  → prints one line:  "Sponsored: <copy> · <host>"   (house ads omit the label)
-  → Claude shows that line
+  → command GETs  {API}/serve?surface=claude-code-terminal&count=3
+  → prints one line:  "🍔 Sponsored: 𝗭𝗼𝗺𝗮𝘁𝗼 — Delivering Happiness · zomato.com"
+       • bold (Unicode math-bold glyphs), optional brand emoji prefix
+       • tinted with the campaign's brandColor via a 24-bit ANSI sequence (`ansiBrand`)
+       • house ads omit the "Sponsored:" label
+  → Claude shows that line (in the terminal AND the VS Code Claude Code panel — both read
+    ~/.claude/settings.json)
 ```
 
 - Code: `apps/extension/src/statusline/cli.ts` (glue) + `compose.ts` (pure, tested).
@@ -25,26 +29,26 @@ Claude Code (every status refresh)
 
 1. Build the script (bundles to a single file):
    ```bash
-   pnpm --filter @kbi/extension build      # emits dist/statusline.js (and dist/extension.js)
+   pnpm --filter @vibearning/extension build      # emits dist/statusline.js (and dist/extension.js)
    ```
 2. Point Claude Code at it — in `~/.claude/settings.json`:
    ```json
    {
      "statusLine": {
        "type": "command",
-       "command": "node /abs/path/to/kickbacks/apps/extension/dist/statusline.js"
+       "command": "node /abs/path/to/vibearning/apps/extension/dist/statusline.js"
      }
    }
    ```
-3. Set `KICKBACKS_API` if the API isn't on `http://localhost:3000`.
-4. **Sign in so earnings credit to you:** put your dev token in `KICKBACKS_TOKEN`, or write it to `~/.kickbacks/token`. Get the token from the web (Developers → sign up/log in) or the extension. Without it the script still shows ads but earns nothing (anonymous impressions forfeit to the platform).
+3. Set `VIBEARNING_API` if the API isn't on `http://localhost:3000`.
+4. **Sign in so earnings credit to you:** put your dev token in `VIBEARNING_TOKEN`, or write it to `~/.vibearning/token`. Get the token from the web (Developers → sign up/log in) or the extension. Without it the script still shows ads but earns nothing (anonymous impressions forfeit to the platform).
 5. Open Claude Code — you should see the sponsored line. Fund a campaign on the `claude-code-terminal` surface so `/serve` returns an ad.
 
 > **Build note:** `esbuild.mjs` already emits `dist/statusline.js` from `src/statusline/cli.ts` (separate from the VS Code extension bundle).
 
 ## Billing & attribution (now implemented — conservative by design)
 
-- **Conservative billing** (`billing.ts`, unit-tested): the status line refreshes on a timer with no reliable view-time, so we **never** bill per refresh. `decideBilling` bills **at most one impression per shown ad-window**, and only after that window has been visible for the minimum view time (5s, matching the server). The nonce is stable per window, so duplicate refreshes are deduped server-side. Worst case we *under*-bill — we never over-bill the advertiser or over-pay the dev. House ads are never billed. Window state persists in `~/.kickbacks/statusline-state.json`.
+- **Conservative billing** (`billing.ts`, unit-tested): the status line refreshes on a timer with no reliable view-time, so we **never** bill per refresh. `decideBilling` bills **at most one impression per shown ad-window**, and only after that window has been visible for the minimum view time (5s, matching the server). The nonce is stable per window, so duplicate refreshes are deduped server-side. Worst case we *under*-bill — we never over-bill the advertiser or over-pay the dev. House ads are never billed. Window state persists in `~/.vibearning/statusline-state.json`.
 - **Attribution:** when a token is present, both `/serve` and the `/events` impression are sent authenticated, so earnings credit the signed-in developer. No token → ads still show, but nothing is billed (anonymous would forfeit to platform anyway).
 
 ## Rotation (now implemented)
@@ -53,7 +57,7 @@ The CLI requests the **top 3** ads (`/serve?count=3`) and `tickRotation` (`billi
 
 ## Codex / Gemini reuse
 
-The same script backs other agents — set `KICKBACKS_SURFACE` (`codex-panel`, `gemini-cli-terminal`, …; defaults to `claude-code-terminal`, falls back to it for any unknown value via `resolveSurface`). Point each agent's status-line/hook command at `dist/statusline.js` with the right `KICKBACKS_SURFACE`.
+The same script backs other agents — set `VIBEARNING_SURFACE` (`codex-panel`, `gemini-cli-terminal`, …; defaults to `claude-code-terminal`, falls back to it for any unknown value via `resolveSurface`). Point each agent's status-line/hook command at `dist/statusline.js` with the right `VIBEARNING_SURFACE`.
 
 ## In-editor adapter (`ClaudeCodeAdapter`) — now implemented
 
@@ -78,20 +82,20 @@ The full loop (serve top-N → render → ~5s visible hold → rotate to ad #2/#
 
 ### A. Standalone status-line script (the preferred, official path)
 
-1. **Build:** `pnpm --filter @kbi/extension build` → confirm `dist/statusline.js` exists.
-2. **Sign in (so earnings credit to you):** set `KICKBACKS_TOKEN=<your dev token>` or write the token to `~/.kickbacks/token`. (No token → ads still show but nothing is billed.)
+1. **Build:** `pnpm --filter @vibearning/extension build` → confirm `dist/statusline.js` exists.
+2. **Sign in (so earnings credit to you):** set `VIBEARNING_TOKEN=<your dev token>` or write the token to `~/.vibearning/token`. (No token → ads still show but nothing is billed.)
 3. **Point Claude Code at it** — in `~/.claude/settings.json`:
    ```json
    { "statusLine": { "type": "command", "command": "node /abs/path/to/apps/extension/dist/statusline.js" } }
    ```
-   Set `KICKBACKS_API` if the API isn't on `localhost:3000`.
+   Set `VIBEARNING_API` if the API isn't on `localhost:3000`.
 4. **Open Claude Code** and start any task so the agent runs. **Expected:** the bottom status line shows `Sponsored: <copy> · <host>` (house ads omit "Sponsored:").
 5. **Verify the impression is credited.** After the line has been visible ≥5s, confirm one `AdEvent` row was recorded and attributed:
    `docker compose exec -T postgres psql -U kbi -d kbi -c 'select "campaignId","surface","visibleMs","valid","accountId" from "AdEvent" order by "createdAt" desc limit 3;'`
    **Expected:** a row with `surface = claude-code-terminal`, `valid = t`, `visibleMs ≥ 5000`, and a **non-null `accountId`** (your dev account).
 6. **No double-bill:** leave it running across several status refreshes; confirm only **one** row per shown ad-window (same nonce → server dedupes).
 7. **Rotation:** on a long-running task (>8s), confirm the line advances to ad #2/#3 and each rotated-in ad records its own row.
-8. **Signed-out:** unset `KICKBACKS_TOKEN` / remove `~/.kickbacks/token`, restart Claude Code. **Expected:** ads still render, but **no new `AdEvent`** is recorded.
+8. **Signed-out:** unset `VIBEARNING_TOKEN` / remove `~/.vibearning/token`, restart Claude Code. **Expected:** ads still render, but **no new `AdEvent`** is recorded.
 9. **Killswitch:** flip the server `/config` `active` flag on. **Expected:** the line shows nothing (stock status line) and nothing is billed.
 10. **Fail-safe:** stop the API. **Expected:** Claude Code's status line is unaffected (no hang, no error spew) — the script prints nothing within the 800 ms timeout.
 

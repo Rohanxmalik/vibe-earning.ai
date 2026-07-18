@@ -14,6 +14,10 @@
 
 /* Tailwind doesn't auto-emit keyframes for arbitrary `animate-[...]` values. */
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Print: hide chrome so an advertiser can Save-as-PDF a clean GST invoice. */
+@media print { .no-print { display: none !important; } body { background: #fff; } }
 
 @layer kbi-hero {
   /* Minimal, scoped stand-in for Tailwind Preflight — only inside the hero. */
@@ -42,27 +46,32 @@
 
 @layer kbi-legacy {
 :root {
-  /* Neutrals — warm-cool zinc canvas */
-  --bg: #f7f7f8;
+  /* Neutrals — khadi-paper canvas (matches the new design system) */
+  --bg: #f2f1eb;
   --surface: #ffffff;
-  --ink: #18181b;
+  --ink: #15171e;
   --ink-soft: #3f3f46;
   --muted: #71717a;
-  --line: #e6e6ea;
-  --line-strong: #d4d4d8;
+  --line: #dbd9cf;
+  --line-strong: #cbc9bf;
 
-  /* Brand — Kickbacks blue (matches the new design system) */
-  --brand: #0038ff;
-  --brand-ink: #001a99;
-  --brand-soft: #e6ecff;
+  /* Brand — ink primary + amber phosphor accent (matches the new design system) */
+  --brand: #15171e;
+  --brand-ink: #000000;
+  --brand-soft: #f4e6c2;
+
+  /* Amber phosphor accent — the one bright color, used for highlights/focus */
+  --accent: #ffb300;
+  --accent-ink: #15171e;
+  --accent-soft: #fff4d6;
 
   /* Money / positive — emerald (used sparingly) */
-  --money: #047857;
-  --money-soft: #ecfdf5;
+  --money: #1e7a4f;
+  --money-soft: #eafaf1;
 
   /* Coin accent (money flourishes only) */
-  --gold: #d97706;
-  --gold-soft: #fffbeb;
+  --gold: #b8860b;
+  --gold-soft: #fff4d6;
 
   /* Danger / warning */
   --danger: #dc2626;
@@ -83,7 +92,7 @@
   --shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 4px 16px rgba(24, 24, 27, 0.06);
   --shadow-soft: 0 1px 2px rgba(24, 24, 27, 0.05);
   --shadow-lg: 0 1px 2px rgba(24, 24, 27, 0.04), 0 12px 40px rgba(24, 24, 27, 0.10);
-  --ring: 0 0 0 3px var(--brand-soft);
+  --ring: 0 0 0 3px var(--accent-soft), 0 0 0 4px var(--accent);
 
   /* Motion */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -102,11 +111,10 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Soft indigo-tint gradient canvas */
+  /* Khadi-paper canvas with a faint amber warmth at the top */
   background:
-    radial-gradient(900px 500px at 80% -8%, rgba(79, 70, 229, 0.10), transparent 60%),
-    radial-gradient(800px 480px at 0% 0%, rgba(16, 185, 129, 0.07), transparent 55%),
-    linear-gradient(180deg, #eef2ff 0%, var(--bg) 22%, var(--bg) 100%);
+    radial-gradient(900px 500px at 80% -8%, rgba(255, 179, 0, 0.06), transparent 60%),
+    linear-gradient(180deg, #f5f4ee 0%, var(--bg) 20%, var(--bg) 100%);
   background-attachment: fixed;
   min-height: 100vh;
 }
@@ -236,8 +244,8 @@ p { margin: 0 0 0.75rem; }
   white-space: nowrap;
 }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: var(--brand); color: #fff; box-shadow: 0 2px 10px rgba(79, 70, 229, 0.28); }
-.btn-primary:hover { background: var(--brand-ink); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: none; font-weight: 700; }
+.btn-primary:hover { background: #e6a100; }
 .btn-ghost { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
 .btn-ghost:hover { background: var(--bg); }
 .btn-danger { background: var(--surface); color: var(--danger); border-color: #f3c9c9; }

@@ -6,7 +6,14 @@ import { LedgerService } from "../ledger/ledger.service";
 import { PaymentRouter } from "./payment-router";
 import { PayoutDestinationService } from "./payout-destination.service";
 
-const prismaMock = { account: { findUnique: jest.fn() }, payout: { create: jest.fn() } };
+// requestPayout runs inside an interactive transaction that takes a per-account advisory lock.
+// $transaction is wired in beforeEach to run the callback against this same mock client.
+const prismaMock = {
+  account: { findUnique: jest.fn() },
+  payout: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+  $transaction: jest.fn(),
+  $executeRaw: jest.fn(),
+};
 const ledgerMock = { earningsBalance: jest.fn(), recordPayout: jest.fn() };
 const provider = { name: "razorpay", payout: jest.fn(), collect: jest.fn() };
 const routerMock = { forCountry: jest.fn().mockReturnValue(provider) };
@@ -19,6 +26,8 @@ describe("PayoutService", () => {
     routerMock.forCountry.mockReturnValue(provider);
     prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN" });
     prismaMock.payout.create.mockImplementation(async (a: { data: Record<string, unknown> }) => ({ id: "pay1", ...a.data }));
+    prismaMock.payout.findMany.mockResolvedValue([]); // no in-flight pending payouts by default
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prismaMock));
     destinationsMock.current.mockResolvedValue({ id: "d1", method: "upi", vpa: "dev@okaxis", providerRef: "fa_dev", status: "verified" });
     process.env.PAYOUT_MIN_PAISE = "10000";
     const mod = await Test.createTestingModule({
@@ -31,6 +40,12 @@ describe("PayoutService", () => {
       ],
     }).compile();
     svc = mod.get(PayoutService);
+  });
+
+  afterEach(() => {
+    delete process.env.PAYOUT_HOLD_DAYS;
+    delete process.env.PAYOUT_DAILY_CAP_PAISE;
+    delete process.env.PAYOUT_REQUIRE_APPROVAL;
   });
 
   it("rejects a payout below the minimum threshold", async () => {
@@ -76,10 +91,80 @@ describe("PayoutService", () => {
     expect(provider.payout).not.toHaveBeenCalled();
   });
 
+  it("reserves in-flight pending payouts so a second concurrent request can't double-spend", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    // A prior payout for the same balance is still pending (not yet ledger-debited).
+    prismaMock.payout.findMany.mockResolvedValue([{ amountPaise: 15000 }]);
+    // available = 15000 - 15000 = 0 < threshold → rejected, provider never called again.
+    await expect(svc.requestPayout("acc1")).rejects.toBeInstanceOf(BadRequestException);
+    expect(provider.payout).not.toHaveBeenCalled();
+  });
+
+  it("takes a per-account advisory lock before reading the balance", async () => {
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    provider.payout.mockResolvedValue({ providerRef: "rzp_1", status: "paid" });
+    await svc.requestPayout("acc1");
+    expect(prismaMock.$executeRaw).toHaveBeenCalled();
+  });
+
   it("refuses payout for a suspended account", async () => {
     ledgerMock.earningsBalance.mockResolvedValue(15000);
     prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN", suspended: true });
     await expect(svc.requestPayout("acc1")).rejects.toBeTruthy();
+    expect(provider.payout).not.toHaveBeenCalled();
+  });
+
+  // --- Fast-launch guardrails ---
+
+  it("holds the first cash-out until the account clears the hold period", async () => {
+    process.env.PAYOUT_HOLD_DAYS = "7";
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN", createdAt: new Date() }); // brand new
+    await expect(svc.requestPayout("acc1")).rejects.toThrow("payout_hold_period");
+    expect(provider.payout).not.toHaveBeenCalled();
+  });
+
+  it("allows payout once the account is older than the hold period", async () => {
+    process.env.PAYOUT_HOLD_DAYS = "7";
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    provider.payout.mockResolvedValue({ providerRef: "rzp_1", status: "paid" });
+    prismaMock.account.findUnique.mockResolvedValue({ id: "acc1", country: "IN", createdAt: new Date(Date.now() - 10 * 86_400_000) });
+    await svc.requestPayout("acc1");
+    expect(provider.payout).toHaveBeenCalled();
+  });
+
+  it("rejects a payout that would exceed the per-account daily cap", async () => {
+    process.env.PAYOUT_DAILY_CAP_PAISE = "20000";
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    prismaMock.payout.findMany
+      .mockResolvedValueOnce([]) // pendingPayoutsSum: nothing reserved
+      .mockResolvedValueOnce([{ amountPaise: 10000 }]); // dispatchedTodayPaise: 10000 already today → 10000+15000 > 20000
+    await expect(svc.requestPayout("acc1")).rejects.toThrow("daily_payout_cap_exceeded");
+    expect(provider.payout).not.toHaveBeenCalled();
+  });
+
+  it("with approval required, creates a 'requested' payout without dispatching or debiting", async () => {
+    process.env.PAYOUT_REQUIRE_APPROVAL = "true";
+    ledgerMock.earningsBalance.mockResolvedValue(15000);
+    const payout = await svc.requestPayout("acc1");
+    expect(payout).toMatchObject({ status: "requested", amountPaise: 15000 });
+    expect(provider.payout).not.toHaveBeenCalled();
+    expect(ledgerMock.recordPayout).not.toHaveBeenCalled();
+  });
+
+  it("approveAndDispatch releases a requested payout to the PSP and debits the ledger on settlement", async () => {
+    prismaMock.payout.findUnique.mockResolvedValue({ id: "pay1", accountId: "acc1", amountPaise: 15000, status: "requested" });
+    prismaMock.payout.update.mockImplementation(async (a: { data: Record<string, unknown> }) => ({ id: "pay1", accountId: "acc1", amountPaise: 15000, ...a.data }));
+    provider.payout.mockResolvedValue({ providerRef: "rzp_ok", status: "paid" });
+    const res = await svc.approveAndDispatch("pay1");
+    expect(provider.payout).toHaveBeenCalledWith(expect.objectContaining({ amountPaise: 15000 }));
+    expect(ledgerMock.recordPayout).toHaveBeenCalledWith("pay1", "acc1", 15000);
+    expect(res).toMatchObject({ status: "paid" });
+  });
+
+  it("approveAndDispatch refuses a payout that is not awaiting approval", async () => {
+    prismaMock.payout.findUnique.mockResolvedValue({ id: "pay1", accountId: "acc1", amountPaise: 15000, status: "paid" });
+    await expect(svc.approveAndDispatch("pay1")).rejects.toThrow("payout_not_awaiting_approval");
     expect(provider.payout).not.toHaveBeenCalled();
   });
 });

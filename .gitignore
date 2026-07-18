@@ -21,6 +21,9 @@ out/
 *.log
 npm-debug.log*
 
+# Claude Code (local-only personal config — statusLine ad-injection wiring)
+.claude/settings.local.json
+
 # OS / editor
 .DS_Store
 Thumbs.db

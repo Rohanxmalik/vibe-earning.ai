@@ -21,6 +21,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { MeModule } from "./me/me.module";
 import { ObservabilityModule } from "./observability/observability.module";
 import { StatsModule } from "./stats/stats.module";
+import { StorageModule } from "./storage/storage.module";
 
 @Module({
   imports: [
@@ -40,11 +41,15 @@ import { StatsModule } from "./stats/stats.module";
     ThrottlerModule.forRootAsync({
       inject: [RedisService],
       useFactory: (redis: RedisService) => ({
-        throttlers: [{ ttl: 60000, limit: Number(process.env.THROTTLE_LIMIT ?? 300) }], // per-IP requests/min
+        throttlers: [
+          { name: "default", ttl: 60000, limit: Number(process.env.THROTTLE_LIMIT ?? 300) }, // per-IP requests/min
+          // Tight tier for auth endpoints (opt-in via @Throttle({ auth: ... })) to blunt brute force.
+          { name: "auth", ttl: 60000, limit: Number(process.env.AUTH_THROTTLE_LIMIT ?? 10) },
+        ],
         storage: new RedisThrottlerStorage(redis),
       }),
     }),
-    PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule, AdvertiserModule, ConfigModule, NotificationsModule, MeModule, ObservabilityModule, StatsModule,
+    PrismaModule, RedisModule, RankingModule, ServeModule, AdminModule, MetricsModule, AuthModule, LedgerModule, PaymentsModule, AdvertiserModule, ConfigModule, NotificationsModule, MeModule, ObservabilityModule, StatsModule, StorageModule,
   ],
   controllers: [HealthController],
   providers: [

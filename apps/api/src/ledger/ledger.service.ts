@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { devShareBps } from "./constants";
+import { devShareBps, referralBps, referralWindowDays } from "./constants";
 
 export interface PostableEvent {
   id: string;
@@ -34,17 +34,34 @@ export class LedgerService {
     if (e.type === "click") price *= 50;
     if (price <= 0) return;
 
-    // Anonymous impressions (no signed-in dev) forfeit the dev share to the platform —
-    // the price still leaves the advertiser's escrow, but nothing is parked in limbo.
-    const devShare = e.accountId ? Math.floor((price * devShareBps()) / 10000) : 0;
+    // Clicks bill the advertiser (50x above) but pay the developer NOTHING — only viewable
+    // impressions earn. Paying a 50x dev share on clicks is a self-click fraud magnet (a dev
+    // clicks their own served ad to mint 50x earnings); kickbacks.ai shipped the same policy and
+    // then had to retract it. The click still debits escrow, so its full price accrues to the
+    // platform. Anonymous impressions (no signed-in dev) likewise forfeit the dev share.
+    const earnsDevShare = e.type === "impression" && !!e.accountId;
+    const devShare = earnsDevShare ? Math.floor((price * devShareBps()) / 10000) : 0;
     const platformShare = price - devShare;
     const escrowKey = `escrow:campaign:${e.campaignId}`;
+
+    // Referral bonus: a slice of the PLATFORM's cut goes to whoever referred this dev, within the
+    // referral window. Funded from platform revenue, so the earning dev's share is untouched and
+    // the entry set still balances (escrow debit == all credits).
+    const referrerId = e.accountId && devShare > 0 ? await this.activeReferrerId(e.accountId) : null;
+    const referralBonus = referrerId ? Math.min(platformShare, Math.floor((platformShare * referralBps()) / 10000)) : 0;
+    const platformCredit = platformShare - referralBonus;
+
     const data: { eventId: string; account: string; direction: string; amount: number }[] = [
       { eventId: e.id, account: escrowKey, direction: "debit", amount: price },
-      { eventId: e.id, account: "revenue:platform", direction: "credit", amount: platformShare },
     ];
+    if (platformCredit > 0) {
+      data.push({ eventId: e.id, account: "revenue:platform", direction: "credit", amount: platformCredit });
+    }
     if (e.accountId && devShare > 0) {
       data.push({ eventId: e.id, account: `earnings:dev:${e.accountId}`, direction: "credit", amount: devShare });
+    }
+    if (referrerId && referralBonus > 0) {
+      data.push({ eventId: e.id, account: `earnings:dev:${referrerId}`, direction: "credit", amount: referralBonus });
     }
 
     // Atomic reserve-then-commit: take a per-campaign advisory lock so concurrent
@@ -60,6 +77,18 @@ export class LedgerService {
       if (escrow < price) return; // budget exhausted
       await tx.ledgerEntry.createMany({ data, skipDuplicates: true });
     });
+  }
+
+  /** The id of this dev's referrer IF the referral is still inside its earning window, else null. */
+  private async activeReferrerId(devId: string): Promise<string | null> {
+    const acc = await this.prisma.account.findUnique({
+      where: { id: devId },
+      select: { referredById: true, referredAt: true },
+    });
+    if (!acc?.referredById || !acc.referredAt) return null;
+    const windowMs = referralWindowDays() * 86_400_000;
+    if (Date.now() - new Date(acc.referredAt).getTime() > windowMs) return null;
+    return acc.referredById;
   }
 
   async balance(account: string): Promise<number> {

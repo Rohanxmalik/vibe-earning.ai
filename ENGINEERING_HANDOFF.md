@@ -1,8 +1,10 @@
-# Kickbacks-India — Engineering Handoff
+# vibearning — Engineering Handoff
 
 > **Audience:** CTO / incoming engineers.
 > **Purpose:** Explain the whole codebase — what each file does, what's done, what's left, and exactly how to finish it.
-> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches, a full **portal/UX overhaul**, real **landing data**, **geo-at-signup**, and the **Claude Code ad-injection** (implemented + unit-tested; live verification pending). **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **332 automated tests green** (api 225 · extension 74 · shared 17 · portal 16) + a 4-test Playwright browser smoke. API tests need Postgres+Redis up (`docker compose up -d`).
+> **Status (this commit):** Full marketplace implemented and tested behind clean seams, plus hardening batches, a full **portal/UX overhaul**, real **landing data**, **geo-at-signup**, the **Claude Code ad-injection** (implemented + unit-tested; live verification pending), and **structured brand creative** (headline/tagline/brand-color/emoji on the sponsored line). **Repo:** github.com/Rohanxmalik/vibe-earning.ai (`main`). **389 automated tests green** (api 226 · extension 112 · shared 22 · portal 29) + a 4-test Playwright browser smoke. API tests need Postgres+Redis up (`docker compose up -d`).
+>
+> **Batch 8 (brand creative):** the sponsored line gained **structured brand fields** — `Campaign.headline` (≤20) + `tagline` (≤40) + `brandColor` (`#RRGGBB`) + `emoji` (one emoji), all optional/nullable, added to `serveResponse` + create/edit schemas (`@vibearning/shared`) + one migration (`20260629000000_campaign_brand_fields`). `compose.ts` renders `"{emoji} {Sponsored: }{headline} — {tagline} · {host}"` (falls back to `copy`; cap raised 60→120 so the tagline stays visible); `StatusBarSink` tints `item.color` with `brandColor` and clears it on idle. The legacy `copy` is **derived server-side** from headline+tagline (`deriveCopy` in shared; `copy` now optional on create via a `copy || headline` refine, so a short brand name can't 400). Hardening: `emoji` validated to exactly one emoji grapheme; portal warns (doesn't mangle) on extreme-luminance colors. Portal create/edit forms collect the fields with a live preview; campaign list + admin queue show the tinted brand preview. **House-ad creation is still `x-admin-key`-only (no JWT-console form).**
 >
 > **Batch 1 (marked [NEW] inline):** campaign analytics · creative moderation (pending→admin-approve) · IP-hash clustering · real Stripe/Razorpay SDK adapters + HMAC-verified webhooks · GitHub Actions CI · versioned Prisma baseline · Dockerfiles · helmet/CORS/exception-filter/pino · e2e flake fixed.
 >
@@ -14,19 +16,19 @@
 >
 > **Batch 7 — landing data, geo & ad-injection (built by a 3-agent swarm):** (1) **Tailwind design system** for the portal under `apps/portal/components/ui/` (`Navbar`/`Hero`/`Footer`/`PageHeader`/`kit`), brand **blue #0038FF + lime #CCFF00**, utilities scoped via a `.kbi-tw` class, `@/*` path alias. The live `/`, `/faq`, and `/earnings` pages use this; the Batch 6 `globals.css` component classes coexist for legacy widgets (don't delete them, layer on top). (2) **Country-at-signup** — dev & advertiser register and Google login now stamp `Account.country` from the platform geo header (create-only, never overwrites) via `apps/api/src/me/geo.ts`, so `/me/eligibility` (and the India payout banner) is correct without relying on a per-request header. (3) **Public landing stats** — `GET /stats/public` (no auth, `apps/api/src/stats/`) returns `{ totalEarnedPaise, marketPricePaise, impressionsPerHour, leaderboard[], ticker[] }` from the ledger/bids/events; the home page (`apps/portal/app/page.tsx`, async server component) fetches it request-time (`no-store`) with **per-field fallback** to placeholder constants so it never renders empty. (4) **Claude Code ad-injection implemented** — `apps/extension/src/adapters/claudeCode.ts` (real adapter, self-detects Claude Code, injectable `WaitSource`/`StatusSink`, fails safe) + the official status-line path `apps/extension/src/statusline/cli.ts` (`runStatusLine`): fetch top-N ads → render the sponsored line → hold ~5s visible → rotate → POST a **once-per-nonce** impression attributed to the signed-in dev; nothing served/billed when signed-out or killswitch-on or on host error. Unit-tested (extension 47→74). **Remaining: manual live verification in a real Claude Code** — checklist in `docs/extension/claude-code-statusline.md`.
 >
-> **Batch 6 — portal/UX overhaul (to match kickbacks.ai quality):** rebuilt the front end against the real kickbacks.ai as reference. **Design system** extended in `apps/portal/app/globals.css` (soft indigo-tint gradient canvas, dark terminal cards, motion keyframes + scroll-reveal, stat/meter/segmented/ledger/accordion/ticker/geo classes). **New components** in `apps/portal/components/` (`Reveal`, `LiveCounter`, `StatCard`, `MetricChart` (dependency-free SVG area chart), `EarningLimitMeter`, `LedgerTable`, `Accordion`, `GeoBanner`, `SpinnerDemo`, `Ticker`, `BidMarket`, `CopyButton`) + `lib/format.ts`. **Marketing home** (ticker, hero + animated spinner demo + count-up earned counter, install/copy, how-it-works, ✓/✕ transparency, live bid market, accordion FAQ, CTA) and a new long-form **`/faq`**. **Developer dashboard** rebuilt: India geo banner, Today/Month/Lifetime + earning-limit cards, an Earned/Impressions chart over 24h/7d/30d, an on-demand activity ledger with search, UPI payout panel with ₹-threshold progress, account panel. **New dashboard API endpoints** with Jest tests: `GET /ledger/me/stats`, `/ledger/me/activity`, `/ledger/me/events`, `/metrics/me/usage`, `/me/eligibility` (geo via `apps/api/src/me/geo.ts`, never stores raw IP). **Security:** CSP moved to a **per-request nonce in `apps/portal/middleware.ts`** (`'strict-dynamic'` in prod, relaxed for HMR in dev) — the old static `script-src 'self'` was silently breaking Next hydration; other security headers stay in `next.config.mjs`. Responsive + reduced-motion respected.
+> **Batch 6 — portal/UX overhaul (to match vibearning.ai quality):** rebuilt the front end against the real vibearning.ai as reference. **Design system** extended in `apps/portal/app/globals.css` (soft indigo-tint gradient canvas, dark terminal cards, motion keyframes + scroll-reveal, stat/meter/segmented/ledger/accordion/ticker/geo classes). **New components** in `apps/portal/components/` (`Reveal`, `LiveCounter`, `StatCard`, `MetricChart` (dependency-free SVG area chart), `EarningLimitMeter`, `LedgerTable`, `Accordion`, `GeoBanner`, `SpinnerDemo`, `Ticker`, `BidMarket`, `CopyButton`) + `lib/format.ts`. **Marketing home** (ticker, hero + animated spinner demo + count-up earned counter, install/copy, how-it-works, ✓/✕ transparency, live bid market, accordion FAQ, CTA) and a new long-form **`/faq`**. **Developer dashboard** rebuilt: India geo banner, Today/Month/Lifetime + earning-limit cards, an Earned/Impressions chart over 24h/7d/30d, an on-demand activity ledger with search, UPI payout panel with ₹-threshold progress, account panel. **New dashboard API endpoints** with Jest tests: `GET /ledger/me/stats`, `/ledger/me/activity`, `/ledger/me/events`, `/metrics/me/usage`, `/me/eligibility` (geo via `apps/api/src/me/geo.ts`, never stores raw IP). **Security:** CSP moved to a **per-request nonce in `apps/portal/middleware.ts`** (`'strict-dynamic'` in prod, relaxed for HMR in dev) — the old static `script-src 'self'` was silently breaking Next hydration; other security headers stay in `next.config.mjs`. Responsive + reduced-motion respected.
 >
-> **Batch 5 (marked [NEW5] inline) — production-readiness:** **Redis-backed throttler** (rate limits shared across instances) · **graceful shutdown** (drain + Sentry flush) · **readiness probe** `/health/ready` (DB+Redis) · **email uniqueness** (`@@unique([email,type])`) + **email verification** + **password reset** (`/auth/*`, Notifier seam) · **admin audit log** (`AdminAudit` + `/admin/audit`) · **DSAR** (`/me/export`, `DELETE /me`) · **seed script** (admin + house ads) · portal **recovery/verify pages**, **accessibility** (aria-live alerts, role=tab), **loading states**, **spend chart**, **confirm dialogs**, **CSP/security headers**, **favicon + OG** · **slimmed API Docker image** (pnpm-deploy prune, verified) + **compose healthchecks/restart** + **CD deploy scaffold** · **configurable status-line surface** (Codex/Gemini reuse via `KICKBACKS_SURFACE`).
+> **Batch 5 (marked [NEW5] inline) — production-readiness:** **Redis-backed throttler** (rate limits shared across instances) · **graceful shutdown** (drain + Sentry flush) · **readiness probe** `/health/ready` (DB+Redis) · **email uniqueness** (`@@unique([email,type])`) + **email verification** + **password reset** (`/auth/*`, Notifier seam) · **admin audit log** (`AdminAudit` + `/admin/audit`) · **DSAR** (`/me/export`, `DELETE /me`) · **seed script** (admin + house ads) · portal **recovery/verify pages**, **accessibility** (aria-live alerts, role=tab), **loading states**, **spend chart**, **confirm dialogs**, **CSP/security headers**, **favicon + OG** · **slimmed API Docker image** (pnpm-deploy prune, verified) + **compose healthchecks/restart** + **CD deploy scaffold** · **configurable status-line surface** (Codex/Gemini reuse via `VIBEARNING_SURFACE`).
 
 ---
 
 ## 1. What this product is
 
-An India-first clone of **kickbacks.ai**. It is **not** a consumer cashback app — it's a **two-sided advertising marketplace** that sells the one-line "Thinking…" status shown by AI coding agents (Claude Code, Codex, Gemini CLI) while they work.
+An India-first clone of **vibearning.ai**. It is **not** a consumer cashback app — it's a **two-sided advertising marketplace** that sells the one-line "Thinking…" status shown by AI coding agents (Claude Code, Codex, Gemini CLI) while they work.
 
 - **Supply side = developers.** They install a VS Code extension; while their AI agent is busy, a sponsored line is shown; they earn ~50% of the ad revenue.
 - **Demand side = advertisers** (global). They self-serve: create a campaign, set a bid, fund it, and their ad gets served on developers' machines.
-- **The India wedge:** kickbacks.ai pays out **only via Stripe Connect, where India is "preview"** — Indian developers effectively can't cash out. We pay out in **INR via Razorpay/UPI** (and Stripe for others), behind a provider abstraction. That payout rail is the core differentiator.
+- **The India wedge:** vibearning.ai pays out **only via Stripe Connect, where India is "preview"** — Indian developers effectively can't cash out. We pay out in **INR via Razorpay/UPI** (and Stripe for others), behind a provider abstraction. That payout rail is the core differentiator.
 
 ### The end-to-end loop (works today, with stubs)
 ```
@@ -47,7 +49,7 @@ Admin can flip a global killswitch (GET /config) or suspend an account.
 A **pnpm + Turborepo monorepo**. One language end-to-end (TypeScript).
 
 ```
-kickbacks-india/
+vibearning/
 ├── apps/
 │   ├── api/        NestJS backend — the marketplace brain (Postgres + Redis)
 │   ├── extension/  VS Code extension — the developer/supply client
@@ -66,7 +68,7 @@ kickbacks-india/
 ```
 
 ### How the pieces depend on each other
-- `packages/shared` is the contract: every request/response shape is a **zod schema** here. `api`, `extension`, and `portal` all import its types. **It must be built (`pnpm --filter @kbi/shared build`) before the api's Jest tests run** (Jest resolves `@kbi/shared` from its compiled `dist`).
+- `packages/shared` is the contract: every request/response shape is a **zod schema** here. `api`, `extension`, and `portal` all import its types. **It must be built (`pnpm --filter @vibearning/shared build`) before the api's Jest tests run** (Jest resolves `@vibearning/shared` from its compiled `dist`).
 - `extension` and `portal` are HTTP clients of `api`. They never touch the DB.
 - `api` owns Postgres (via Prisma) and Redis (via ioredis).
 
@@ -100,6 +102,7 @@ Money is always stored as **paise** (integer minor units of INR). Never floats.
 4. **Prisma migrations:** there is now a **versioned baseline migration** (`apps/api/prisma/migrations/20260623000000_init`). Production/CI use **`prisma migrate deploy`** (in CI and the Docker entrypoint). For quick local schema iteration `prisma db push` still works; avoid `prisma migrate dev` — it hangs on an advisory lock in non-interactive shells (Prisma 5 WASM engine). To add a migration, generate the delta SQL with `prisma migrate diff` against a shadow DB (lock-free). **[NEW]**
 5. After editing `packages/shared`, **rebuild it** before running api tests.
 6. Git on Windows shows CRLF warnings — harmless.
+7. **[NEW8]** Pulling the brand-fields batch adds migration `20260629000000_campaign_brand_fields` — run `pnpm --filter @vibearning/api exec prisma migrate deploy` (or `prisma db push` for quick local iteration) **and** `prisma generate` so the client has `headline`/`tagline`/`brandColor`/`emoji`, then rebuild `@vibearning/shared`.
 
 ### First-time setup
 ```bash
@@ -113,32 +116,32 @@ docker compose up -d            # Postgres :5432, Redis :6379
 cp .env.example apps/api/.env
 
 # 3. db schema + prisma client
-pnpm --filter @kbi/api exec prisma db push
-pnpm --filter @kbi/api exec prisma generate
+pnpm --filter @vibearning/api exec prisma db push
+pnpm --filter @vibearning/api exec prisma generate
 
 # 4. build shared (needed by api tests)
-pnpm --filter @kbi/shared build
+pnpm --filter @vibearning/shared build
 ```
 
 ### Run / test
 ```bash
 # API (http://localhost:3000)
-pnpm --filter @kbi/api dev
-pnpm --filter @kbi/api test            # 194 tests (needs docker up)
-pnpm --filter @kbi/api seed            # seed first admin + house ads (SEED_ADMIN_EMAIL/PASSWORD)
+pnpm --filter @vibearning/api dev
+pnpm --filter @vibearning/api test            # 194 tests (needs docker up)
+pnpm --filter @vibearning/api seed            # seed first admin + house ads (SEED_ADMIN_EMAIL/PASSWORD)
 
 # Portal (http://localhost:3001)  — set NEXT_PUBLIC_API_BASE if api isn't on :3000
-pnpm --filter @kbi/portal dev
-pnpm --filter @kbi/portal test         # 16 tests
-pnpm --filter @kbi/portal build        # next build
+pnpm --filter @vibearning/portal dev
+pnpm --filter @vibearning/portal test         # 16 tests
+pnpm --filter @vibearning/portal build        # next build
 
 # Extension (unit-tested core; UI is manual via VS Code F5)
-pnpm --filter @kbi/extension test      # 47 tests
-pnpm --filter @kbi/extension build     # esbuild → dist/extension.js + dist/statusline.js
+pnpm --filter @vibearning/extension test      # 47 tests
+pnpm --filter @vibearning/extension build     # esbuild → dist/extension.js + dist/statusline.js
 # see apps/extension/src/MANUAL-TEST.md to run the real Extension Host
 
 # Shared
-pnpm --filter @kbi/shared test         # 17 tests
+pnpm --filter @vibearning/shared test         # 17 tests
 ```
 
 ### Environment variables (`.env.example`)
@@ -163,12 +166,16 @@ pnpm --filter @kbi/shared test         # 17 tests
 | `CORS_ORIGINS` | api | **[NEW]** comma-separated allowlist; unset reflects request origin (dev) |
 | `LOG_LEVEL` | api | **[NEW]** pino level; tests force `silent` |
 | `PORTAL_BASE_URL` | api | **[NEW5]** base URL put in password-reset / verify-email links (default `http://localhost:3001`) |
-| `KICKBACKS_SURFACE` | extension status-line | **[NEW5]** which ad surface the status-line script serves (default `claude-code-terminal`) |
+| `VIBEARNING_SURFACE` | extension status-line | **[NEW5]** which ad surface the status-line script serves (default `claude-code-terminal`) |
 | `NEXT_PUBLIC_SITE_URL` | portal | **[NEW5]** absolute site URL for OG/metadata (`metadataBase`) |
 | `DEPLOY_WEBHOOK` | CD (secret) | **[NEW5]** deploy hook the CD `deploy` job POSTs to; unset ⇒ deploy step no-ops |
 | `RESEND_API_KEY` / `EMAIL_FROM` | api notifications | **[NEW6]** bind the real email provider; unset ⇒ `LogNotifier` (emails logged, not sent) |
 | `FRAUD_SWEEP_INTERVAL_MS` | api fraud | **[NEW6]** >0 runs the auto-void sweep on that interval (default 0 = off; also `POST /admin/fraud/sweep`) |
-| `KICKBACKS_API` | extension | api base URL (default http://localhost:3000) |
+| `VIBEARNING_STORAGE` | api storage | logo blob backend: `disk` (default) or `s3` (**[NEW8]** `S3Storage` now implemented — §13.8) |
+| `VIBEARNING_PUBLIC_URL` | api storage | origin used to build stored logo URLs (default `http://localhost:3000`; set to the https CDN/host in prod) |
+| `VIBEARNING_UPLOAD_DIR` | api storage | local-disk upload dir (default `<cwd>/uploads`; ephemeral on most hosts — see §13.8) |
+| `VIBEARNING_S3_*` | api storage | **[NEW8]** S3 backend config (when `VIBEARNING_STORAGE=s3`): `_BUCKET` (req), `_REGION`, `_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` (or default AWS chain), `_ENDPOINT`+`_FORCE_PATH_STYLE` (R2/Supabase/MinIO), `_PREFIX` |
+| `VIBEARNING_API` | extension | api base URL (default http://localhost:3000) |
 | `NEXT_PUBLIC_API_BASE` | portal | api base URL (build-time inlined) |
 | `NEXT_OUTPUT` | portal build | **[NEW]** set to `standalone` for the Docker build (off by default so Windows builds work) |
 
@@ -181,7 +188,7 @@ pnpm --filter @kbi/shared test         # 17 tests
 | Model | Purpose | Key fields |
 |-------|---------|-----------|
 | **Account** | One row per user (dev / advertiser / admin) | `type`, `email?`, **`emailVerified` [NEW5]**, `oauthSub? @unique` (Google), `passwordHash?` (advertiser/admin/dev), `country?`, `suspended`; **`@@unique([email, type])` [NEW5]** |
-| **Campaign** | An ad | `copy` (≤60), `url`, `iconUrl?`, `isHouseAd`, `status` (**advertiser campaigns start `pending`; house ads `active`** — see moderation §7), **`pacePerMinute?`** (delivery cap, **[NEW2]**), `advertiserId?` |
+| **Campaign** | An ad | `copy` (≤60, legacy single-line — **derived server-side from headline+tagline** [NEW8]), **`headline?` (≤20) · `tagline?` (≤40) · `brandColor?` (`#RRGGBB`) · `emoji?` (one emoji) [NEW8]**, `url`, `iconUrl?`, `isHouseAd`, `status` (**advertiser campaigns start `pending`; house ads `active`** — see moderation §7), **`pacePerMinute?`** (delivery cap, **[NEW2]**), `advertiserId?` |
 | **Bid** | A campaign's price for a surface | `campaignId`, `surface`, `amount` (paise per 1000-impression block), `status` |
 | **AdEvent** | A recorded impression/click | `installId`, `campaignId`, `surface`, `type`, `nonce`, `visibleMs`, `valid`, `reason?` (incl. `ip_cluster`), **`ipHash?`** (server-derived salted hash, **[NEW]**), `accountId?`; **`@@unique([installId, nonce])`** (idempotency) |
 | **LedgerEntry** | Append-only double-entry line | `eventId` (source id), `account` (string key), `direction` (debit/credit), `amount`; **`@@unique([eventId, account, direction])`** |
@@ -267,15 +274,15 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 | `POST /advertiser/login` | — | `{email,password}` | `{token, account}` |
 | `POST /dev/register` **[NEW4]** | — | `{email,password}` | `{token, account}` — developer web onboarding (type `dev`, no extension needed) |
 | `POST /dev/login` **[NEW4]** | — | `{email,password}` | `{token, account}` |
-| `POST /advertiser/campaigns` | Bearer | `{copy,url,iconUrl?,surface,bidPerBlockPaise,pacePerMinute?}` | `Campaign` (**created `pending`, NOT ranked until approved**) |
+| `POST /advertiser/campaigns` | Bearer | `{copy?,headline?,tagline?,brandColor?,emoji?,url,iconUrl?,surface,bidPerBlockPaise,pacePerMinute?}` **[NEW8]** | `Campaign` (**created `pending`, NOT ranked until approved**; `copy` optional — server derives it from headline+tagline, refine requires `copy \|\| headline`) |
 | `GET /advertiser/campaigns` | Bearer | — | `Campaign[]` |
-| `PATCH /advertiser/campaigns/:id` **[NEW4]** | Bearer (owner) | `{copy?,url?,iconUrl?,bidPerBlockPaise?}` | `Campaign` — edit; creative change on a live campaign → back to `pending` + unranked (re-moderation); bid change re-ranks |
+| `PATCH /advertiser/campaigns/:id` **[NEW4]** | Bearer (owner) | `{copy?,headline?,tagline?,brandColor?,emoji?,url?,iconUrl?,bidPerBlockPaise?}` **[NEW8]** | `Campaign` — edit; any creative change (incl. brand fields) on a live campaign → back to `pending` + unranked (re-moderation); bid change re-ranks; `copy` re-derived from headline/tagline when those change |
 | `GET /advertiser/campaigns/:id/stats` **[NEW]** | Bearer (owner) | — | `{impressions,clicks,spendPaise,escrowRemainingPaise}` |
 | `POST /advertiser/campaigns/:id/blocks` | Bearer | `{quantity}` | `BlockPurchase` (collect → fund escrow) |
 | `POST /webhooks/razorpay` **[NEW]** | `x-razorpay-signature` (HMAC) | PSP event | `{ok}` — verifies sig vs raw body, reconciles purchase → paid + funds escrow |
 | `POST /webhooks/stripe` **[NEW]** | `stripe-signature` (HMAC) | PSP event | `{ok}` — same as above |
 | `GET /config` | — | — | `{active}` (the extension polls this) |
-| `POST /admin/house-ads` | `x-admin-key` | `{copy,url,iconUrl?,surface}` | `{id}` |
+| `POST /admin/house-ads` | `x-admin-key` | `{copy,headline?,tagline?,brandColor?,emoji?,url,iconUrl?,surface}` **[NEW8]** | `{id}` |
 | `GET /admin/campaigns/pending` **[NEW2]** | `x-admin-key` | — | `Campaign[]` (moderation queue) |
 | `POST /admin/campaigns/:id/approve` **[NEW]** | `x-admin-key` | — | `{ok}` — moderates a pending campaign live + ranks its bids |
 | `GET /admin/payout-destinations/pending` **[NEW2]** | `x-admin-key` | — | `PayoutDestination[]` (KYC queue) |
@@ -288,10 +295,10 @@ NestJS. Each domain is a module under `src/`. Two cross-cutting **global** modul
 > **[NEW4]** "admin" auth = **either** the static `x-admin-key` header **or** a Bearer token from `POST /admin/login` (an `Account` of `type:"admin"`).
 
 ### Request validation
-Every controller parses the body/query with a **zod schema from `@kbi/shared`** and throws `400` on failure. No DTO classes / class-validator.
+Every controller parses the body/query with a **zod schema from `@vibearning/shared`** and throws `400` on failure. No DTO classes / class-validator.
 
 ### Auth model
-- **Developers** sign in with Google (extension): the extension obtains a Google **ID token**, posts it to `/auth/google`; `GoogleVerifier` (`auth/google-verifier.ts`) validates it, we upsert an `Account`, and `TokenService` issues **our own JWT** (30-day, signed with `AUTH_JWT_SECRET`). **[NEW4]** Developers can **also** onboard on the web with email+password (`/dev/register`, `/dev/login`, `DevAuthService`, type `dev`) — they paste the issued token into the extension to attribute earnings.
+- **Developers** sign in with Google (extension): the extension obtains a Google **ID token**, posts it to `/auth/google`; `GoogleVerifier` (`auth/google-verifier.ts`) validates it, we upsert an `Account`, and `TokenService` issues **our own JWT** (30-day, signed with `AUTH_JWT_SECRET`). **[NEW4]** Developers can **also** onboard with email+password (`/dev/register`, `/dev/login`, `DevAuthService`, type `dev`). **[NEW8]** The **extension now signs in with email/password directly** (`vibearning: Sign in` → Log in / Create account via `ApiClient.devLogin`/`devRegister`; token stored in VS Code SecretStorage; `vibearning: Sign out` clears it). The old "paste a Google ID token" command is gone; the earnings status item becomes a sign-in call-to-action when signed out. (Web-redirect/OAuth-consent sign-in is a later polish; `loginWithGoogle` stays for that path.)
 - **Advertisers** use email+password (`bcryptjs`), also issued our JWT.
 - **Admins** use email+password (`/admin/login`) → JWT for `type:"admin"` accounts; admin endpoints accept that Bearer token (or the legacy static `x-admin-key`). **[NEW4]**
 - `AuthGuard` (`auth/auth.guard.ts`) validates the `Bearer` token and attaches the account to the request. `/events` uses **optional** auth (a token attributes earnings; without one, the event is anonymous).
@@ -331,13 +338,13 @@ Every controller parses the body/query with a **zod schema from `@kbi/shared`** 
 | `host/extension.ts` | VS Code `activate()` wiring (status bar, commands, focus, polling) | ⚠️ compile-only |
 | `host/secretStore.ts` | stores the auth token in OS keychain (VS Code SecretStorage) | ⚠️ compile-only |
 
-The `host` layer is verified by `tsc` + esbuild bundle. To exercise it for real, open `apps/extension` in VS Code and press **F5** (Extension Development Host); dev commands "Kickbacks: Simulate Wait-State" / "End" / "Sign in" drive the pipeline against a running api. See `apps/extension/src/MANUAL-TEST.md`.
+The `host` layer is verified by `tsc` + esbuild bundle. To exercise it for real, open `apps/extension` in VS Code and press **F5** (Extension Development Host); dev commands "vibearning: Simulate Wait-State" / "End" / "Sign in" drive the pipeline against a running api. See `apps/extension/src/MANUAL-TEST.md`.
 
 ---
 
 ## 9. The Portal (`apps/portal`) — advertiser + developer + admin web
 
-Next.js 14 App Router. `next build` passes; run with `pnpm --filter @kbi/portal dev` (port 3001).
+Next.js 14 App Router. `next build` passes; run with `pnpm --filter @vibearning/portal dev` (port 3001).
 
 | File | Role |
 |------|------|
@@ -363,7 +370,7 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 - `dtos.ts` — `serveQuery`, `serveResponse`.
 - `events.ts` — event type + `eventIngest` / `eventResult`.
 - `auth.ts` — google login + account + token response.
-- `advertiser.ts` — register/login/createCampaign (+ `pacePerMinute`)/buyBlocks.
+- `advertiser.ts` — register/login/createCampaign (+ `pacePerMinute`, **+ brand fields `headline`/`tagline`/`brandColor`/`emoji` [NEW8]**)/editCampaign/buyBlocks; exports **`deriveCopy(headline,tagline)`** (the legacy single-line, derived identically on server + portal) and the `HEADLINE_MAX`/`TAGLINE_MAX`/`EMOJI_MAX` caps.
 - `payouts.ts` **[NEW2]** — `payoutDestinationSchema` (UPI/bank).
 - `index.ts` — re-exports all.
 
@@ -373,8 +380,8 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 
 ## 11. Testing
 
-- **api 201 · extension 47 · shared 17 · portal 16 = 281 tests**, plus **3 Playwright** browser smokes (`pnpm --filter @kbi/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
-- Run all api tests: `pnpm --filter @kbi/api test` (Docker must be up).
+- **api 226 · extension 112 · shared 22 · portal 29 = 389 tests** ([NEW8] counts), plus **4 Playwright** browser smokes (`pnpm --filter @vibearning/portal test:e2e`, opt-in — needs `npx playwright install chromium`; kept out of the default vitest/CI run). Unit tests use mocks; e2e tests boot a real Nest app against Postgres+Redis.
+- Run all api tests: `pnpm --filter @vibearning/api test` (Docker must be up).
 - **Jest runs serially** (`maxWorkers: 1` in `apps/api/jest.config.js`) because the e2e suites share one database, and a **`globalSetup`** (`apps/api/jest.global-setup.js`) truncates all tables + flushes Redis once per run for a pristine cross-run baseline. **[NEW]**
 - **The old "~1/4 e2e flake" is FIXED [NEW]** — it was not transient infra. Root cause: every e2e request comes from the loopback IP, so the new IP-cluster Redis set is **shared across spec files**; `metrics.e2e`'s cluster test leaves >5 installs in it, and if it ran before `ledger.e2e` (which needs its impression to be *valid*) the impression got flagged `ip_cluster` and posted zero ledger entries — failing depending on Jest's file order. Fix: `ledger.e2e` flushes Redis in `beforeAll`; `auction.e2e` uses its own ranking surface; the globalSetup gives a clean slate. **Verified 8/8 consecutive full-suite runs green.**
 - Test data hygiene: e2e suites clean up after themselves; remember the FK delete order (§5).
@@ -425,6 +432,21 @@ The single source of truth for wire formats. Every file exports zod schemas + in
 - ✅ **Slimmed API Docker image** (verified) + compose healthchecks/restart + **CD deploy scaffold** + **configurable status-line surface**.
 - ✅ **274 tests + 3 Playwright, all green**; everything on `main`.
 
+**In-editor surfaces + brand logos batch [NEW7]:**
+- ✅ **Sidebar "vibearning" webview panel** (`apps/extension/src/host/webviewView.ts` + `webviewContent.ts`) — an Activity-Bar view with a rich, branded ad card (logo, emoji, headline, tagline, brand-color accent), driven by the Orchestrator's new fail-safe `onShow`/`onHide` hooks so it mirrors the same single rotating ad the status bar bills. CSP-locked (`default-src 'none'`, nonce-gated script/style); ad copy rendered via `textContent`; brand color hard-validated to a hex literal.
+- ✅ **Auth-honest live state + session ticker** — the card claims "earning" only when signed in (anonymous forfeits); the always-on status bar shows lifetime **+ a ▲ "this session" delta**, mirrored in the panel pill.
+- ✅ **Brand logos** — the served `iconUrl` renders as a logo tile in the sidebar card (emoji fallback on missing/broken image); `safeImageUrl` + webview CSP restrict to https / `data:image` / dev-localhost.
+- ✅ **Advertiser logo upload (portal)** — the campaign form's `LogoInput` takes an uploaded image (pick/drag-drop) **or** a pasted https URL; create/edit persist `iconUrl`. Shared `logoUrlSchema` (https / localhost / small `data:image`, 32 KB cap) validates on both client and server.
+- ✅ **Object storage (local-disk impl)** — `BlobStorage` seam + `LocalDiskStorage` (content-addressed sha256 → dedupe) + `POST /uploads/logo` (authed, type+size validated server-side) + public `GET /uploads/:name` (traversal-guarded, immutable, cross-origin). `/serve` now carries a short URL, not an inline blob. **Cloud bucket is the only remaining piece — see §13.8.**
+
+**Multi-surface + line-up + rebrand + packaging batch [NEW8]:**
+- ✅ **Multi-surface campaigns** — `createCampaignSchema` accepts `surfaces: Surface[]` (legacy single `surface` still works) + `campaignSurfaces()` helper; `CampaignService.create` writes **one active bid per surface** (`createMany`), and `approve`/`rankBids` rank all of them. Portal has a **"Where it shows"** multi-select (Claude Code + Codex default). So one campaign serves both the Claude Code and Codex extensions.
+- ✅ **Sidebar "up next" line-up** — the panel shows the live (billed) ad big + the rest of the served set as dimmed "In rotation · up next" rows (winner highlighted, rotates); billing is unchanged (still one impression on the always-on surface). Orchestrator `onShow(ad, { lineup, activeIndex })`.
+- ✅ **Wait-detection hardening** — staleness window 12s → **60s** (a web search / long tool call runs >12s with no transcript write and used to flip the panel to idle mid-turn); transcript poll 1500ms → **700ms**; slug match is now **case-insensitive** (VS Code uppercases the Windows drive letter, Claude stores it lowercased).
+- ✅ **S3 object storage** — `S3Storage` (AWS S3 / R2 / Supabase / MinIO; AWS SDK lazy-loaded; injectable `ObjectPutter`, unit-tested without network) behind `VIBEARNING_STORAGE=s3`; `createBlobStorage` fails loudly without bucket + public URL. See §13.8.
+- ✅ **Installable + publish-ready extension** — packaged as `apps/extension/vibearning.vsix` (name `vibearning`, 256×256 PNG `icon`, proprietary `LICENSE`, store-page `README`, `private` removed). Prod-configurable endpoints via `contributes.configuration` (`vibearning.apiUrl`/`portalUrl`, env-overridable); dev commands (simulate/preview) stripped from the published build.
+- ✅ **Full rebrand `Kickbacks`/`KBI` → `vibearning`** (all lowercase) — `@vibearning/*` scope, `VIBEARNING_*` env, `vibearning.*` command/view/config IDs, `~/.vibearning` token dir, domains `vibearning.in/.ai`. Unchanged (would break infra): Postgres creds `kbi`, Docker container names, the folder path.
+
 ---
 
 ## 13. What's LEFT — and exactly how to do it
@@ -437,7 +459,7 @@ Each sits behind a finished seam, so it's "fill in the implementation / plug in 
 
 ### 13.2 Real spinner injection (makes the extension actually earn)
 **Where:** `apps/extension/src/adapters/{claudeCode,codex,geminiCli}.ts` — stubs that report `isAvailable()===false`.
-**How:** the recommended path is each agent's **official** status-line/hook extension point, not hacking a webview. **Claude Code has a working prototype + guide: `docs/extension/claude-code-statusline.md`** — a standalone status-line script (`src/statusline/cli.ts` → `dist/statusline.js`) with three unit-tested pure modules: `compose.ts` (line text; "Sponsored" label, house ads exempt), `billing.ts` (**conservative** rule — at most one impression per shown ad-window, only after the 5s view threshold, stable nonce so refreshes dedupe; never over-bills), and `store.ts` (reads the dev token from `KICKBACKS_TOKEN`/`~/.kickbacks/token` and persists window state). It **attributes** earnings by sending the dev's bearer token on `/serve` + `/events`, and **rotates** the top-3 ads (`tickRotation`, unit-tested — holds each ~8s, cycles). What remains for Claude Code: **live verification** on a real install. Alternatively/additionally, implement the `SpinnerAdapter` interface (`isAvailable`/`start`/`render`/`clear`) for in-editor surfaces. Keep the always-safe no-op fallback so a vendor UI change never breaks the user's agent. The `Orchestrator` + `ViewTracker` + `ApiClient` are done and tested.
+**How:** the recommended path is each agent's **official** status-line/hook extension point, not hacking a webview. **Claude Code has a working prototype + guide: `docs/extension/claude-code-statusline.md`** — a standalone status-line script (`src/statusline/cli.ts` → `dist/statusline.js`) with three unit-tested pure modules: `compose.ts` (line text; "Sponsored" label, house ads exempt), `billing.ts` (**conservative** rule — at most one impression per shown ad-window, only after the 5s view threshold, stable nonce so refreshes dedupe; never over-bills), and `store.ts` (reads the dev token from `VIBEARNING_TOKEN`/`~/.vibearning/token` and persists window state). It **attributes** earnings by sending the dev's bearer token on `/serve` + `/events`, and **rotates** the top-3 ads (`tickRotation`, unit-tested — holds each ~8s, cycles). What remains for Claude Code: **live verification** on a real install. Alternatively/additionally, implement the `SpinnerAdapter` interface (`isAvailable`/`start`/`render`/`clear`) for in-editor surfaces. Keep the always-safe no-op fallback so a vendor UI change never breaks the user's agent. The `Orchestrator` + `ViewTracker` + `ApiClient` are done and tested.
 
 ### 13.3 Killswitch poller — already wired
 `GET /config` exists and the extension's `Killswitch` already polls `${API_BASE}/config`. Nothing to do except set the global flag via `POST /admin/killswitch` in an incident.
@@ -460,6 +482,10 @@ Versioned migrations are in place: a squashed baseline `apps/api/prisma/migratio
 - ✅ **CI** (`.github/workflows/ci.yml`) + **CD** (`cd.yml` — builds & pushes api/portal images to GHCR, plus a **deploy job** that fires once `DEPLOY_WEBHOOK` is set, [NEW5]) + **Dockerfiles** (**slimmed API image via `pnpm deploy --prod`**, verified to boot+migrate+serve, [NEW5]) + **`docker-compose.prod.yml`** (restart policies + healthchecks, [NEW5]). Deploy runbook: `docs/launch/DEPLOY.md`.
 - ✅ **Metrics [NEW6]** — `/metrics` (no-dep Prometheus: request counts + duration histogram) via a global interceptor; scrape with Prometheus/Grafana. **Email [NEW6]** — `ResendNotifier` sends for real when keyed.
 - **Still to do (external):** actually deploy (managed Postgres+Redis in an **India region**, portal hosting, publish the extension); set `RESEND_API_KEY` (provider account); distributed **tracing** (OpenTelemetry) + Grafana dashboards + uptime alerting; secrets via a manager (not env files) in prod.
+
+### 13.8 Object storage for logos — **code-complete [NEW8]**; only a bucket + env remain
+**Done:** advertiser logos upload through `POST /uploads/logo` and are stored by a pluggable `BlobStorage` seam (`apps/api/src/storage/blob-storage.ts`). Two backends, both content-addressed (sha256 → dedupe): `LocalDiskStorage` (dev; served by `GET /uploads/:name`) and **`S3Storage`** (prod; AWS S3 / Cloudflare R2 / Supabase Storage / MinIO — AWS SDK lazy-loaded on first write, injectable `ObjectPutter` so it's unit-tested without the network). Selected by `VIBEARNING_STORAGE` (`disk` default, `s3` for prod); `createBlobStorage()` **fails loudly** if `s3` is set without `VIBEARNING_S3_BUCKET` + `VIBEARNING_PUBLIC_URL` (no silent ephemeral-disk fallback). `/serve` carries a short URL either way.
+**Still to do (external only):** create the bucket (public-read), set `VIBEARNING_STORAGE=s3` + `VIBEARNING_S3_BUCKET` + `VIBEARNING_PUBLIC_URL` (+ region/creds, or endpoint+path-style for R2/Supabase) — see `.env.prod.example` and `docs/launch/DEPLOY.md → Object storage`. Local disk is **ephemeral** on most hosts, so do this before logos are relied on in prod. Note: the schema/extension also allow `http://localhost` logos for dev (client-rendered `<img>` only, no SSRF); prod URLs are https.
 
 ### 13.7 Legal / entity (blocks real money)
 India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay from abroad); **GST** on the platform fee; **TDS** on developer payouts; advertiser + developer ToS + privacy policy. Vendor risk: injecting into Anthropic/OpenAI/Google agent UIs is adversarial — their ToS/UI changes can break or ban us; mitigate with versioned adapters + the killswitch.
@@ -485,15 +511,17 @@ India Pvt Ltd; **IEC + FIRC** for export-of-service receipts (advertisers pay fr
 - ✅ ~~Portal UI is bare / admin uses static key~~ — **fixed [NEW4]:** portal now has a clean **design system** (`app/globals.css`) across all pages, and the admin page logs in via **`POST /admin/login`** (admin JWT Bearer); the static `x-admin-key` is no longer used by the web (the API still accepts it as a legacy/break-glass header).
 - **Campaign edit re-moderation is coarse** — *any* creative change on a live campaign sends the whole campaign back to `pending` (safe default). A lighter flow (e.g. auto-approve trivial URL tweaks, or a separate "pending creative" field that keeps the old copy serving until re-approval) could reduce advertiser friction later.
 - **Developer web vs Google identity** — a dev who signs up by email (`type:"dev"`) and a dev who signed in with Google are **separate accounts** even with the same email. Acceptable now; merge-on-verified-email later if needed.
+- **House-ad creation has no JWT-console UI [NEW8]** — `POST /admin/house-ads` (incl. the new brand fields) is gated by the static `x-admin-key` break-glass header, not the admin-login JWT the portal `/admin` console uses. Seed house ads via `curl`/the seed script; building a console form would mean surfacing the break-glass key in the browser (a security decision, deliberately deferred). The admin queue *does* render the brand preview for advertiser campaigns.
+- **Brand-color contrast is advisory [NEW8]** — the status-bar background is theme-dependent and unknown to us, so the portal only *warns* on extreme-luminance brand colors rather than altering them; a very light/dark brand color can still be low-contrast on one theme.
 
 ---
 
 ## 15. Where to read more
 - **Launch-prep guides [NEW4]:** `docs/launch/DEPLOY.md` (deploy runbook + `.env.prod.example`), `docs/launch/PAYMENTS_SETUP.md` (PSP/KYC account setup → env mapping), `docs/extension/claude-code-statusline.md` (first real ad adapter), `docs/legal/` (advertiser/developer ToS + privacy templates — lawyer review required). High-level non-coding view: `LAUNCH_CHECKLIST.md`.
-- **Design spec:** `docs/superpowers/specs/2026-06-22-kickbacks-india-ad-marketplace-design.md` — the architecture + decisions + risks.
+- **Design spec:** `docs/superpowers/specs/2026-06-22-vibearning-ad-marketplace-design.md` — the architecture + decisions + risks.
 - **Implementation plans** (`docs/superpowers/plans/`): one per slice (01 foundation, 02 metrics, 03 extension, 04 auth, 05 ledger, 06 payments, 07 advertiser-billing, 07b portal, 08 auction, 09 fraud). Each has the exact files, code, and reasoning — the best onboarding path is to read these in order.
 - **Hardening batches 1 & 2 [NEW]/[NEW2]** (analytics, moderation, IP-clustering, real PSP adapters + webhooks, RazorpayX payout + KYC, pacing/throttling/overspend-guard, dev & admin portal, CI/CD/migrations/Dockerfiles/compose, security + Sentry, Playwright, flake fix): implemented **inline, TDD, no per-slice plan docs** (by request). Read the `feat(...)`/`chore(...)`/`test(...)`/`docs(...)` commits on `main` — each commit message documents the rationale and verification for its slice.
-- **Original product** (for reference): kickbacks.ai, its FAQ, and the open-source extension at github.com/andrewmccalip/kickbacks.ai.
+- **Original product** (for reference): vibearning.ai, its FAQ, and the open-source extension at github.com/andrewmccalip/vibearning.ai.
 
 ---
 

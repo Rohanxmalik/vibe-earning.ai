@@ -1,4 +1,4 @@
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { makeNonce } from "../core/nonce";
 
 /** The ad currently shown in the status line + when it was first shown (one window). */
@@ -8,6 +8,8 @@ export interface ShownAd {
   firstShownMs: number;
   nonce: string;
   billed: boolean;
+  /** Server-issued impression token from /serve; echoed back so the event verifies. */
+  token?: string;
 }
 
 export interface BillingState {
@@ -21,6 +23,8 @@ export interface BillEvent {
   nonce: string;
   visibleMs: number;
   type: "impression";
+  /** Server-issued impression token from the /serve response for this ad. */
+  token?: string;
 }
 
 export interface BillingDecision {
@@ -58,6 +62,7 @@ export function decideBilling(
       firstShownMs: now,
       nonce: makeNonce(state.installId, ad.campaignId, now),
       billed: false,
+      token: ad.token,
     };
     return { nextState: { ...state, current }, bill: null };
   }
@@ -68,7 +73,7 @@ export function decideBilling(
   if (!current.billed && visibleMs >= minViewMs) {
     return {
       nextState: { ...state, current: { ...current, billed: true } },
-      bill: { installId: state.installId, campaignId: current.campaignId, nonce: current.nonce, visibleMs, type: "impression" },
+      bill: { installId: state.installId, campaignId: current.campaignId, nonce: current.nonce, visibleMs, type: "impression", token: current.token },
     };
   }
 

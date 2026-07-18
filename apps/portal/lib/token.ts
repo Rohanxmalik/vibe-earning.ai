@@ -13,7 +13,7 @@ export function clearToken(): void {
 }
 
 // Developer (supply-side) session token. Devs sign in via Google in the extension;
-// for the web earnings view they paste that KBI token here.
+// for the web earnings view they paste that vibearning token here.
 export function getDevToken(): string | undefined {
   if (typeof window === "undefined") return undefined;
   return window.localStorage.getItem(DEV_KEY) ?? undefined;

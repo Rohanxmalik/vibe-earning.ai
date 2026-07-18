@@ -19,7 +19,7 @@ describe("adapter registry", () => {
 
   it("lists the three real adapters", () => {
     expect(allAdapters().map((a) => a.surface).sort()).toEqual(
-      ["claude-code-terminal", "codex-panel", "gemini-cli-terminal"],
+      ["claude-code-panel", "codex-panel", "gemini-cli-terminal"],
     );
   });
 
@@ -31,6 +31,6 @@ describe("adapter registry", () => {
   it("selects the Claude Code adapter when running under Claude Code", () => {
     process.env.CLAUDECODE = "1";
     const fallback = new MockAdapter();
-    expect(firstAvailable(fallback).surface).toBe("claude-code-terminal");
+    expect(firstAvailable(fallback).surface).toBe("claude-code-panel");
   });
 });

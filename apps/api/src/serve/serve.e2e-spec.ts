@@ -25,7 +25,15 @@ describe("/serve (e2e)", () => {
     await prisma.bid.deleteMany();
     await prisma.campaign.deleteMany();
     const house = await prisma.campaign.create({
-      data: { copy: "Powered by Kickbacks-India", url: "https://kbi.example", isHouseAd: true },
+      data: {
+        copy: "Powered by vibearning",
+        headline: "vibearning",
+        tagline: "Earn while your AI thinks",
+        brandColor: "#8B2CF5",
+        emoji: "⚡",
+        url: "https://kbi.example",
+        isHouseAd: true,
+      },
     });
     await ranking.upsertBid("codex-panel", house.id, 0);
   });
@@ -34,7 +42,7 @@ describe("/serve (e2e)", () => {
 
   it("serves the house ad for a valid surface", async () => {
     const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
-    expect(res.body.ad).toMatchObject({ copy: "Powered by Kickbacks-India", isHouseAd: true });
+    expect(res.body.ad).toMatchObject({ copy: "Powered by vibearning", isHouseAd: true });
   });
 
   it("returns an ads[] rotation list (capped by count)", async () => {
@@ -42,6 +50,16 @@ describe("/serve (e2e)", () => {
     expect(Array.isArray(res.body.ads)).toBe(true);
     expect(res.body.ads[0]).toMatchObject({ isHouseAd: true });
     expect(res.body.ad).toEqual(res.body.ads[0]); // back-compat: `ad` mirrors the first
+  });
+
+  it("returns the structured brand fields (headline/tagline/brandColor/emoji) on the wire", async () => {
+    const res = await request(app.getHttpServer()).get("/serve?surface=codex-panel").expect(200);
+    expect(res.body.ad).toMatchObject({
+      headline: "vibearning",
+      tagline: "Earn while your AI thinks",
+      brandColor: "#8B2CF5",
+      emoji: "⚡",
+    });
   });
 
   it("400s on an invalid surface", async () => {

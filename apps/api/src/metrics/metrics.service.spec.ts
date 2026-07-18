@@ -4,11 +4,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
 import { FraudService } from "./fraud.service";
 import { LedgerService } from "../ledger/ledger.service";
+import { KillswitchService } from "../config/killswitch.service";
+import { issueImpressionToken } from "../serve/impression-token";
 
 const prismaMock = { adEvent: { findUnique: jest.fn(), create: jest.fn() } };
 const rateMock = { takeSpacingSlot: jest.fn(), incrCaps: jest.fn() };
 const fraudMock = { recordInstall: jest.fn() };
 const ledgerMock = { postForEvent: jest.fn() };
+const killswitchMock = { isActive: jest.fn() };
 
 const impression = {
   installId: "i1", campaignId: "c1", surface: "codex-panel" as const,
@@ -22,6 +25,7 @@ describe("MetricsService", () => {
     rateMock.takeSpacingSlot.mockResolvedValue(true);
     rateMock.incrCaps.mockResolvedValue({ withinHourly: true, withinDaily: true });
     fraudMock.recordInstall.mockResolvedValue(1);
+    killswitchMock.isActive.mockResolvedValue(false);
     prismaMock.adEvent.findUnique.mockResolvedValue(null);
     prismaMock.adEvent.create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({ id: "ev1", ...args.data }));
     const mod = await Test.createTestingModule({
@@ -31,6 +35,7 @@ describe("MetricsService", () => {
         { provide: RateLimitService, useValue: rateMock },
         { provide: FraudService, useValue: fraudMock },
         { provide: LedgerService, useValue: ledgerMock },
+        { provide: KillswitchService, useValue: killswitchMock },
       ],
     }).compile();
     svc = mod.get(MetricsService);
@@ -43,6 +48,13 @@ describe("MetricsService", () => {
       expect.objectContaining({ data: expect.objectContaining({ valid: true, reason: null }) }),
     );
     expect(ledgerMock.postForEvent).toHaveBeenCalledWith(expect.objectContaining({ id: "ev1", valid: true }));
+  });
+
+  it("marks an event invalid and bills nothing while the global killswitch is active (H5)", async () => {
+    killswitchMock.isActive.mockResolvedValue(true);
+    const r = await svc.ingest({ ...impression, nonce: "nonce_kill" });
+    expect(r).toMatchObject({ valid: false, reason: "killswitch" });
+    expect(ledgerMock.postForEvent).not.toHaveBeenCalled();
   });
 
   it("is idempotent on a duplicate (installId, nonce)", async () => {
@@ -71,10 +83,20 @@ describe("MetricsService", () => {
     expect(r).toMatchObject({ valid: false, reason: "hourly_cap" });
   });
 
-  it("counts a click as valid without view/spacing checks", async () => {
+  it("applies spacing + caps to clicks (click-fraud fix) using a separate namespace", async () => {
     const r = await svc.ingest({ ...impression, type: "click", nonce: "nonce_eeee", visibleMs: 0 });
     expect(r).toEqual({ deduped: false, valid: true, reason: null });
-    expect(rateMock.takeSpacingSlot).not.toHaveBeenCalled();
+    // Clicks are now rate-limited too, under a "click:"-prefixed key so they don't share the
+    // impression spacing slot for the same install.
+    expect(rateMock.takeSpacingSlot).toHaveBeenCalledWith("click:i1");
+    expect(rateMock.incrCaps).toHaveBeenCalledWith("click:i1");
+  });
+
+  it("marks a click invalid when it exceeds the click cap", async () => {
+    rateMock.incrCaps.mockResolvedValue({ withinHourly: false, withinDaily: true });
+    const r = await svc.ingest({ ...impression, type: "click", nonce: "nonce_eee2", visibleMs: 0 });
+    expect(r).toMatchObject({ valid: false, reason: "hourly_cap" });
+    expect(ledgerMock.postForEvent).not.toHaveBeenCalled();
   });
 
   it("flags ip_cluster when too many distinct installs share an IP, before impression checks", async () => {
@@ -91,5 +113,34 @@ describe("MetricsService", () => {
     const r = await svc.ingest({ ...impression, nonce: "nonce_gggg" }, null, "iphash_ok");
     expect(fraudMock.recordInstall).toHaveBeenCalledWith("iphash_ok", "i1");
     expect(r).toEqual({ deduped: false, valid: true, reason: null });
+  });
+
+  describe("impression-token enforcement (C2/H2)", () => {
+    const OLD = process.env.EVENTS_REQUIRE_TOKEN;
+    beforeAll(() => { process.env.EVENTS_REQUIRE_TOKEN = "true"; });
+    afterAll(() => { process.env.EVENTS_REQUIRE_TOKEN = OLD; });
+
+    it("rejects an event with no token when tokens are required", async () => {
+      const r = await svc.ingest({ ...impression, nonce: "tok_none" });
+      expect(r).toMatchObject({ valid: false, reason: "unverified" });
+      expect(ledgerMock.postForEvent).not.toHaveBeenCalled();
+    });
+
+    it("rejects a forged / mismatched token", async () => {
+      const r = await svc.ingest({ ...impression, nonce: "tok_bad", token: "123.deadbeef" });
+      expect(r).toMatchObject({ valid: false, reason: "bad_token" });
+    });
+
+    it("rejects a token minted for a different campaign", async () => {
+      const token = issueImpressionToken("other-campaign", impression.surface);
+      const r = await svc.ingest({ ...impression, nonce: "tok_x", token });
+      expect(r).toMatchObject({ valid: false, reason: "bad_token" });
+    });
+
+    it("accepts a correctly signed token", async () => {
+      const token = issueImpressionToken(impression.campaignId, impression.surface);
+      const r = await svc.ingest({ ...impression, nonce: "tok_ok", token });
+      expect(r).toEqual({ deduped: false, valid: true, reason: null });
+    });
   });
 });

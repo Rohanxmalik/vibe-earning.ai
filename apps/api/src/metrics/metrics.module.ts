@@ -8,9 +8,10 @@ import { UsageService } from "./usage.service";
 import { UsageController } from "./usage.controller";
 import { AuthModule } from "../auth/auth.module";
 import { LedgerModule } from "../ledger/ledger.module";
+import { KillswitchModule } from "../config/killswitch.module";
 
 @Module({
-  imports: [AuthModule, LedgerModule],
+  imports: [AuthModule, LedgerModule, KillswitchModule],
   controllers: [MetricsController, UsageController],
   providers: [MetricsService, RateLimitService, FraudService, FraudSweepService, UsageService],
   exports: [FraudService, FraudSweepService],

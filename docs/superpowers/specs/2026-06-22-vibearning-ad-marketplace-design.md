@@ -1,15 +1,15 @@
-# Kickbacks-India — AI-Spinner Ad Marketplace — Design
+# vibearning — AI-Spinner Ad Marketplace — Design
 
 - **Date:** 2026-06-22
 - **Status:** Approved design (pre-implementation)
 - **Author:** Rohan (with Claude Code)
-- **Topic:** India-first clone of kickbacks.ai — an ad marketplace inside AI coding-agent wait states
+- **Topic:** India-first clone of vibearning.ai — an ad marketplace inside AI coding-agent wait states
 
 ---
 
 ## 1. Context & Background
 
-[kickbacks.ai](https://kickbacks.ai/) (by Andrew McCalip / ShiftKeys, Inc., launched 2026-06-11) is **not** a consumer cashback app. It is a **two-sided advertising marketplace** that sells the "Thinking…" status line shown by AI coding agents (Claude Code, Codex) while they work. A VS Code extension replaces the spinner verb with one short sponsored line; the developer whose machine showed it earns ~50% of the ad revenue. Advertisers bid for the line in an English-ascending auction.
+[vibearning.ai](https://vibearning.ai/) (by Andrew McCalip / ShiftKeys, Inc., launched 2026-06-11) is **not** a consumer cashback app. It is a **two-sided advertising marketplace** that sells the "Thinking…" status line shown by AI coding agents (Claude Code, Codex) while they work. A VS Code extension replaces the spinner verb with one short sponsored line; the developer whose machine showed it earns ~50% of the ad revenue. Advertisers bid for the line in an English-ascending auction.
 
 Key mechanics observed (sources in §15):
 - Block = **1,000 × 5-second impressions**; minimum bid **$1/block**; **clicks billed at 50× an impression**.
@@ -18,22 +18,22 @@ Key mechanics observed (sources in §15):
 - Extension is open-source TypeScript; the backend, auction engine, and advertiser portal are private.
 
 ### The India opportunity
-kickbacks.ai pays **only through Stripe Connect**, and per its own FAQ **India is in "preview" status** — Indian developers effectively cannot cash out. India has a large, fast-growing Claude Code / Codex / Gemini CLI user base. **The wedge is the payout rail:** capture Indian developer supply that is locked out of Stripe, sell their attention to **global** advertisers, and pay out in INR via UPI/RazorpayX.
+vibearning.ai pays **only through Stripe Connect**, and per its own FAQ **India is in "preview" status** — Indian developers effectively cannot cash out. India has a large, fast-growing Claude Code / Codex / Gemini CLI user base. **The wedge is the payout rail:** capture Indian developer supply that is locked out of Stripe, sell their attention to **global** advertisers, and pay out in INR via UPI/RazorpayX.
 
 ### Reframing decided with the user
 - **Supply side = Indian developers** (India-first; the ones Stripe locks out).
-- **Demand side = global advertisers** (foreign brands, even the same advertisers kickbacks targets), seeded by direct outreach but transacted self-serve.
+- **Demand side = global advertisers** (foreign brands, even the same advertisers vibearning targets), seeded by direct outreach but transacted self-serve.
 - India-specific value is on the **payout/entity** side, not demand.
 
 ---
 
 ## 2. Goals
 
-- Ship a **full self-serve two-sided marketplace** functionally equivalent to kickbacks.ai.
+- Ship a **full self-serve two-sided marketplace** functionally equivalent to vibearning.ai.
 - Support three injectable agent surfaces: **Claude Code, Codex, Gemini CLI**.
 - **Dual payment providers (Stripe + Razorpay), both directions** (collect from advertisers + pay out to developers), behind one abstraction.
 - Pay Indian developers in **INR via Razorpay/UPI**; pay non-India developers via **Stripe Connect**.
-- Match kickbacks' anti-fraud and privacy posture (trust is the product).
+- Match vibearning' anti-fraud and privacy posture (trust is the product).
 
 ## 3. Non-Goals (v1 / YAGNI)
 
@@ -55,7 +55,7 @@ kickbacks.ai pays **only through Stripe Connect**, and per its own FAQ **India i
 | 3 | Surfaces | Claude Code (panel + terminal), Codex (panel), Gemini CLI (terminal) |
 | 4 | Money rails | Dual provider — Stripe **and** Razorpay, both collect **and** payout, abstracted |
 | 5 | Stack | Full TypeScript |
-| 6 | Build approach | **A** — Turborepo monorepo, vertical slices, kickbacks-style block auction |
+| 6 | Build approach | **A** — Turborepo monorepo, vertical slices, vibearning-style block auction |
 | 7 | Ledger base currency | **INR** (India entity); FX snapshot stored per non-INR charge |
 
 ---
@@ -65,7 +65,7 @@ kickbacks.ai pays **only through Stripe Connect**, and per its own FAQ **India i
 Turborepo + pnpm monorepo:
 
 ```
-kickbacks-india/
+vibearning/
   apps/
     extension/   VS Code ext (TS) — 3 adapters, view-tracking, killswitch
     api/         NestJS — Auth, Auction, Serve, Metrics, Ledger, Payout, Billing, Fraud, Admin
@@ -109,7 +109,7 @@ Dev balance ≥ threshold:
 
 ## 7. Extension Design (`apps/extension`)
 
-TypeScript + esbuild + vitest (mirrors kickbacks' open structure).
+TypeScript + esbuild + vitest (mirrors vibearning' open structure).
 
 ```
 src/
@@ -125,7 +125,7 @@ src/
 ```
 
 - **Injection:** terminal surfaces swap the spinner verb / status line; panel surfaces use a webview overlay. Adapters are **versioned** and guarded: on any unrecognized host/vendor UI change they **fail to a silent no-op** and never break the host agent. The killswitch is the global kill-all.
-- **Privacy (deliberately matches kickbacks — trust is the product):** collects only ad-event id, on-screen visibility metric, per-install id, host/extension version, account id, and a **salted one-way IP hash** (never raw IP). **Never** collects code, prompts, or file contents.
+- **Privacy (deliberately matches vibearning — trust is the product):** collects only ad-event id, on-screen visibility metric, per-install id, host/extension version, account id, and a **salted one-way IP hash** (never raw IP). **Never** collects code, prompts, or file contents.
 
 ---
 
@@ -136,7 +136,7 @@ src/
 - **`GET /serve`:** returns the top-ranked campaign that has remaining inventory, is within the requesting install's frequency cap, and is within its pacing budget. Payload = creative (≤60-char copy, https URL, optional ≤64 KB brand icon).
 - **Serve ≠ impression.** Block inventory decrements only on a server-confirmed 5s view via `/events` — prevents paying for unseen serves.
 - **Pacing:** Redis token-bucket per campaign keyed off the advertiser's "delivery speed" preference (asap / even).
-- **Over-delivery protection:** stop serving at block exhaustion; if a race overshoots, the platform absorbs the extra (kickbacks rule).
+- **Over-delivery protection:** stop serving at block exhaustion; if a race overshoots, the platform absorbs the extra (vibearning rule).
 
 ---
 
@@ -169,7 +169,7 @@ interface PaymentProvider {
 
 ## 10. Fraud & Anti-Abuse (`Fraud` module)
 
-Parity with kickbacks here is mandatory — weak fraud controls drive advertisers away.
+Parity with vibearning here is mandatory — weak fraud controls drive advertisers away.
 
 - **Valid impression** = ≥5s visible + window focused + human-initiated wait + within per-user spacing + within hourly/daily caps.
 - **Server decides, never trusts the client.** The extension sends signals; the server validates and assigns a fraud score.
@@ -237,7 +237,7 @@ Balances are derived sums over `ledger_entries`. Idempotency enforced by `ad_eve
 
 - India Pvt Ltd entity; **IEC** + **FIRC** for export-of-service receipts; **GST** on platform fee; **TDS** on developer payouts.
 - Advertiser ToS, developer ToS, privacy policy.
-- **Vendor risk acknowledged:** injecting into Claude Code / Codex / Gemini CLI UIs is adversarial to Anthropic/OpenAI/Google; their ToS or UI changes can break or ban the extension. Same risk kickbacks carries. Mitigate with versioned adapters + killswitch; accept as a strategic risk.
+- **Vendor risk acknowledged:** injecting into Claude Code / Codex / Gemini CLI UIs is adversarial to Anthropic/OpenAI/Google; their ToS or UI changes can break or ban the extension. Same risk vibearning carries. Mitigate with versioned adapters + killswitch; accept as a strategic risk.
 
 ---
 
@@ -245,19 +245,19 @@ Balances are derived sums over `ledger_entries`. Idempotency enforced by `ad_eve
 
 - **Demand liquidity** is the whole business — without advertisers bidding, developers earn ₹0 and churn. Seed via outreach; the auction is worthless empty.
 - **Indian-targeted CPMs are far below US CPMs** — model whether earnings clear the payout threshold for real usage before over-investing.
-- **Commodity product** — kickbacks saw two clones within 48h. Moat = advertiser relationships + the India payout rail, not the tech.
+- **Commodity product** — vibearning saw two clones within 48h. Moat = advertiser relationships + the India payout rail, not the tech.
 - **Cross-border collection** complexity (FX, FIRC, chargebacks) on the advertiser side.
-- **Self-reported kickbacks earnings are noisy** ($0.43–$10+ per multi-hour session); treat all economic assumptions as directional.
+- **Self-reported vibearning earnings are noisy** ($0.43–$10+ per multi-hour session); treat all economic assumptions as directional.
 
 ---
 
 ## 17. Sources
 
-- [kickbacks.ai](https://kickbacks.ai/) · [Brands/advertise section](https://kickbacks.ai/#brands) · [FAQ & fraud rules](https://kickbacks.ai/faq)
-- [GitHub: andrewmccalip/kickbacks.ai (open-source extension)](https://github.com/andrewmccalip/kickbacks.ai)
+- [vibearning.ai](https://vibearning.ai/) · [Brands/advertise section](https://vibearning.ai/#brands) · [FAQ & fraud rules](https://vibearning.ai/faq)
+- [GitHub: andrewmccalip/vibearning.ai (open-source extension)](https://github.com/andrewmccalip/vibearning.ai)
 - [Hacker News launch discussion](https://news.ycombinator.com/item?id=48493940)
-- [Product Hunt](https://www.producthunt.com/products/kickbacks-ai)
-- [Stork.AI review (2026)](https://www.stork.ai/en/kickbacks-ai)
+- [Product Hunt](https://www.producthunt.com/products/vibearning-ai)
+- [Stork.AI review (2026)](https://www.stork.ai/en/vibearning-ai)
 - [YouTube: "I Made Money While Claude Code Was Thinking"](https://www.youtube.com/watch?v=a_nRs8d9jGo)
 
 ---
@@ -265,6 +265,6 @@ Balances are derived sums over `ledger_entries`. Idempotency enforced by `ad_eve
 ## 18. Open Questions
 
 - Confirm INR ledger base currency (recommended) vs USD base.
-- Exact bid floor and developer revenue share % (kickbacks ≈ 50%).
+- Exact bid floor and developer revenue share % (vibearning ≈ 50%).
 - Payout cadence: monthly vs on-demand above threshold.
 - Hosting region/provider (recommend an India region for latency + data residency).

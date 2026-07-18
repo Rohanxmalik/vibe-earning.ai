@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata = {
   title: "FAQ & Fraud Ground Rules",
-  description: "How earnings work on Kickbacks-India, UPI payouts, and the rules that keep every payout honest.",
+  description: "How earnings work on vibearning, UPI payouts, and the rules that keep every payout honest.",
 };
 
 const TOC = [
@@ -32,7 +32,7 @@ export default function FaqPage() {
       <main className="bg-white">
         <div className="measure mx-auto max-w-3xl px-6 py-12 md:py-16">
       <p>
-        Kickbacks-India pays real developers a share of ad revenue for the line shown in their coding
+        vibearning pays real developers a share of ad revenue for the line shown in their coding
         assistant&apos;s “thinking…” spinner. That only works if the impressions are real. Here&apos;s how
         earnings are calculated, how UPI payouts work, and the ground rules our fraud systems enforce.
       </p>
@@ -97,8 +97,8 @@ export default function FaqPage() {
         </p>
         <h3 id="regions" style={{ scrollMarginTop: "5rem" }}>I&apos;m in India — can I get paid?</h3>
         <p>
-          <strong>Yes — that&apos;s exactly who this is built for.</strong> Where the global Kickbacks can&apos;t pay out
-          to India over Stripe, Kickbacks-India settles directly to your UPI in INR. Add your VPA, pass KYC, and cash
+          <strong>Yes — that&apos;s exactly who this is built for.</strong> Where the global vibearning can&apos;t pay out
+          to India over Stripe, vibearning settles directly to your UPI in INR. Add your VPA, pass KYC, and cash
           out once you&apos;re over the minimum. If you&apos;re detected outside India, your credit is still safe and
           keeps accruing — we&apos;re expanding payout regions over time.
         </p>
@@ -107,11 +107,11 @@ export default function FaqPage() {
 
       <section id="fix" className="section" style={{ scrollMarginTop: "5rem" }}>
         <h2 className="section-title">4. Troubleshooting — ads, earnings &amp; sign-in</h2>
-        <p>The single most useful first step: run <strong>“Kickbacks: Diagnose”</strong> from the command palette. It self-checks whether you&apos;re signed in, whether it found a compatible target to patch, and whether ads are serving.</p>
+        <p>The single most useful first step: run <strong>“vibearning: Diagnose”</strong> from the command palette. It self-checks whether you&apos;re signed in, whether it found a compatible target to patch, and whether ads are serving.</p>
         <h3>I don&apos;t see any ads</h3>
         <ul>
-          <li>Confirm the Claude Code (or Codex) extension is installed — Kickbacks patches it, so it must be present.</li>
-          <li>Make sure you&apos;re signed in (run “Kickbacks: Sign in”). You only <em>earn</em> while signed in.</li>
+          <li>Confirm the Claude Code (or Codex) extension is installed — vibearning patches it, so it must be present.</li>
+          <li>Make sure you&apos;re signed in (run “vibearning: Sign in”). You only <em>earn</em> while signed in.</li>
           <li>The ad only replaces the verb during a genuine wait-state — if a turn finishes instantly, there&apos;s no spinner to sponsor.</li>
           <li>Reload the window after a VS Code or Claude Code update.</li>
         </ul>
@@ -121,14 +121,14 @@ export default function FaqPage() {
 
       <section id="platforms" className="section" style={{ scrollMarginTop: "5rem" }}>
         <h2 className="section-title">5. Editors, CLIs &amp; platforms</h2>
-        <p>Kickbacks runs in two places — the editor panel and the terminal — across Claude Code (fully supported) and Codex (experimental). The VS Code build also loads over Remote-SSH, WSL, and devcontainers; install the extension in <em>that</em> host. The VS Code extension is currently required even to earn from the terminal CLI, since it&apos;s the piece that reports impressions.</p>
+        <p>vibearning runs in two places — the editor panel and the terminal — across Claude Code (fully supported) and Codex (experimental). The VS Code build also loads over Remote-SSH, WSL, and devcontainers; install the extension in <em>that</em> host. The VS Code extension is currently required even to earn from the terminal CLI, since it&apos;s the piece that reports impressions.</p>
       </section>
 
       <section id="account" className="section" style={{ scrollMarginTop: "5rem" }}>
         <h2 className="section-title">6. Managing &amp; uninstalling</h2>
         <ul>
-          <li><strong>Pause it.</strong> Click the Kickbacks status-bar item and choose <em>Disable</em> — the spinner returns to normal.</li>
-          <li><strong>Fully revert.</strong> Run “Kickbacks: Restore Claude Code” to undo every edit byte-for-byte.</li>
+          <li><strong>Pause it.</strong> Click the vibearning status-bar item and choose <em>Disable</em> — the spinner returns to normal.</li>
+          <li><strong>Fully revert.</strong> Run “vibearning: Restore Claude Code” to undo every edit byte-for-byte.</li>
           <li><strong>Uninstall.</strong> Restore first, then remove the extension like any other.</li>
         </ul>
         <p>To delete your account and data, use <strong>Delete account</strong> on your <Link href="/earnings">dashboard</Link>, or email support. We erase your personal data; financial records are retained as required by law.</p>
@@ -168,8 +168,8 @@ export default function FaqPage() {
 
       <section id="s9" className="section" style={{ scrollMarginTop: "5rem" }}>
         <h2 className="section-title">12. Appeals &amp; contact</h2>
-        <p>If you believe your account was flagged in error, contact us — a human will review it in good faith. Email <a href="mailto:support@kickbacks.ai">support@kickbacks.ai</a>.</p>
-        <p className="muted small"><Link href="/">← Back to Kickbacks-India</Link></p>
+        <p>If you believe your account was flagged in error, contact us — a human will review it in good faith. Email <a href="mailto:support@vibearning.ai">support@vibearning.ai</a>.</p>
+        <p className="muted small"><Link href="/">← Back to vibearning</Link></p>
       </section>
         </div>
       </main>

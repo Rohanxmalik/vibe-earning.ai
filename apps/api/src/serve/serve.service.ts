@@ -1,9 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import type { ServeResponse } from "@kbi/shared";
+import type { ServeResponse } from "@vibearning/shared";
 import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { PacingService } from "./pacing.service";
+import { KillswitchService } from "../config/killswitch.service";
+import { issueImpressionToken } from "./impression-token";
 
 const MAX_CANDIDATES = 10;
 
@@ -14,6 +16,7 @@ export class ServeService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly pacing: PacingService,
+    private readonly killswitch: KillswitchService,
   ) {}
 
   async pickAd(surface: string): Promise<ServeResponse | null> {
@@ -23,6 +26,9 @@ export class ServeService {
   /** Top-N eligible ads in rank order (for rotating through the spinner's wait-state). */
   async pickAds(surface: string, n: number): Promise<ServeResponse[]> {
     if (n <= 0) return [];
+    // Global killswitch (H5): the emergency brake stops serving entirely, so no ad is shown and
+    // nothing can be billed. /events enforces the same switch server-side as a backstop.
+    if (await this.killswitch.isActive("global")) return [];
     const ids = await this.ranking.topCampaigns(surface, MAX_CANDIDATES);
     const picked: ServeResponse[] = [];
     for (const id of ids) {
@@ -43,9 +49,15 @@ export class ServeService {
         adId: c.id,
         campaignId: c.id,
         copy: c.copy,
+        headline: c.headline,
+        tagline: c.tagline,
+        brandColor: c.brandColor,
+        emoji: c.emoji,
         url: c.url,
         iconUrl: c.iconUrl,
         isHouseAd: c.isHouseAd,
+        // Bind this served ad to the /events impression the client will post back.
+        token: issueImpressionToken(c.id, surface),
       });
     }
     return picked;

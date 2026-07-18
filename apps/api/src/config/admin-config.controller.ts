@@ -1,9 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Req, UnauthorizedException } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { z } from "zod";
-import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
+import { verifyPassword } from "../auth/password";
+import { secureEquals } from "../common/secure-compare";
 import { CampaignService } from "../advertiser/campaign.service";
 import { PayoutDestinationService } from "../payments/payout-destination.service";
+import { PayoutService } from "../payments/payout.service";
 import { FraudService } from "../metrics/fraud.service";
 import { FraudSweepService } from "../metrics/fraud-sweep.service";
 import { AuthService } from "../auth/auth.service";
@@ -21,6 +24,7 @@ export class AdminConfigController {
     private readonly prisma: PrismaService,
     private readonly campaigns: CampaignService,
     private readonly destinations: PayoutDestinationService,
+    private readonly payouts: PayoutService,
     private readonly fraud: FraudService,
     private readonly fraudSweep: FraudSweepService,
     private readonly auth: AuthService,
@@ -32,22 +36,24 @@ export class AdminConfigController {
    *  Returns the actor identity ("apikey" or the admin account id) for the audit log. */
   private async requireAdmin(req: AdminReq): Promise<string> {
     const key = req.headers?.["x-admin-key"];
-    if (typeof key === "string" && process.env.ADMIN_API_KEY && key === process.env.ADMIN_API_KEY) return "apikey";
+    if (typeof key === "string" && secureEquals(key, process.env.ADMIN_API_KEY)) return "apikey";
     const account = await this.auth.accountFromToken(bearer(req));
     if (account?.type === "admin") return account.id;
     throw new UnauthorizedException();
   }
 
-  /** Admin email/password login → JWT (admin accounts are created out-of-band / seeded). */
+  /** Admin email/password login → JWT (admin accounts are created out-of-band / seeded).
+   *  Tight throttle (10/min per IP) on top of the global limit to blunt credential stuffing. */
+  @Throttle({ auth: { limit: Number(process.env.AUTH_THROTTLE_LIMIT ?? 10), ttl: 60000 } })
   @Post("login")
   async login(@Body() raw: unknown) {
     const p = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(raw);
     if (!p.success) throw new BadRequestException(p.error.flatten());
     const account = await this.prisma.account.findFirst({ where: { email: p.data.email, type: "admin" } });
-    if (!account?.passwordHash || !(await bcrypt.compare(p.data.password, account.passwordHash))) {
+    if (!(await verifyPassword(p.data.password, account?.passwordHash))) {
       throw new UnauthorizedException("invalid_credentials");
     }
-    return { token: this.tokens.issue(account.id), account: { id: account.id, type: account.type } };
+    return { token: this.tokens.issue(account!.id), account: { id: account!.id, type: account!.type } };
   }
 
   @Get("audit")
@@ -104,6 +110,20 @@ export class AdminConfigController {
     await this.destinations.verify(id, p.data.providerRef);
     await this.audit.record(actor, "destination.verify", id);
     return { ok: true };
+  }
+
+  @Get("payouts/pending")
+  async pendingPayouts(@Req() req: AdminReq) {
+    await this.requireAdmin(req);
+    return this.payouts.pendingApproval();
+  }
+
+  @Post("payouts/:id/approve")
+  async approvePayout(@Req() req: AdminReq, @Param("id") id: string) {
+    const actor = await this.requireAdmin(req);
+    const result = await this.payouts.approveAndDispatch(id);
+    await this.audit.record(actor, "payout.approve", id, { status: result.status, amountPaise: result.amountPaise });
+    return result;
   }
 
   @Post("fraud/void-cluster")

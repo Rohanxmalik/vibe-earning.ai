@@ -14,8 +14,8 @@ COPY apps/portal apps/portal
 ARG NEXT_PUBLIC_API_BASE=http://localhost:3000
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
 ENV NEXT_OUTPUT=standalone
-RUN pnpm --filter @kbi/shared build \
-    && pnpm --filter @kbi/portal build
+RUN pnpm --filter @vibearning/shared build \
+    && pnpm --filter @vibearning/portal build
 
 FROM node:22-slim AS runtime
 WORKDIR /app

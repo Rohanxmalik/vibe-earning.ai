@@ -1,4 +1,4 @@
-import type { ServeResponse, Surface } from "@kbi/shared";
+import type { ServeResponse, Surface } from "@vibearning/shared";
 
 export interface WaitHandlers {
   onWaitStart(): void;

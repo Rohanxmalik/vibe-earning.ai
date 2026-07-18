@@ -2,7 +2,12 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared design tokens for the Kickbacks-India "blue & lime" UI.
+ * Shared design tokens for the vibearning "paper & phosphor" UI.
+ *
+ * Identity: warm khadi-paper page, near-black ink, and a single amber-phosphor
+ * accent (the color of the terminal where the product actually lives). Display
+ * type is Bricolage Grotesque; data/labels are IBM Plex Mono (fonts are wired
+ * up as CSS variables in app/layout.tsx via next/font).
  *
  * IMPORTANT (cascade rules): the portal still ships a hand-written legacy CSS
  * design system in app/globals.css. Tailwind's reset is scoped to `.kbi-tw`
@@ -13,47 +18,56 @@ import { cn } from "@/lib/utils";
  *     class markup (.card/.btn/.input/.field/.list/.table) INSIDE a `.kbi-tw` element.
  *     Keep them as siblings; plain Tailwind layout utilities (bg/padding/flex/grid/
  *     max-w/text) are safe to use without `kbi-tw`.
+ *
+ * NOTE: some token names (btnLime, btnBlue, btnOutlineWhite) predate the rebrand
+ * and are kept so existing call sites restyle automatically — read them as
+ * primary / dark / on-dark-outline.
  */
 
-export const BRAND = "#0038FF";
-export const NAVY = "#001A99";
-export const LIME = "#CCFF00";
+export const PAPER = "#F2F1EB";
+export const INK = "#15171E";
+export const PHOSPHOR = "#FFB300";
+export const PAID_GREEN = "#1E7A4F";
+export const RULE = "#DBD9CF";
 
-export const displayFont = '"Arial Black", Impact, sans-serif';
+export const displayFont = 'var(--font-display), "Bricolage Grotesque", "Segoe UI", sans-serif';
+export const monoFont = 'var(--font-mono), "IBM Plex Mono", ui-monospace, monospace';
 
-/** Heavy stacked 3D shadow for the hero display type. */
-export const displayShadow =
-  "1px 1px 0 #001A99,2px 2px 0 #001A99,3px 3px 0 #001A99,4px 4px 0 #001A99,5px 5px 0 #001A99,6px 6px 0 #001A99,7px 7px 0 #001A99,8px 8px 0 #001A99,9px 9px 0 #001A99,10px 10px 0 #001A99";
-
-/** Lighter shadow for inner-page headings. */
-export const displayShadowSm = "2px 2px 0 #001A99,4px 4px 0 #001A99";
+/** Shadows retired with the rebrand — flat ink on paper. Kept for compat. */
+export const displayShadow = "none";
+export const displayShadowSm = "none";
 
 export const ui = {
-  /** Faint white grid used on blue surfaces. */
+  /** Faint ink grid used on paper surfaces (was a white grid on blue). */
   gridBg:
-    "bg-[linear-gradient(to_right,#ffffff15_1px,transparent_1px),linear-gradient(to_bottom,#ffffff15_1px,transparent_1px)] bg-[size:4rem_4rem]",
+    "bg-[linear-gradient(to_right,#15171E0A_1px,transparent_1px),linear-gradient(to_bottom,#15171E0A_1px,transparent_1px)] bg-[size:4rem_4rem]",
 
-  // Buttons
+  // Buttons — rectangular, quiet radius; amber = act, ink = secondary dark.
+  /** Primary CTA: amber phosphor. (Legacy name — no longer lime.) */
   btnLime:
-    "inline-flex items-center justify-center rounded-full bg-[#CCFF00] text-black font-bold px-6 py-3 text-sm shadow-lg transition-transform hover:scale-[1.03] active:scale-95",
+    "inline-flex items-center justify-center rounded-lg bg-[#FFB300] text-[#15171E] font-bold px-6 py-3 text-sm transition-colors hover:bg-[#E6A100] active:translate-y-px",
+  /** Outline for dark surfaces. */
   btnOutlineWhite:
-    "inline-flex items-center justify-center rounded-full border border-white text-white font-semibold px-6 py-3 text-sm transition-colors hover:bg-white hover:text-[#0038FF]",
+    "inline-flex items-center justify-center rounded-lg border border-white/30 text-white font-semibold px-6 py-3 text-sm transition-colors hover:border-white hover:bg-white/10",
+  /** Solid dark button. (Legacy name — now ink, not blue.) */
   btnBlue:
-    "inline-flex items-center justify-center rounded-full bg-[#0038FF] text-white font-bold px-6 py-3 text-sm shadow-lg transition-colors hover:bg-[#001A99]",
+    "inline-flex items-center justify-center rounded-lg bg-[#15171E] text-white font-bold px-6 py-3 text-sm transition-colors hover:bg-black",
   btnOutlineDark:
-    "inline-flex items-center justify-center rounded-full border border-black/15 text-black font-semibold px-6 py-3 text-sm transition-colors hover:bg-black/5",
+    "inline-flex items-center justify-center rounded-lg border border-[#15171E]/25 text-[#15171E] font-semibold px-6 py-3 text-sm transition-colors hover:bg-[#15171E] hover:text-white",
 
   // Surfaces
-  card: "rounded-[2rem] bg-white border border-black/5 shadow-[0_10px_40px_rgba(0,0,0,0.06)] p-8",
-  cardMuted: "rounded-[2rem] bg-[#F4F6FF] border border-black/5 p-8",
+  card: "rounded-2xl bg-white border border-[#DBD9CF] p-8",
+  cardMuted: "rounded-2xl bg-[#F2F1EB] border border-[#DBD9CF] p-8",
 
   // Text
+  /** Mono bracket eyebrow — terminal register, replaces the lime pill. */
   eyebrow:
-    "inline-block rounded-full bg-[#CCFF00] text-black text-[11px] font-black uppercase tracking-[0.12em] px-3 py-1",
+    "inline-block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#15171E]/60 [font-family:var(--font-mono),monospace] before:content-['['] before:mr-1.5 before:text-[#FFB300] after:content-[']'] after:ml-1.5 after:text-[#FFB300]",
   eyebrowOutline:
-    "inline-block rounded-full border border-black/15 text-black/70 text-[11px] font-black uppercase tracking-[0.12em] px-3 py-1",
-  sectionTitle: "text-3xl md:text-5xl font-black tracking-tight uppercase leading-[0.95]",
-  sectionSub: "mt-4 text-base md:text-lg text-black/60 font-medium",
+    "inline-block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#15171E]/60 [font-family:var(--font-mono),monospace] before:content-['['] before:mr-1.5 before:text-[#FFB300] after:content-[']'] after:ml-1.5 after:text-[#FFB300]",
+  sectionTitle:
+    "text-3xl md:text-5xl font-extrabold tracking-tight leading-[1.02] [font-family:var(--font-display),sans-serif]",
+  sectionSub: "mt-4 text-base md:text-lg text-[#15171E]/60 font-medium",
 };
 
 export function Eyebrow({
@@ -88,7 +102,7 @@ export function SectionHeading({
           <Eyebrow>{eyebrow}</Eyebrow>
         </p>
       )}
-      <h2 className={cn(ui.sectionTitle, "text-black")}>{title}</h2>
+      <h2 className={cn(ui.sectionTitle, "text-[#15171E]")}>{title}</h2>
       {sub && <p className={cn(ui.sectionSub, "mx-auto max-w-2xl")}>{sub}</p>}
     </div>
   );

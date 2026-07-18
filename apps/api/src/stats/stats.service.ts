@@ -20,6 +20,24 @@ export interface PublicStats {
   ticker: TickerRow[];
 }
 
+/** One (privacy-masked) settled payout, for the public payout-proof feed. */
+export interface PayoutProof {
+  handle: string; // e.g. "arj•••@okaxis" or "dev #a1b2" — never a full identifier
+  amountPaise: number;
+  method: string; // upi | bank
+  at: string; // ISO date (day precision)
+}
+
+/** Public transparency numbers: what's actually been earned and paid, plus proof of payouts. */
+export interface TransparencyStats {
+  totalPaidOutPaise: number; // sum of SETTLED payouts
+  totalEarnedPaise: number; // credited developer earnings, lifetime
+  developersPaid: number; // distinct devs who've received a settled payout
+  currentRatePer1kPaise: number; // blended live market price per 1k impressions (0 if no bids)
+  recentPayouts: PayoutProof[]; // most recent settled payouts, masked
+  currency: "INR";
+}
+
 const LEADERBOARD_LIMIT = 12;
 const TICKER_LIMIT = 10;
 const ONE_HOUR_MS = 3_600_000;
@@ -75,4 +93,57 @@ export class StatsService {
 
     return { totalEarnedPaise, marketPricePaise, impressionsPerHour, leaderboard, ticker };
   }
+
+  /**
+   * Public transparency figures. Everything here is REAL, aggregated data — no fabricated numbers.
+   * At launch these are legitimately zero; the frontend renders an honest "no payouts yet" state.
+   */
+  async transparency(): Promise<TransparencyStats> {
+    const [paidPayouts, credits, bids, recent] = await Promise.all([
+      this.prisma.payout.findMany({ where: { status: "paid" }, select: { amountPaise: true, accountId: true } }),
+      this.prisma.ledgerEntry.findMany({
+        where: { account: { startsWith: "earnings:dev:" }, direction: "credit" },
+        select: { amount: true },
+      }),
+      this.prisma.bid.findMany({
+        where: { status: "active", campaign: { status: "active" } },
+        select: { amount: true },
+      }),
+      this.prisma.payout.findMany({
+        where: { status: "paid" },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          amountPaise: true, provider: true, createdAt: true,
+          account: { select: { email: true, id: true } },
+        },
+      }),
+    ]);
+
+    const totalPaidOutPaise = paidPayouts.reduce((s, p) => s + p.amountPaise, 0);
+    const totalEarnedPaise = credits.reduce((s, c) => s + c.amount, 0);
+    const developersPaid = new Set(paidPayouts.map((p) => p.accountId)).size;
+    const currentRatePer1kPaise = bids.length
+      ? Math.round(bids.reduce((s, b) => s + b.amount, 0) / bids.length)
+      : 0;
+
+    const recentPayouts: PayoutProof[] = recent.map((p) => ({
+      handle: maskHandle(p.account?.email ?? null, p.account?.id ?? ""),
+      amountPaise: p.amountPaise,
+      method: p.provider === "razorpay" ? "upi" : "bank", // India payouts settle over UPI via RazorpayX
+      at: p.createdAt.toISOString().slice(0, 10),
+    }));
+
+    return { totalPaidOutPaise, totalEarnedPaise, developersPaid, currentRatePer1kPaise, recentPayouts, currency: "INR" };
+  }
+}
+
+/** Mask a developer identity for the public feed: never expose a full email or id. */
+function maskHandle(email: string | null, id: string): string {
+  if (email && email.includes("@")) {
+    const [user, domain] = email.split("@");
+    const head = user.slice(0, 3);
+    return `${head}${"•".repeat(Math.max(1, Math.min(3, user.length - 3)))}@${domain}`;
+  }
+  return `dev #${id.slice(0, 4) || "0000"}`;
 }

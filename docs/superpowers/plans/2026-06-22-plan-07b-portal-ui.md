@@ -4,15 +4,15 @@
 
 **Goal:** A minimal Next.js advertiser dashboard (`apps/portal`) over the Plan 07 API: register/login, list + create campaigns, buy blocks. The API-call logic is unit-tested; pages are thin client components verified by typecheck + build.
 
-**Architecture:** Next.js App Router. A **pure `PortalApi` client** (`lib/api.ts`, vitest-tested with injected `fetch`) wraps the `/advertiser/*` endpoints. `lib/token.ts` stores the JWT in `localStorage` (browser-guarded). Pages (`/login`, `/campaigns`) are `"use client"` components that call `PortalApi` and render results. Types reused from `@kbi/shared` (Next `transpilePackages`).
+**Architecture:** Next.js App Router. A **pure `PortalApi` client** (`lib/api.ts`, vitest-tested with injected `fetch`) wraps the `/advertiser/*` endpoints. `lib/token.ts` stores the JWT in `localStorage` (browser-guarded). Pages (`/login`, `/campaigns`) are `"use client"` components that call `PortalApi` and render results. Types reused from `@vibearning/shared` (Next `transpilePackages`).
 
 **Tech Stack:** Next.js 14 (App Router), React 18, TypeScript, vitest (lib only).
 
-> **Prerequisites:** Plans 01–09 merged. API running (`pnpm --filter @kbi/api dev`) for manual use.
+> **Prerequisites:** Plans 01–09 merged. API running (`pnpm --filter @vibearning/api dev`) for manual use.
 
 > **Verification policy:** `vitest` (PortalApi) + `tsc --noEmit` are the gates. `next build` is attempted as a bonus; if it's flaky in this env, the app still runs via `next dev` (documented). No component/E2E browser tests in this slice.
 
-**Spec:** [2026-06-22-kickbacks-india-ad-marketplace-design.md](../specs/2026-06-22-kickbacks-india-ad-marketplace-design.md) §6.
+**Spec:** [2026-06-22-vibearning-ad-marketplace-design.md](../specs/2026-06-22-vibearning-ad-marketplace-design.md) §6.
 
 ---
 
@@ -40,7 +40,7 @@ apps/portal/
 
 ```json
 {
-  "name": "@kbi/portal",
+  "name": "@vibearning/portal",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -51,7 +51,7 @@ apps/portal/
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@kbi/shared": "workspace:*",
+    "@vibearning/shared": "workspace:*",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
@@ -71,7 +71,7 @@ apps/portal/
 ```js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@kbi/shared"],
+  transpilePackages: ["@vibearning/shared"],
 };
 export default nextConfig;
 ```
@@ -165,12 +165,12 @@ describe("PortalApi", () => {
 });
 ```
 
-- [ ] **Step 2: Run → FAIL** (`pnpm --filter @kbi/portal test`)
+- [ ] **Step 2: Run → FAIL** (`pnpm --filter @vibearning/portal test`)
 
 - [ ] **Step 3: Implement `lib/api.ts`**
 
 ```ts
-import type { CreateCampaign } from "@kbi/shared";
+import type { CreateCampaign } from "@vibearning/shared";
 
 export interface AuthResult { token: string; account: { id: string; email: string | null; type: string } }
 export interface Campaign { id: string; copy: string; url: string; surface?: string; createdAt?: string }
@@ -248,7 +248,7 @@ git commit -m "feat(portal): PortalApi client + token storage (tested)"
 - [ ] **Step 1: `app/layout.tsx`**
 
 ```tsx
-export const metadata = { title: "Kickbacks-India — Advertisers" };
+export const metadata = { title: "vibearning — Advertisers" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -269,7 +269,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main>
-      <h1>Kickbacks-India — Advertisers</h1>
+      <h1>vibearning — Advertisers</h1>
       <p>Sponsor the line developers watch while their AI agent thinks.</p>
       <p><Link href="/login">Sign in / Register</Link> · <Link href="/campaigns">My campaigns</Link></p>
     </main>
@@ -381,8 +381,8 @@ export default function CampaignsPage() {
 
 - [ ] **Step 5: Typecheck + build + commit**
 
-Run: `pnpm --filter @kbi/portal lint` (tsc), then `pnpm --filter @kbi/portal build` (next build — generates `next-env.d.ts`).
-Expected: typecheck passes; build succeeds. If `next build` fails for an environment reason, capture the error, ensure `lint` (tsc) is green, and document that the app runs via `pnpm --filter @kbi/portal dev`.
+Run: `pnpm --filter @vibearning/portal lint` (tsc), then `pnpm --filter @vibearning/portal build` (next build — generates `next-env.d.ts`).
+Expected: typecheck passes; build succeeds. If `next build` fails for an environment reason, capture the error, ensure `lint` (tsc) is green, and document that the app runs via `pnpm --filter @vibearning/portal dev`.
 
 ```bash
 git add apps/portal/app apps/portal/next-env.d.ts

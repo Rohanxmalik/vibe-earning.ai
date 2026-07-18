@@ -4,11 +4,13 @@ import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { PacingService } from "./pacing.service";
+import { KillswitchService } from "../config/killswitch.service";
 
 const rankingMock = { topCampaigns: jest.fn() };
 const prismaMock = { campaign: { findUnique: jest.fn() }, bid: { findFirst: jest.fn() } };
 const ledgerMock = { escrowBalance: jest.fn() };
 const pacingMock = { allow: jest.fn() };
+const killswitchMock = { isActive: jest.fn() };
 
 const paid = (id: string) => ({ id, copy: `ad ${id}`, url: "https://x.dev", iconUrl: null, isHouseAd: false, status: "active", pacePerMinute: null });
 const house = (id: string) => ({ id, copy: `house ${id}`, url: "https://x.dev", iconUrl: null, isHouseAd: true, status: "active", pacePerMinute: null });
@@ -18,6 +20,7 @@ describe("ServeService", () => {
   beforeEach(async () => {
     jest.resetAllMocks();
     pacingMock.allow.mockResolvedValue(true);
+    killswitchMock.isActive.mockResolvedValue(false);
     prismaMock.bid.findFirst.mockResolvedValue({ amount: 1000 }); // price 1 paise/impr — affordable by default escrow
     const mod = await Test.createTestingModule({
       providers: [
@@ -26,9 +29,20 @@ describe("ServeService", () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: LedgerService, useValue: ledgerMock },
         { provide: PacingService, useValue: pacingMock },
+        { provide: KillswitchService, useValue: killswitchMock },
       ],
     }).compile();
     service = mod.get(ServeService);
+  });
+
+  it("serves nothing when the global killswitch is active (H5)", async () => {
+    killswitchMock.isActive.mockResolvedValue(true);
+    rankingMock.topCampaigns.mockResolvedValue(["A"]);
+    prismaMock.campaign.findUnique.mockResolvedValue(paid("A"));
+    ledgerMock.escrowBalance.mockResolvedValue(5000);
+    expect(await service.pickAd("codex-panel")).toBeNull();
+    expect(await service.pickAds("codex-panel", 3)).toEqual([]);
+    expect(rankingMock.topCampaigns).not.toHaveBeenCalled();
   });
 
   it("serves the top paid campaign when it has escrow", async () => {

@@ -23,7 +23,7 @@ function VerifyInner() {
         title="Email verification"
         subtitle="Confirming your email address."
       />
-      <main className="bg-[#F4F6FF]">
+      <main className="bg-[#F2F1EB]">
         <div className="mx-auto max-w-md px-6 py-12 md:py-16">
       <div className="card">
         {state === "working" && <Spinner label="Verifying your email…" />}

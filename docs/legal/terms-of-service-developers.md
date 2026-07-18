@@ -2,7 +2,7 @@
 
 > ⚠️ **DRAFT TEMPLATE — not legal advice.** A qualified lawyer must review before use. Fill all `[BRACKETS]`.
 
-**Last updated:** [DATE] · **Provider:** [COMPANY LEGAL NAME], [CIN], [REGISTERED ADDRESS] ("Kickbacks", "we").
+**Last updated:** [DATE] · **Provider:** [COMPANY LEGAL NAME], [CIN], [REGISTERED ADDRESS] ("vibearning", "we").
 
 By installing our extension or creating a developer account you ("Developer", "you") agree to these Terms.
 
@@ -13,7 +13,7 @@ When your AI coding tool is working, we may show a single sponsored line. You ea
 You must be **18+**, legally able to contract, and (for INR payouts) able to receive funds in India via UPI/bank. One account per person; accurate details required.
 
 ## 3. Third-party tools (important)
-- Kickbacks integrates with third-party AI coding tools we do not own. Those tools have **their own terms**, which may restrict modifying or augmenting their interface.
+- vibearning integrates with third-party AI coding tools we do not own. Those tools have **their own terms**, which may restrict modifying or augmenting their interface.
 - You are responsible for your own use of those tools. We prefer **official integration points** and provide a killswitch, but we make **no warranty** that any integration is permitted by a given tool, or that it will keep working.
 - We may disable any integration at any time.
 

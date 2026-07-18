@@ -4,6 +4,7 @@ import { RankingService } from "../ranking/ranking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LedgerService } from "../ledger/ledger.service";
 import { PacingService } from "./pacing.service";
+import { KillswitchService } from "../config/killswitch.service";
 import { issueImpressionToken } from "./impression-token";
 
 const MAX_CANDIDATES = 10;
@@ -15,6 +16,7 @@ export class ServeService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly pacing: PacingService,
+    private readonly killswitch: KillswitchService,
   ) {}
 
   async pickAd(surface: string): Promise<ServeResponse | null> {
@@ -24,6 +26,9 @@ export class ServeService {
   /** Top-N eligible ads in rank order (for rotating through the spinner's wait-state). */
   async pickAds(surface: string, n: number): Promise<ServeResponse[]> {
     if (n <= 0) return [];
+    // Global killswitch (H5): the emergency brake stops serving entirely, so no ad is shown and
+    // nothing can be billed. /events enforces the same switch server-side as a backstop.
+    if (await this.killswitch.isActive("global")) return [];
     const ids = await this.ranking.topCampaigns(surface, MAX_CANDIDATES);
     const picked: ServeResponse[] = [];
     for (const id of ids) {

@@ -1,14 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { advertiserRegisterSchema, createCampaignSchema, editCampaignSchema, buyBlocksSchema, logoUrlSchema, isSafeLogoUrl, LOGO_MAX_BYTES, campaignSurfaces } from "./advertiser";
+import { advertiserRegisterSchema, createCampaignSchema, editCampaignSchema, buyBlocksSchema, logoUrlSchema, isSafeLogoUrl, LOGO_MAX_BYTES, campaignSurfaces, MIN_BID_PER_BLOCK_PAISE } from "./advertiser";
 
 describe("advertiser schemas", () => {
   it("register requires email + 8-char password", () => {
     expect(advertiserRegisterSchema.safeParse({ email: "a@b.com", password: "longenough" }).success).toBe(true);
     expect(advertiserRegisterSchema.safeParse({ email: "a@b.com", password: "short" }).success).toBe(false);
   });
-  it("createCampaign validates copy length, url, surface, positive bid", () => {
+  it("createCampaign validates copy length, url, surface, and a bid at/above the floor", () => {
     expect(createCampaignSchema.safeParse({ copy: "Hi there", url: "https://x.dev", surface: "codex-panel", bidPerBlockPaise: 20000 }).success).toBe(true);
     expect(createCampaignSchema.safeParse({ copy: "Hi there", url: "https://x.dev", surface: "codex-panel", bidPerBlockPaise: 0 }).success).toBe(false);
+    // A bid below the floor is rejected (anti free-serve); exactly the floor is allowed.
+    expect(createCampaignSchema.safeParse({ copy: "Hi there", url: "https://x.dev", surface: "codex-panel", bidPerBlockPaise: MIN_BID_PER_BLOCK_PAISE - 1 }).success).toBe(false);
+    expect(createCampaignSchema.safeParse({ copy: "Hi there", url: "https://x.dev", surface: "codex-panel", bidPerBlockPaise: MIN_BID_PER_BLOCK_PAISE }).success).toBe(true);
   });
   it("createCampaign accepts a multi-surface `surfaces` array and requires at least one surface", () => {
     expect(createCampaignSchema.safeParse({ copy: "Hi there", url: "https://x.dev", surfaces: ["claude-code-panel", "codex-panel"], bidPerBlockPaise: 20000 }).success).toBe(true);

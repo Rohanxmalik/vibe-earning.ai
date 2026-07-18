@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import { firstEmoji, deriveCopy, brandPreview, lowContrastWarning, logoFileError, LOGO_MAX_BYTES } from "./brand";
 
 describe("logoFileError", () => {
-  it("accepts a small png/svg image", () => {
+  it("accepts a small raster image", () => {
     expect(logoFileError({ type: "image/png", size: 4000 })).toBeNull();
-    expect(logoFileError({ type: "image/svg+xml", size: 1200 })).toBeNull();
+    expect(logoFileError({ type: "image/webp", size: 1200 })).toBeNull();
   });
-  it("rejects a non-image type", () => {
+  it("rejects SVG (stored-XSS risk) and other non-raster types", () => {
+    // SVG can embed <script>; logos are served from our own origin, so it was dropped in the
+    // security hardening pass. The uploader must reject it.
+    expect(logoFileError({ type: "image/svg+xml", size: 1200 })).toMatch(/PNG, JPG/);
     expect(logoFileError({ type: "application/pdf", size: 100 })).toMatch(/PNG, JPG/);
   });
   it("rejects an image over the 32KB cap", () => {

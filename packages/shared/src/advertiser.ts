@@ -7,6 +7,15 @@ export type AdvertiserRegister = z.infer<typeof advertiserRegisterSchema>;
 export const advertiserLoginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 export type AdvertiserLogin = z.infer<typeof advertiserLoginSchema>;
 
+// Bidding floor/ceiling (shared so the portal form and the server validate identically).
+// Floor: price/impression = floor(bid/1000); at 2000 paise/block every impression costs the
+// advertiser ≥2 paise and the developer earns ≥1 paise — below this, cheap bids would serve ads
+// for effectively nothing (and pay the developer zero). The business can raise this commercial
+// floor. Ceiling: a single purchase (quantity × bid) must stay well under the DB's int4 paise
+// column (max ≈ ₹21.47M), so we cap purchases at ₹2 crore to avoid an overflow 500.
+export const MIN_BID_PER_BLOCK_PAISE = 2000; // ₹20 per 1,000 impressions
+export const MAX_BLOCK_PURCHASE_PAISE = 2_000_000_000; // ₹2,00,00,000 per purchase
+
 // Per-field creative caps (shared so the portal form and server validate identically).
 export const HEADLINE_MAX = 20; // brand name, e.g. "Zomato"
 export const TAGLINE_MAX = 40; // short slogan, e.g. "Delivering Happiness"
@@ -138,7 +147,7 @@ export const createCampaignSchema = z
     // bid per surface so it serves everywhere selected. `surface` (single) is kept for back-compat.
     surface: surfaceSchema.optional(),
     surfaces: z.array(surfaceSchema).min(1).max(SURFACES.length).optional(),
-    bidPerBlockPaise: z.number().int().positive(),
+    bidPerBlockPaise: z.number().int().min(MIN_BID_PER_BLOCK_PAISE),
     pacePerMinute: z.number().int().positive().optional(), // delivery cap (impressions/min)
   })
   .refine((d) => Boolean(d.copy || d.headline), { message: "copy_or_headline_required", path: ["headline"] })
@@ -160,7 +169,7 @@ export const editCampaignSchema = z
     emoji: emojiSchema.nullable().optional(),
     url: z.string().url().optional(),
     iconUrl: logoUrlSchema.nullable().optional(),
-    bidPerBlockPaise: z.number().int().positive().optional(),
+    bidPerBlockPaise: z.number().int().min(MIN_BID_PER_BLOCK_PAISE).optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "no_fields_to_update" });
 export type EditCampaign = z.infer<typeof editCampaignSchema>;

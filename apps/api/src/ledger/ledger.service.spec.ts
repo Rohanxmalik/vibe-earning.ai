@@ -77,6 +77,22 @@ describe("LedgerService", () => {
     expect(arg.find((e) => e.direction === "debit")?.amount).toBe(1000); // 20 * 50
   });
 
+  it("pays the developer NOTHING for a click — the full price goes to the platform", async () => {
+    await svc.postForEvent(ev({ type: "click", id: "ev_click_nopay" }));
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; direction: string; amount: number }>;
+    // Escrow is still debited 50x, but no dev/referrer earnings — clicks don't pay developers.
+    expect(arg.some((e) => e.account.startsWith("earnings:dev:"))).toBe(false);
+    expect(arg.find((e) => e.direction === "debit")?.amount).toBe(1000);
+    expect(arg.find((e) => e.account === "revenue:platform")?.amount).toBe(1000);
+  });
+
+  it("does not route a referral bonus on a click (no dev share to derive from)", async () => {
+    prismaMock.account.findUnique.mockResolvedValue({ referredById: "ref1", referredAt: new Date() });
+    await svc.postForEvent(ev({ type: "click", id: "ev_click_ref" }));
+    const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string }>;
+    expect(arg.some((e) => e.account === "earnings:dev:ref1")).toBe(false);
+  });
+
   it("forfeits the dev share to the platform for an anonymous impression (no signed-in dev)", async () => {
     await svc.postForEvent(ev({ accountId: null, id: "ev3" }));
     const arg = prismaMock.ledgerEntry.createMany.mock.calls[0][0].data as Array<{ account: string; direction: string; amount: number }>;

@@ -1,12 +1,14 @@
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import { payoutDestinationSchema } from "@vibearning/shared";
 import { AuthGuard } from "../auth/auth.guard";
+import { AccountTypes } from "../auth/account-types.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { PayoutService } from "./payout.service";
 import { PayoutDestinationService } from "./payout-destination.service";
 
 @Controller("payouts")
 @UseGuards(AuthGuard)
+@AccountTypes("dev") // only developer accounts earn and cash out (M2)
 export class PayoutsController {
   constructor(
     private readonly payouts: PayoutService,

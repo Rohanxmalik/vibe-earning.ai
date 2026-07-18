@@ -9,7 +9,7 @@ import { LOGO_MAX_BYTES as LOGO_BYTES, ACCEPTED_LOGO_TYPES as TYPES } from "@vib
 
 /** Validate an uploaded logo file by mime + byte size; returns an error message or null if OK. */
 export function logoFileError(file: { type: string; size: number }): string | null {
-  if (!(TYPES as readonly string[]).includes(file.type)) return "Use a PNG, JPG, GIF, WebP, or SVG image.";
+  if (!(TYPES as readonly string[]).includes(file.type)) return "Use a PNG, JPG, GIF, or WebP image.";
   if (file.size > LOGO_BYTES) return `Image is too large (max ${Math.round(LOGO_BYTES / 1024)}KB).`;
   return null;
 }

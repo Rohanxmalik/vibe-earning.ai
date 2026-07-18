@@ -5,10 +5,15 @@ import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { configureApp } from "./common/configure-app";
 import { initSentry, flushSentry } from "./common/sentry";
+import { assertProductionSecrets } from "./common/assert-secrets";
 
 initSentry(); // early, before the app boots (no-op without SENTRY_DSN)
 
 async function bootstrap() {
+  // Fail fast (C4): in production, refuse to boot with unset or default security secrets so we
+  // never verify webhook HMACs / admin auth against values committed to the source tree.
+  assertProductionSecrets();
+
   // rawBody:true preserves the unparsed request body so webhook HMAC signatures
   // can be verified against the exact bytes the PSP signed.
   const app = await NestFactory.create(AppModule, { rawBody: true, bufferLogs: true });

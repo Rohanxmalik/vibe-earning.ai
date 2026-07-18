@@ -6,6 +6,7 @@ import { verifyPassword } from "../auth/password";
 import { secureEquals } from "../common/secure-compare";
 import { CampaignService } from "../advertiser/campaign.service";
 import { PayoutDestinationService } from "../payments/payout-destination.service";
+import { PayoutService } from "../payments/payout.service";
 import { FraudService } from "../metrics/fraud.service";
 import { FraudSweepService } from "../metrics/fraud-sweep.service";
 import { AuthService } from "../auth/auth.service";
@@ -23,6 +24,7 @@ export class AdminConfigController {
     private readonly prisma: PrismaService,
     private readonly campaigns: CampaignService,
     private readonly destinations: PayoutDestinationService,
+    private readonly payouts: PayoutService,
     private readonly fraud: FraudService,
     private readonly fraudSweep: FraudSweepService,
     private readonly auth: AuthService,
@@ -108,6 +110,20 @@ export class AdminConfigController {
     await this.destinations.verify(id, p.data.providerRef);
     await this.audit.record(actor, "destination.verify", id);
     return { ok: true };
+  }
+
+  @Get("payouts/pending")
+  async pendingPayouts(@Req() req: AdminReq) {
+    await this.requireAdmin(req);
+    return this.payouts.pendingApproval();
+  }
+
+  @Post("payouts/:id/approve")
+  async approvePayout(@Req() req: AdminReq, @Param("id") id: string) {
+    const actor = await this.requireAdmin(req);
+    const result = await this.payouts.approveAndDispatch(id);
+    await this.audit.record(actor, "payout.approve", id, { status: result.status, amountPaise: result.amountPaise });
+    return result;
   }
 
   @Post("fraud/void-cluster")

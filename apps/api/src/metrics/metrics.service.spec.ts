@@ -4,12 +4,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
 import { FraudService } from "./fraud.service";
 import { LedgerService } from "../ledger/ledger.service";
+import { KillswitchService } from "../config/killswitch.service";
 import { issueImpressionToken } from "../serve/impression-token";
 
 const prismaMock = { adEvent: { findUnique: jest.fn(), create: jest.fn() } };
 const rateMock = { takeSpacingSlot: jest.fn(), incrCaps: jest.fn() };
 const fraudMock = { recordInstall: jest.fn() };
 const ledgerMock = { postForEvent: jest.fn() };
+const killswitchMock = { isActive: jest.fn() };
 
 const impression = {
   installId: "i1", campaignId: "c1", surface: "codex-panel" as const,
@@ -23,6 +25,7 @@ describe("MetricsService", () => {
     rateMock.takeSpacingSlot.mockResolvedValue(true);
     rateMock.incrCaps.mockResolvedValue({ withinHourly: true, withinDaily: true });
     fraudMock.recordInstall.mockResolvedValue(1);
+    killswitchMock.isActive.mockResolvedValue(false);
     prismaMock.adEvent.findUnique.mockResolvedValue(null);
     prismaMock.adEvent.create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({ id: "ev1", ...args.data }));
     const mod = await Test.createTestingModule({
@@ -32,6 +35,7 @@ describe("MetricsService", () => {
         { provide: RateLimitService, useValue: rateMock },
         { provide: FraudService, useValue: fraudMock },
         { provide: LedgerService, useValue: ledgerMock },
+        { provide: KillswitchService, useValue: killswitchMock },
       ],
     }).compile();
     svc = mod.get(MetricsService);
@@ -44,6 +48,13 @@ describe("MetricsService", () => {
       expect.objectContaining({ data: expect.objectContaining({ valid: true, reason: null }) }),
     );
     expect(ledgerMock.postForEvent).toHaveBeenCalledWith(expect.objectContaining({ id: "ev1", valid: true }));
+  });
+
+  it("marks an event invalid and bills nothing while the global killswitch is active (H5)", async () => {
+    killswitchMock.isActive.mockResolvedValue(true);
+    const r = await svc.ingest({ ...impression, nonce: "nonce_kill" });
+    expect(r).toMatchObject({ valid: false, reason: "killswitch" });
+    expect(ledgerMock.postForEvent).not.toHaveBeenCalled();
   });
 
   it("is idempotent on a duplicate (installId, nonce)", async () => {

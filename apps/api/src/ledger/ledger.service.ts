@@ -34,9 +34,13 @@ export class LedgerService {
     if (e.type === "click") price *= 50;
     if (price <= 0) return;
 
-    // Anonymous impressions (no signed-in dev) forfeit the dev share to the platform —
-    // the price still leaves the advertiser's escrow, but nothing is parked in limbo.
-    const devShare = e.accountId ? Math.floor((price * devShareBps()) / 10000) : 0;
+    // Clicks bill the advertiser (50x above) but pay the developer NOTHING — only viewable
+    // impressions earn. Paying a 50x dev share on clicks is a self-click fraud magnet (a dev
+    // clicks their own served ad to mint 50x earnings); kickbacks.ai shipped the same policy and
+    // then had to retract it. The click still debits escrow, so its full price accrues to the
+    // platform. Anonymous impressions (no signed-in dev) likewise forfeit the dev share.
+    const earnsDevShare = e.type === "impression" && !!e.accountId;
+    const devShare = earnsDevShare ? Math.floor((price * devShareBps()) / 10000) : 0;
     const platformShare = price - devShare;
     const escrowKey = `escrow:campaign:${e.campaignId}`;
 

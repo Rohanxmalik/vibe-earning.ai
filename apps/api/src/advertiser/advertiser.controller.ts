@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { createCampaignSchema, editCampaignSchema, buyBlocksSchema } from "@vibearning/shared";
 import { AuthGuard } from "../auth/auth.guard";
+import { AccountTypes } from "../auth/account-types.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampaignService } from "./campaign.service";
 import { BlockPurchaseService } from "./block-purchase.service";
@@ -9,6 +10,7 @@ import { InvoiceService } from "./invoice.service";
 
 @Controller("advertiser/campaigns")
 @UseGuards(AuthGuard)
+@AccountTypes("advertiser") // only advertiser accounts can create/manage campaigns and spend (M2)
 export class AdvertiserController {
   constructor(
     private readonly campaigns: CampaignService,

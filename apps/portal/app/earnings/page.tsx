@@ -220,7 +220,9 @@ export default function EarningsPage() {
   }
 
   // ---------- Signed-in: dashboard ----------
-  const minPaise = elig?.payoutMinPaise ?? 1000;
+  // Fallback must match the API default PAYOUT_MIN_PAISE (10000 = ₹100). The old ₹10 fallback made
+  // the threshold + progress bar wrong whenever the eligibility call hadn't resolved yet.
+  const minPaise = elig?.payoutMinPaise ?? 10000;
   const balance = summary?.balancePaise ?? 0;
   const toGo = Math.max(0, minPaise - balance);
   const payoutPct = Math.min(100, Math.round((balance / minPaise) * 100));

@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RateLimitService } from "./rate-limit.service";
 import { FraudService } from "./fraud.service";
 import { LedgerService } from "../ledger/ledger.service";
+import { KillswitchService } from "../config/killswitch.service";
 import { minViewMs, maxInstallsPerIp } from "./constants";
 import { verifyImpressionToken, eventsRequireToken } from "../serve/impression-token";
 
@@ -14,6 +15,7 @@ export class MetricsService {
     private readonly rateLimit: RateLimitService,
     private readonly fraud: FraudService,
     private readonly ledger: LedgerService,
+    private readonly killswitch: KillswitchService,
   ) {}
 
   async ingest(e: EventIngest, accountId: string | null = null, ipHash: string | null = null): Promise<EventResult> {
@@ -27,14 +29,19 @@ export class MetricsService {
     let valid = true;
     let reason: string | null = null;
 
+    // 2z. Global killswitch (H5): the emergency brake must stop SPEND, not just display. /serve
+    // already returns nothing when the switch is on, but a pinned or offline client could still
+    // POST /events — so we refuse to validate here too, and therefore never post to the ledger.
+    if (await this.killswitch.isActive("global")) { valid = false; reason = "killswitch"; }
+
     // 2a. Impression-token check (C2/H2): the event must carry the server-issued token from the
     // /serve response that produced this ad. A present-but-invalid token is always rejected; a
     // missing token is rejected only when tokens are required (production default). This is what
     // stops fabricated /events (fake clicks worth 50x, or impressions draining a rival's escrow) —
     // the attacker can't forge an HMAC they don't hold the secret for.
-    if (e.token) {
+    if (valid && e.token) {
       if (!verifyImpressionToken(e.token, e.campaignId, e.surface)) { valid = false; reason = "bad_token"; }
-    } else if (eventsRequireToken()) {
+    } else if (valid && eventsRequireToken()) {
       valid = false; reason = "unverified";
     }
 

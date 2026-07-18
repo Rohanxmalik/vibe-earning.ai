@@ -54,4 +54,13 @@ describe("BlockPurchaseService", () => {
     await svc.buy("adv1", "c1", 5);
     expect(ledgerMock.fundEscrow).not.toHaveBeenCalled();
   });
+
+  it("does NOT fund escrow on a pending collect (C1) — escrow waits for the paid webhook", async () => {
+    // Razorpay `collect()` always returns "pending" (it only creates an order). Funding escrow
+    // here would serve ads + pay developers before the advertiser has actually paid.
+    provider.collect.mockResolvedValue({ providerRef: "rzp_pending", status: "pending" });
+    const purchase = await svc.buy("adv1", "c1", 5);
+    expect(ledgerMock.fundEscrow).not.toHaveBeenCalled();
+    expect(purchase).toMatchObject({ status: "pending" });
+  });
 });
